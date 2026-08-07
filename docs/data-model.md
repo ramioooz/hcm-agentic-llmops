@@ -42,6 +42,28 @@ The seed command creates fictional records:
 
 The dates are calculated relative to the seed date so the examples remain useful after the repository is cloned.
 
+### Seeded reporting story
+
+The sample hierarchy deliberately uses one top-level HR record and one engineering management chain:
+
+```text
+Nadia Rahman (EMP-100, HR partner)
+├── Omar Malik (EMP-200, engineering manager)
+│   ├── Samira Noor (EMP-201, software engineer)
+│   └── Yousef Haddad (EMP-202, QA engineer)
+└── Lina Faris (EMP-300, accountant)
+```
+
+`manager_id` is nullable because the top-level record has no manager inside this small sample organization. Nadia still participates in authorization and workflow examples through her HR role, while Omar demonstrates manager access to his direct reports. Adding an executive would simply assign that employee's ID to Nadia without changing the table design.
+
+The table story follows the business lifecycle: `employees` identifies people and reporting relationships; `onboarding_review_periods` records the business period being evaluated; `agent_runs` records one workflow attempt; `agent_run_steps` records the decisions and tool operations inside that attempt; and `security_events` records rejected or suspicious activity related to it. No separate `users` table is needed in this release because development actors are represented by employee records and production authentication is a planned boundary.
+
+### Migration and seed behavior
+
+`npm run db:migrate` runs Prisma's deployment command. It applies each migration that is not already recorded in PostgreSQL's `_prisma_migrations` table and does nothing when the database is current. It is safe to run repeatedly, but it does not undo or repair a changed migration.
+
+`npm run db:seed` is idempotent in its final result for the current Sprint 1 schema: it resets the seeded employee, onboarding, run, and security-event records and recreates the same fictional sample set relative to today's date. It is intentionally a development reset, so it must not be run against a database containing data that should be preserved.
+
 ## Identifiers and traceability
 
 - `employeeCode` is the human-readable employee reference used in examples.

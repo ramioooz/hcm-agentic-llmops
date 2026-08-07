@@ -152,6 +152,8 @@ EMPLOYEES ||--o{ SECURITY_EVENTS : causes
 
 See [docs/data-model.md](docs/data-model.md) for table purposes, relationships, PII classification, seed records, and future Sprint 2 tables.
 
+See [docs/architecture.md](docs/architecture.md) for the reasoning behind the layers and [docs/usage-guide.md](docs/usage-guide.md) for migration and seed behavior.
+
 ## Repository structure
 
 The current foundation contains the directories below. The API, repositories, services, tools, triggers, and additional workflow folders will be added as their stories are implemented.

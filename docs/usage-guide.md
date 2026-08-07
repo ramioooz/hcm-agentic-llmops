@@ -16,6 +16,8 @@ npm run db:migrate
 npm run db:seed
 ```
 
+The migration command is safe to repeat. Prisma records applied migrations in `_prisma_migrations` and skips migrations that are already complete. The seed command is also repeatable for local development, but it first clears the current Sprint 1 sample/runtime records and recreates the fictional dataset. Do not use the seed command against data that must be preserved.
+
 ## Run the API
 
 ```bash
