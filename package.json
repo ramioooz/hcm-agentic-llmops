@@ -1,0 +1,41 @@
+{
+  "name": "hcm-agentic-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Secure, event-driven Human Capital Management agent API.",
+  "main": "dist/src/server.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/src/server.js",
+    "typecheck": "tsc --noEmit",
+    "test": "jest --runInBand",
+    "test:watch": "jest --watch",
+    "lint": "eslint .",
+    "format:check": "prettier --check .",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "pino": "^10.3.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.2.0",
+    "eslint": "^10.8.0",
+    "jest": "^30.4.2",
+    "prettier": "^3.9.6",
+    "prisma": "^6.19.3",
+    "ts-jest": "^29.4.12",
+    "tsx": "^4.23.11",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.66.0"
+  }
+}

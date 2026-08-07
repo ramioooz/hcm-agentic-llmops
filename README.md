@@ -1,2 +1,264 @@
-# hcm-agentic-api
-Backend-only Human Capital Management (HCM) agentic API built with Node.js, TypeScript, Express, LangChain, and LangGraph, featuring intent routing, custom tools, conditional workflows, triggers, guardrails, authorization, and observability.
+# HCM Agentic API
+
+Backend-only Human Capital Management API built with Node.js, TypeScript, and Express. The project explores how an agent can interpret employee-related requests, select a controlled workflow, call authorized business tools, and return a traceable result.
+
+The design keeps business decisions in application code. The language model may help understand a request, but it does not decide permissions, calculate leave, expose employee records, or invent side effects.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+## Project idea
+
+HCM systems contain sensitive employee information and business rules. A useful agent must therefore do more than produce a fluent answer:
+
+- It must understand what the user is asking for.
+- It must identify missing information instead of guessing.
+- It must allow only supported capabilities.
+- It must authorize every business operation.
+- It must keep decisions deterministic and traceable.
+- It must avoid putting personal information into logs.
+
+This repository builds that flow around two business areas:
+
+1. **Employee onboarding review** — review the end date and status of an employee's initial review period.
+2. **Leave requests** — check policy and balance before a leave request is created.
+
+The second area and technical triggers are planned for Sprint 2. The current branch contains the shared API and data foundation.
+
+## Current implementation status
+
+| Capability                                 | Status      | Notes                                                                      |
+| ------------------------------------------ | ----------- | -------------------------------------------------------------------------- |
+| Node.js and TypeScript service             | Implemented | Strict TypeScript build with Express application factory                   |
+| PostgreSQL persistence                     | Implemented | Prisma schema, migration, and sample seed records                          |
+| RabbitMQ development service               | Implemented | Docker Compose service; application event handling is planned for Sprint 2 |
+| Health and readiness endpoints             | Implemented | `/health` and `/ready`                                                     |
+| Focused unit tests                         | Implemented | Jest tests for configuration, onboarding decisions, and PII redaction      |
+| Agent invocation endpoint                  | Planned     | Sprint 1 onboarding workflow story                                         |
+| Employee onboarding review workflow        | Planned     | Sprint 1 onboarding workflow story                                         |
+| Authorization and guardrails               | Planned     | Sprint 1 security story                                                    |
+| Leave workflow                             | Planned     | Sprint 2                                                                   |
+| Scheduled, webhook, and RabbitMQ workflows | Planned     | Sprint 2                                                                   |
+| Integration and end-to-end tests           | Planned     | Added after the initial release                                            |
+
+## Architecture
+
+```mermaid
+flowchart TD
+Client["HTTP client"] --> API["Express API"]
+API --> Controller["Controllers"]
+Controller --> Service["Application services"]
+Service --> Router["Structured intent router"]
+Router --> Workflows["Business workflows"]
+Workflows --> Tools["Authorized tools"]
+Tools --> Repositories["Repository interfaces"]
+Repositories --> PostgreSQL[("PostgreSQL")]
+
+    Scheduler["Scheduler"] --> Service
+    Webhook["Webhook trigger"] --> Service
+    Events["RabbitMQ consumer"] --> Service
+
+    Service --> Observability["Run tracking and structured logs"]
+    Observability --> PostgreSQL
+    Controller --> Security["Validation and guardrails"]
+    Security --> Observability
+
+```
+
+### Layer responsibilities
+
+| Layer                | Responsibility                                                                     |
+| -------------------- | ---------------------------------------------------------------------------------- |
+| API controllers      | Translate HTTP requests and responses; contain no business rules                   |
+| Application services | Coordinate authorization, routing, workflow execution, and result handling         |
+| Workflows            | Group decisions by business area, such as onboarding and leave                     |
+| Tools                | Perform one controlled business operation, such as employee lookup or notification |
+| Repositories         | Hide PostgreSQL details behind business-oriented interfaces                        |
+| Security             | Validate input, reject unsafe requests, enforce access, and redact sensitive data  |
+| Observability        | Record run IDs, correlation IDs, workflow steps, outcomes, and security events     |
+| Triggers             | Adapt schedules, webhooks, and events into typed application commands              |
+
+## Request flow
+
+```mermaid
+sequenceDiagram
+participant C as Client
+participant A as Agent API
+participant G as Guardrails
+participant R as Intent Router
+participant W as Workflow
+participant T as Authorized Tool
+participant D as PostgreSQL
+
+    C->>A: Request with X-Correlation-Id
+    A->>G: Validate input and identity
+    G-->>A: Accept, ask for information, or reject
+    A->>R: Normalize supported intent
+    R-->>A: Typed command
+    A->>W: Start runId
+    W->>T: Check permission and execute operation
+    T->>D: Read or write business state
+    D-->>T: Result
+    T-->>W: Tool result
+    W->>D: Persist run steps and outcome
+    W-->>A: Structured result
+    A-->>C: Status, message, data, runId, correlationId
+
+```
+
+The rule for side effects is simple: **silence is not permission**. A request to review information does not automatically send a message or change a record.
+
+## Supported workflows
+
+### Employee onboarding review
+
+The workflow reads an employee and their active onboarding review period, calculates the number of days remaining, and returns a structured result. A manager notification is a separate action that requires explicit intent or an explicitly configured scheduled policy.
+
+### Leave requests
+
+The planned leave workflow will retrieve the applicable leave policy and employee balance, validate the dates, and create a request only when the user is authorized and has explicitly requested creation.
+
+## Security model
+
+The security design uses several independent controls:
+
+- Request schemas reject malformed or oversized input.
+- The router accepts only supported intents.
+- Unsafe instruction patterns are rejected and recorded as security events.
+- Services and tools enforce authorization again after routing.
+- Business rules are evaluated by TypeScript code, not generated text.
+- Logs and traces redact names, email addresses, salary, phone numbers, addresses, and full employee identifiers.
+- Sample identities are for local development and are not production authentication.
+
+## Run traceability
+
+- `correlationId` follows one logical operation across HTTP, workflows, queues, retries, and downstream services.
+- `runId` identifies one workflow execution attempt.
+- `threadId` is optional and can group multiple runs in a future multi-turn conversation.
+
+One scheduled operation may therefore have one correlation ID and several run IDs. The same run ID links the routing decision, tool calls, tool results, final response, and any security event.
+
+## Data model
+
+Sprint 1 uses only the tables required by the implemented foundation:
+
+```mermaid
+erDiagram
+EMPLOYEES ||--o{ ONBOARDING_REVIEW_PERIODS : has
+EMPLOYEES ||--o{ AGENT_RUNS : initiates
+AGENT_RUNS ||--o{ AGENT_RUN_STEPS : contains
+AGENT_RUNS ||--o{ SECURITY_EVENTS : relates
+EMPLOYEES ||--o{ SECURITY_EVENTS : causes
+```
+
+See [docs/data-model.md](docs/data-model.md) for table purposes, relationships, PII classification, seed records, and future Sprint 2 tables.
+
+See [docs/architecture.md](docs/architecture.md) for the reasoning behind the layers and [docs/usage-guide.md](docs/usage-guide.md) for migration and seed behavior.
+
+## Repository structure
+
+The current foundation contains the directories below. The API, repositories, services, tools, triggers, and additional workflow folders will be added as their stories are implemented.
+
+```text
+src/
+├── config/ Environment validation and application settings
+├── contracts/ Shared failure and result contracts
+├── infrastructure/database/ Prisma client setup
+├── security/ Authorization checks and PII redaction
+├── workflows/onboarding/ Deterministic onboarding review calculation
+├── app.ts Express application factory
+└── server.ts Runtime startup and graceful shutdown
+
+prisma/ Schema, migrations, and seed data
+tests/unit/ Focused tests for critical deterministic behavior
+docs/ Architecture, data model, examples, and usage guidance
+```
+
+## Getting started
+
+### Prerequisites
+
+- Node.js 22 or newer
+- npm
+- Docker Desktop with Docker Compose
+
+### Install and configure
+
+```bash
+npm install
+cp .env.example .env
+npm run db:generate
+```
+
+### Start PostgreSQL and RabbitMQ
+
+```bash
+docker compose up -d postgres rabbitmq
+```
+
+The local PostgreSQL service uses port `55432` to avoid collisions with an existing local PostgreSQL installation. RabbitMQ uses ports `5672` and `15672`.
+
+### Create and seed the database
+
+```bash
+npm run db:migrate
+npm run db:seed
+```
+
+### Start the API
+
+```bash
+npm run dev
+```
+
+Check the service:
+
+```bash
+curl http://localhost:3000/health
+curl http://localhost:3000/ready
+```
+
+When the API runs inside Docker Compose, use port `3300` instead: `curl http://localhost:3300/health`.
+
+The complete local usage flow is documented in [docs/usage-guide.md](docs/usage-guide.md).
+
+## Testing and quality checks
+
+The initial release intentionally uses a small unit-test suite. It checks the highest-risk deterministic behavior without requiring a database, broker, or running server.
+
+```bash
+npm run typecheck
+npm run lint
+npm test
+npm run build
+```
+
+Current unit-test areas:
+
+- Required configuration validation.
+- Onboarding review threshold calculation.
+- Review-only versus explicit notification behavior.
+- PII redaction.
+
+Authorization, structured failure mapping, leave decisions, and event idempotency will be added as their workflows are implemented. Integration and end-to-end tests are future improvements.
+
+## Roadmap and improvement opportunities
+
+- Complete the `/api/v1/agent/invoke` onboarding workflow.
+- Add production-grade authentication and identity mapping.
+- Add leave policies, balances, and requests.
+- Add scheduled, webhook, and RabbitMQ triggers.
+- Add broader automated testing, including integration and end-to-end coverage.
+- Add durable distributed tracing and operational dashboards.
+- Add transactional event publishing and stronger retry handling.
+- Add retrieval augmentation for approved HR policy documents.
+- Add production deployment, scaling, and secret-management guidance.
+
+The roadmap is intentionally separate from the implementation-status table so planned capabilities are not presented as completed behavior.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for branch, pull-request, testing, and documentation expectations. Security concerns should follow [SECURITY.md](SECURITY.md).
+
+## License
+
+This project is available under the [MIT License](LICENSE).

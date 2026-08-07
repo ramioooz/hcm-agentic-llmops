@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: hcm
+      POSTGRES_USER: hcm
+      POSTGRES_PASSWORD: hcm_dev_password
+    ports:
+      - '55432:5432'
+    volumes:
+      - hcm_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U hcm -d hcm']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    ports:
+      - '5672:5672'
+      - '15672:15672'
+    volumes:
+      - hcm_rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://hcm:hcm_dev_password@postgres:5432/hcm?schema=public
+      AMQP_URL: amqp://guest:guest@rabbitmq:5672
+    ports:
+      - '${API_PORT:-3300}:3000'
+    command: ['sh', '-c', 'npm run db:migrate && npm start']
+
+volumes:
+  hcm_postgres_data:
+  hcm_rabbitmq_data:
