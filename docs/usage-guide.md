@@ -31,6 +31,19 @@ curl http://localhost:3000/health
 curl http://localhost:3000/ready
 ```
 
+## Try the onboarding review
+
+```bash
+curl -X POST http://localhost:3000/api/v1/agent/invoke \
+  -H 'Content-Type: application/json' \
+  -H 'X-Correlation-Id: corr-local-001' \
+  -H 'X-Employee-Id: EMP-200' \
+  -H 'X-User-Role: MANAGER' \
+  -d '{"query":"Review EMP-201 onboarding status"}'
+```
+
+Use `X-Employee-Id: EMP-100` and `X-User-Role: HR` to review any seeded employee. A manager can review a direct report, while an employee cannot review another employee.
+
 When the API runs inside Docker Compose, use port `3300` instead of `3000`.
 
 ## Quality checks

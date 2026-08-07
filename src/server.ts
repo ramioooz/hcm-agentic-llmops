@@ -1,13 +1,19 @@
 import { createApp } from './app';
 import { loadEnvironment } from './config/load-environment';
 import { createDatabaseClient } from './infrastructure/database/prisma';
+import { PrismaEmployeeRepository } from './repositories/employee.repository';
+import { OnboardingAgentService } from './services/onboarding-agent.service';
 
 const environment = loadEnvironment();
 const database = createDatabaseClient();
+const onboardingAgent = new OnboardingAgentService({
+  employees: new PrismaEmployeeRepository(database),
+});
 const app = createApp({
   checkDatabase: async () => {
     await database.$queryRaw`SELECT 1`;
   },
+  invokeAgent: (input) => onboardingAgent.invoke(input),
 });
 
 const server = app.listen(environment.port, () => {
