@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AccessRole {
+  EMPLOYEE
+  MANAGER
+  HR
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum OnboardingReviewStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum RunStatus {
+  STARTED
+  SUCCEEDED
+  REJECTED
+  FAILED
+}
+
+enum SecurityEventType {
+  AUTHORIZATION_DENIED
+  UNSAFE_REQUEST_REJECTED
+  PII_REDACTION_APPLIED
+}
+
+enum SecuritySeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model Employee {
+  id             String                   @id @default(cuid())
+  employeeCode   String                   @unique @map("employee_code")
+  fullName       String                   @map("full_name")
+  email          String                   @unique
+  department     String
+  jobTitle       String                   @map("job_title")
+  accessRole     AccessRole               @default(EMPLOYEE) @map("access_role")
+  status         EmployeeStatus           @default(ACTIVE)
+  managerId      String?                  @map("manager_id")
+  manager        Employee?                @relation("EmployeeManager", fields: [managerId], references: [id])
+  directReports  Employee[]               @relation("EmployeeManager")
+  reviewPeriods  OnboardingReviewPeriod[]
+  agentRuns      AgentRun[]               @relation("ActorEmployee")
+  securityEvents SecurityEvent[]
+  createdAt      DateTime                 @default(now()) @map("created_at")
+  updatedAt      DateTime                 @updatedAt @map("updated_at")
+
+  @@index([managerId])
+  @@map("employees")
+}
+
+model OnboardingReviewPeriod {
+  id         String                 @id @default(cuid())
+  employeeId String                 @map("employee_id")
+  startDate  DateTime               @map("start_date") @db.Date
+  endDate    DateTime               @map("end_date") @db.Date
+  status     OnboardingReviewStatus @default(ACTIVE)
+  employee   Employee               @relation(fields: [employeeId], references: [id])
+  createdAt  DateTime               @default(now()) @map("created_at")
+  updatedAt  DateTime               @updatedAt @map("updated_at")
+
+  @@index([employeeId, status, endDate])
+  @@map("onboarding_review_periods")
+}
+
+model AgentRun {
+  id                String          @id @default(cuid())
+  runId             String          @unique @map("run_id")
+  correlationId     String          @map("correlation_id")
+  threadId          String?         @map("thread_id")
+  triggerType       String          @map("trigger_type")
+  intent            String?
+  status            RunStatus       @default(STARTED)
+  actorEmployeeCode String?         @map("actor_employee_code")
+  actorEmployee     Employee?       @relation("ActorEmployee", fields: [actorEmployeeCode], references: [employeeCode])
+  requestSummary    String?         @map("request_summary")
+  resultSummary     String?         @map("result_summary")
+  startedAt         DateTime        @default(now()) @map("started_at")
+  completedAt       DateTime?       @map("completed_at")
+  steps             AgentRunStep[]
+  securityEvents    SecurityEvent[]
+
+  @@index([correlationId])
+  @@index([actorEmployeeCode])
+  @@map("agent_runs")
+}
+
+model AgentRunStep {
+  id          String    @id @default(cuid())
+  agentRunId  String    @map("agent_run_id")
+  stepName    String    @map("step_name")
+  status      String
+  outcomeCode String?   @map("outcome_code")
+  inputData   String?   @map("input_data")
+  outputData  String?   @map("output_data")
+  startedAt   DateTime  @default(now()) @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  agentRun    AgentRun  @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+
+  @@index([agentRunId, startedAt])
+  @@map("agent_run_steps")
+}
+
+model SecurityEvent {
+  id                String            @id @default(cuid())
+  agentRunId        String?           @map("agent_run_id")
+  correlationId     String?           @map("correlation_id")
+  actorEmployeeCode String?           @map("actor_employee_code")
+  eventType         SecurityEventType @map("event_type")
+  severity          SecuritySeverity
+  details           String?
+  createdAt         DateTime          @default(now()) @map("created_at")
+  agentRun          AgentRun?         @relation(fields: [agentRunId], references: [id], onDelete: SetNull)
+  actorEmployee     Employee?         @relation(fields: [actorEmployeeCode], references: [employeeCode])
+
+  @@index([correlationId, createdAt])
+  @@index([eventType, createdAt])
+  @@map("security_events")
+}
