@@ -1,5 +1,7 @@
 import { createApp } from './app';
 import { loadEnvironment } from './config/load-environment';
+import { AgentController } from './controllers/agent.controller';
+import { HealthController } from './controllers/health.controller';
 import { createDatabaseClient } from './infrastructure/database/prisma';
 import { PrismaEmployeeRepository } from './repositories/employee.repository';
 import { OnboardingAgentService } from './services/onboarding-agent.service';
@@ -9,12 +11,11 @@ const database = createDatabaseClient();
 const onboardingAgent = new OnboardingAgentService({
   employees: new PrismaEmployeeRepository(database),
 });
-const app = createApp({
-  checkDatabase: async () => {
-    await database.$queryRaw`SELECT 1`;
-  },
-  invokeAgent: (input) => onboardingAgent.invoke(input),
+const healthController = new HealthController(async () => {
+  await database.$queryRaw`SELECT 1`;
 });
+const agentController = new AgentController(onboardingAgent);
+const app = createApp([healthController, agentController]);
 
 const server = app.listen(environment.port, () => {
   process.stdout.write(`API listening on port ${environment.port}\n`);
