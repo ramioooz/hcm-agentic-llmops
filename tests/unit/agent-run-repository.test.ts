@@ -13,6 +13,9 @@ describe('PrismaAgentRunRepository', () => {
       securityEvent: {
         createMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
+      employee: {
+        findUnique: jest.fn().mockResolvedValue({ employeeCode: 'EMP-200' }),
+      },
     };
     const database = {
       $transaction: jest.fn(async (callback: (value: typeof transaction) => Promise<void>) =>
@@ -73,5 +76,48 @@ describe('PrismaAgentRunRepository', () => {
         }),
       ],
     });
+  });
+
+  it('does not persist an unverified actor employee code', async () => {
+    const transaction = {
+      agentRun: {
+        create: jest.fn().mockResolvedValue({ id: 'database-run-002' }),
+      },
+      agentRunStep: {
+        createMany: jest.fn(),
+      },
+      securityEvent: {
+        createMany: jest.fn(),
+      },
+      employee: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+    };
+    const database = {
+      $transaction: jest.fn(async (callback: (value: typeof transaction) => Promise<void>) =>
+        callback(transaction),
+      ),
+    } as unknown as PrismaClient;
+    const repository = new PrismaAgentRunRepository(database);
+
+    await repository.recordInvocation({
+      runId: 'run-test-002',
+      correlationId: 'corr-test-002',
+      triggerType: 'HTTP',
+      actorEmployeeCode: 'EMP-999',
+      status: 'FAILED',
+      steps: [],
+      securityEvents: [],
+    });
+
+    expect(transaction.employee.findUnique).toHaveBeenCalledWith({
+      where: { employeeCode: 'EMP-999' },
+      select: { employeeCode: true },
+    });
+    expect(transaction.agentRun.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ actorEmployeeCode: undefined }),
+      }),
+    );
   });
 });

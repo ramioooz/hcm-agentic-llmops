@@ -12,12 +12,21 @@ export class PrismaAgentRunRepository implements AgentRunRecorder {
 
   public async recordInvocation(record: AgentInvocationRecord): Promise<void> {
     await this.database.$transaction(async (transaction) => {
+      const actorEmployeeCode = record.actorEmployeeCode
+        ? (
+            await transaction.employee.findUnique({
+              where: { employeeCode: record.actorEmployeeCode },
+              select: { employeeCode: true },
+            })
+          )?.employeeCode
+        : undefined;
+
       const agentRun = await transaction.agentRun.create({
         data: {
           runId: record.runId,
           correlationId: record.correlationId,
           triggerType: record.triggerType,
-          actorEmployeeCode: record.actorEmployeeCode,
+          actorEmployeeCode,
           intent: record.intent,
           status: record.status,
           requestSummary: encodeRedacted(record.requestSummary),
@@ -45,7 +54,7 @@ export class PrismaAgentRunRepository implements AgentRunRecorder {
           data: record.securityEvents.map((event) => ({
             agentRunId: agentRun.id,
             correlationId: record.correlationId,
-            actorEmployeeCode: record.actorEmployeeCode,
+            actorEmployeeCode,
             eventType: event.eventType,
             severity: event.severity,
             details: encodeRedacted(event.details),
