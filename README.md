@@ -160,6 +160,7 @@ The current foundation and onboarding workflow contain the directories below. Ob
 
 ```text
 src/
+├── controllers/ HTTP controllers with injected service dependencies
 ├── config/ Environment validation and application settings
 ├── contracts/ Request validation and result contracts
 ├── infrastructure/database/ Prisma client setup
@@ -167,7 +168,7 @@ src/
 ├── repositories/ PostgreSQL employee data access
 ├── services/ Agent invocation and onboarding orchestration
 ├── workflows/onboarding/ Deterministic onboarding review calculation
-├── app.ts Express application factory
+├── app.ts Express middleware and controller mounting
 └── server.ts Runtime startup and graceful shutdown
 
 prisma/ Schema, migrations, and seed data
