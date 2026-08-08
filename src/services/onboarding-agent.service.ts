@@ -35,7 +35,7 @@ export class OnboardingAgentService {
           {
             stepName: 'request_guard',
             status: 'REJECTED',
-            outcomeCode: safety.reasonCode,
+            outcomeCode: 'UNSAFE_REQUEST_REJECTED',
             inputData: { reasonCode: safety.reasonCode },
           },
         ],
@@ -49,7 +49,7 @@ export class OnboardingAgentService {
         buildInvocationResult(403, {
           status: 'FAILED',
           code: 'UNSAFE_REQUEST_REJECTED',
-          message: 'The request was rejected by security controls.',
+          message: 'The request was rejected because it contains unsafe instructions.',
           runId,
           correlationId: input.correlationId,
         }),

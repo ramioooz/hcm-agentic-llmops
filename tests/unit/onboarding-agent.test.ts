@@ -137,7 +137,7 @@ describe('OnboardingAgentService', () => {
       body: {
         status: 'FAILED',
         code: 'UNSAFE_REQUEST_REJECTED',
-        message: 'The request was rejected by security controls.',
+        message: 'The request was rejected because it contains unsafe instructions.',
         correlationId: 'corr-test-guard-001',
         runId: expect.any(String),
       },
@@ -150,7 +150,8 @@ describe('OnboardingAgentService', () => {
           expect.objectContaining({
             stepName: 'request_guard',
             status: 'REJECTED',
-            outcomeCode: 'INSTRUCTION_OVERRIDE',
+            outcomeCode: 'UNSAFE_REQUEST_REJECTED',
+            inputData: { reasonCode: 'INSTRUCTION_OVERRIDE' },
           }),
         ],
         securityEvents: [
