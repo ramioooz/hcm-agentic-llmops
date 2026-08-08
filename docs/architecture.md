@@ -11,7 +11,7 @@ APP --> WF["Domain workflows"]
 WF --> TOOL["Authorized tools"]
 TOOL --> REPO["Repository interfaces"]
 REPO --> DB[("PostgreSQL")]
-APP --> OBS["Run tracking and security events"]
+APP --> OBS["Run tracking, security events, and structured logs"]
 OBS --> DB
 TRIG --> MQ[("RabbitMQ")]
 ```
@@ -39,6 +39,8 @@ HTTP endpoints are grouped in class-based controllers under `src/controllers`. E
 `server.ts` is the composition root. It creates the PostgreSQL client, repository, application service, and controllers, then passes the controller collection to `app.ts`. Constructor injection makes dependencies visible and lets controller tests provide small fakes without starting PostgreSQL or an HTTP server.
 
 The onboarding service generates its own per-invocation run ID. Its business clock is supplied explicitly by the composition root, so production uses the system date while unit tests can use a fixed date without changing the service's production behavior.
+
+`AgentController` receives a required `ApplicationLogger` dependency and reports invocation lifecycle events. The observability module owns the mapping from HTTP workflow results to completion, rejection, or failure log levels, keeping that operational policy out of the controller. The Pino adapter serializes those records as JSON and recursively redacts sensitive fields before writing. This preserves a link through `correlationId` and `runId` without placing the request query, employee identifiers, personal details, error messages, or stack traces in operational logs.
 
 ```mermaid
 flowchart LR
@@ -68,4 +70,4 @@ HTTP / schedule / webhook / RabbitMQ
 
 ## Current versus planned
 
-The current release implements the application startup, configuration validation, dependency-injected HTTP controllers, health checks, PostgreSQL schema, migrations, seed data, the onboarding invocation endpoint, deterministic onboarding review, transactional run/step/security-event recording, and focused unit tests. Leave workflows, side-effect tools, structured log shipping, and technical trigger adapters are added in later stories.
+The current release implements the application startup, configuration validation, dependency-injected HTTP controllers, health checks, PostgreSQL schema, migrations, seed data, the onboarding invocation endpoint, deterministic onboarding review, transactional run/step/security-event recording, redacted Pino invocation logs, and focused unit tests. Leave workflows, side-effect tools, external log shipping, and technical trigger adapters are added in later stories.
