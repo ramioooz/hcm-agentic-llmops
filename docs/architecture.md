@@ -30,7 +30,7 @@ TRIG --> MQ[("RabbitMQ")]
 
 An employee request can arrive through HTTP today and through a schedule, webhook, or message later. Those transports should not each implement their own business rules. Controllers and trigger adapters therefore translate input into a typed application command, and the application service sends that command through the same guard, workflow, tool, and repository boundaries.
 
-The workflow owns the business decision, such as whether an onboarding review is inside its threshold. A tool performs one controlled operation, such as reading an employee record. Authorization is checked at that boundary so a future router or language model cannot bypass it. Repositories keep PostgreSQL details out of the workflow, while run and security records explain what happened without storing raw personal data.
+The workflow owns the business decision, such as whether an onboarding review is inside its threshold. A deterministic request-safety check runs before request parsing and employee lookup, rejecting known unsafe patterns without retaining the raw query. A tool performs one controlled operation, such as reading an employee record. Authorization is checked at that boundary so a future router or language model cannot bypass it. Repositories keep PostgreSQL details out of the workflow, while run and security records explain what happened without storing raw personal data.
 
 ## HTTP controller registration and dependency injection
 
