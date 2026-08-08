@@ -50,6 +50,8 @@ flowchart LR
 
 The dependency direction is `controller → service → workflow/repository`. Scheduled jobs, webhook handlers, and RabbitMQ consumers will be separate trigger adapters that reuse the same services; they will not call HTTP controllers or duplicate workflow rules.
 
+Shared TypeScript definitions are kept in `src/types`, with one exported type per file so callers do not depend on the service implementation. Pure onboarding query parsing, date formatting, and invocation-result construction live in `src/helpers/onboarding-agent.helpers.ts`. The application service therefore focuses on orchestration: retrieving data, enforcing authorization and state rules, calling the deterministic workflow, and returning its result.
+
 This gives the system one business path with several safe entry points:
 
 ```text

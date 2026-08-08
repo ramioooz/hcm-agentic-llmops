@@ -163,10 +163,12 @@ src/
 ├── config/ Environment validation and application settings
 ├── controllers/ Express routes and HTTP request/response handling
 ├── contracts/ Request validation and result contracts
+├── helpers/ Pure onboarding request, date, and result helpers
 ├── infrastructure/database/ Prisma client setup
 ├── security/ Authorization checks and PII redaction
 ├── repositories/ PostgreSQL employee data access
 ├── services/ Agent invocation and onboarding orchestration
+├── types/ Shared TypeScript definitions, one exported type per file
 ├── workflows/onboarding/ Deterministic onboarding review calculation
 ├── app.ts Express application factory
 └── server.ts Runtime startup and graceful shutdown
@@ -183,6 +185,8 @@ controller → service → workflow/repository
 ```
 
 Future schedule, webhook, and RabbitMQ adapters can call the same services without depending on Express.
+
+Shared onboarding definitions live under `src/types`, with one exported type per file. Pure parsing and result-building functions live under `src/helpers`. This keeps the onboarding service focused on coordinating authorization, data access, and workflow execution.
 
 ## Getting started
 

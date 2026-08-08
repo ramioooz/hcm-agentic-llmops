@@ -2,10 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
 import { parseAgentInvokeRequest } from '../contracts/agent-invoke';
 import type { AccessRole } from '../security/authorization';
-import type {
-  OnboardingInvocationInput,
-  OnboardingInvocationResult,
-} from '../services/onboarding-agent.service';
+import type { OnboardingInvocationInput } from '../types/onboarding-invocation-input';
+import type { OnboardingInvocationResult } from '../types/onboarding-invocation-result';
 import type { HttpController } from './http-controller';
 
 export type AgentInvoker = {
