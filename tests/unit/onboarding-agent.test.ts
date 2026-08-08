@@ -2,6 +2,7 @@ import { OnboardingAgentService } from '../../src/services/onboarding-agent.serv
 import type { AgentRunRecorder } from '../../src/types/agent-run-recorder';
 import type { EmployeeReader } from '../../src/types/employee-reader';
 import type { EmployeeRecord } from '../../src/types/employee-record';
+import type { HcmIntent } from '../../src/types/hcm-intent';
 
 const employee: EmployeeRecord = {
   employeeCode: 'EMP-201',
@@ -16,13 +17,7 @@ const employee: EmployeeRecord = {
 function createService(
   input: {
     record?: EmployeeRecord | null;
-    normalizedIntent?: {
-      intent: 'ONBOARDING_REVIEW' | 'UNSUPPORTED';
-      employeeCode: string | null;
-      thresholdDays: number | null;
-      requestedAction: 'REVIEW_ONLY' | 'NOTIFY_MANAGER' | null;
-      missingFields: string[];
-    };
+    normalizedIntent?: HcmIntent;
     normalizerError?: Error;
   } = {},
 ) {
@@ -38,8 +33,8 @@ function createService(
         input.normalizedIntent ?? {
           intent: 'ONBOARDING_REVIEW' as const,
           employeeCode: 'EMP-201',
-          thresholdDays: null,
-          requestedAction: null,
+          thresholdDays: 30,
+          requestedAction: 'REVIEW_ONLY',
           missingFields: [],
         },
       );
@@ -111,7 +106,7 @@ describe('OnboardingAgentService', () => {
         intent: 'ONBOARDING_REVIEW',
         employeeCode: 'EMP-201',
         thresholdDays: 14,
-        requestedAction: null,
+        requestedAction: 'REVIEW_ONLY',
         missingFields: [],
       },
     });
@@ -140,8 +135,8 @@ describe('OnboardingAgentService', () => {
       normalizedIntent: {
         intent: 'ONBOARDING_REVIEW',
         employeeCode: null,
-        thresholdDays: null,
-        requestedAction: null,
+        thresholdDays: 30,
+        requestedAction: 'REVIEW_ONLY',
         missingFields: ['employeeId'],
       },
     });
@@ -200,8 +195,8 @@ describe('OnboardingAgentService', () => {
       normalizedIntent: {
         intent: 'ONBOARDING_REVIEW',
         employeeCode: null,
-        thresholdDays: null,
-        requestedAction: null,
+        thresholdDays: 30,
+        requestedAction: 'REVIEW_ONLY',
         missingFields: ['employeeId'],
       },
     });
@@ -306,7 +301,7 @@ describe('OnboardingAgentService', () => {
       normalizedIntent: {
         intent: 'ONBOARDING_REVIEW',
         employeeCode: 'EMP-201',
-        thresholdDays: null,
+        thresholdDays: 30,
         requestedAction: 'NOTIFY_MANAGER',
         missingFields: [],
       },

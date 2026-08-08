@@ -171,7 +171,7 @@ src/
 ├── config/ Environment validation and application settings
 ├── controllers/ Express routes and HTTP request/response handling
 ├── contracts/ Request validation and result contracts
-├── helpers/ Pure onboarding request, date, and result helpers
+├── helpers/ Pure date and invocation-result helpers
 ├── observability/ Invocation log mapping and Pino adapter for redacted operational logs
 ├── security/ Authorization checks and PII redaction
 ├── repositories/ PostgreSQL employee data access

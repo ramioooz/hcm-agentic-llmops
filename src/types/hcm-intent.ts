@@ -1,9 +1,4 @@
-import type { OnboardingReviewAction } from './onboarding-review-action';
+import type { z } from 'zod';
+import type { hcmIntentSchema } from '../contracts/hcm-intent.contract';
 
-export type HcmIntent = {
-  intent: 'ONBOARDING_REVIEW' | 'UNSUPPORTED';
-  employeeCode: string | null;
-  thresholdDays: number | null;
-  requestedAction: OnboardingReviewAction | null;
-  missingFields: string[];
-};
+export type HcmIntent = z.infer<typeof hcmIntentSchema>;

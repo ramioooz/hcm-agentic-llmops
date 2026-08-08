@@ -7,6 +7,15 @@ import type { StructuredOutputClient } from '../types/structured-output-client';
 
 const normalizationName = 'normalize_hcm_intent';
 
+export function buildOpenAiModelConfiguration(input: { apiKey: string; model: 'gpt-5.4-mini' }) {
+  return {
+    apiKey: input.apiKey,
+    model: input.model,
+    maxRetries: 1,
+    timeout: 15_000,
+  };
+}
+
 export class OpenAiHcmIntentNormalizer implements HcmIntentNormalizer {
   private readonly structuredOutputModel: ReturnType<
     StructuredOutputClient['withStructuredOutput']
@@ -17,14 +26,7 @@ export class OpenAiHcmIntentNormalizer implements HcmIntentNormalizer {
     model: 'gpt-5.4-mini';
     client?: StructuredOutputClient;
   }) {
-    const client =
-      input.client ??
-      new ChatOpenAI({
-        apiKey: input.apiKey,
-        model: input.model,
-        maxRetries: 1,
-        timeout: 15_000,
-      });
+    const client = input.client ?? new ChatOpenAI(buildOpenAiModelConfiguration(input));
 
     this.structuredOutputModel = client.withStructuredOutput(hcmIntentSchema, {
       name: normalizationName,
