@@ -3,6 +3,7 @@ import { createApp } from './app';
 import { loadEnvironment } from './config/load-environment';
 import { AgentController } from './controllers/agent.controller';
 import { HealthController } from './controllers/health.controller';
+import { todayAsDateOnly } from './helpers/onboarding-agent.helpers';
 import { PrismaEmployeeRepository } from './repositories/employee.repository';
 import { OnboardingAgentService } from './services/onboarding-agent.service';
 
@@ -10,6 +11,9 @@ const environment = loadEnvironment();
 const database = new PrismaClient();
 const onboardingAgent = new OnboardingAgentService({
   employees: new PrismaEmployeeRepository(database),
+  clock: {
+    today: todayAsDateOnly,
+  },
 });
 const healthController = new HealthController(async () => {
   await database.$queryRaw`SELECT 1`;

@@ -38,6 +38,8 @@ HTTP endpoints are grouped in class-based controllers under `src/controllers`. E
 
 `server.ts` is the composition root. It creates the PostgreSQL client, repository, application service, and controllers, then passes the controller collection to `app.ts`. Constructor injection makes dependencies visible and lets controller tests provide small fakes without starting PostgreSQL or an HTTP server.
 
+The onboarding service generates its own per-invocation run ID. Its business clock is supplied explicitly by the composition root, so production uses the system date while unit tests can use a fixed date without changing the service's production behavior.
+
 ```mermaid
 flowchart LR
     SERVER["server.ts composition root"] --> REPO["Employee repository"]

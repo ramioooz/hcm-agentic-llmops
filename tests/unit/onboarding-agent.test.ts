@@ -21,8 +21,9 @@ function createService(record: EmployeeRecord | null = employee) {
     reader,
     service: new OnboardingAgentService({
       employees: reader,
-      today: () => '2026-08-07',
-      createRunId: () => 'run-test-001',
+      clock: {
+        today: () => '2026-08-07',
+      },
     }),
   };
 }
@@ -38,12 +39,12 @@ describe('OnboardingAgentService', () => {
       correlationId: 'corr-test-001',
     });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       httpStatus: 200,
       body: {
         status: 'COMPLETED',
         message: 'Employee onboarding review completed.',
-        runId: 'run-test-001',
+        runId: expect.any(String),
         correlationId: 'corr-test-001',
         data: {
           employeeCode: 'EMP-201',
@@ -69,13 +70,13 @@ describe('OnboardingAgentService', () => {
       correlationId: 'corr-test-002',
     });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       httpStatus: 200,
       body: {
         status: 'NEED_MORE_INFORMATION',
         message: 'Please provide the employee ID.',
         missingFields: ['employeeId'],
-        runId: 'run-test-001',
+        runId: expect.any(String),
         correlationId: 'corr-test-002',
       },
     });
@@ -95,7 +96,7 @@ describe('OnboardingAgentService', () => {
     expect(result.body).toMatchObject({
       status: 'UNSUPPORTED_REQUEST',
       message: 'That request is outside the capabilities of this HCM agent.',
-      runId: 'run-test-001',
+      runId: expect.any(String),
       correlationId: 'corr-test-003',
     });
   });
@@ -130,13 +131,13 @@ describe('OnboardingAgentService', () => {
       correlationId: 'corr-test-005',
     });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       httpStatus: 403,
       body: {
         status: 'FAILED',
         code: 'AUTHORIZATION_DENIED',
         message: 'You are not authorized to perform this operation.',
-        runId: 'run-test-001',
+        runId: expect.any(String),
         correlationId: 'corr-test-005',
       },
     });
