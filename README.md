@@ -164,7 +164,6 @@ src/
 ├── controllers/ Express routes and HTTP request/response handling
 ├── contracts/ Request validation and result contracts
 ├── helpers/ Pure onboarding request, date, and result helpers
-├── infrastructure/database/ Prisma client setup
 ├── security/ Authorization checks and PII redaction
 ├── repositories/ PostgreSQL employee data access
 ├── services/ Agent invocation and onboarding orchestration

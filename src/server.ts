@@ -1,13 +1,13 @@
+import { PrismaClient } from '@prisma/client';
 import { createApp } from './app';
 import { loadEnvironment } from './config/load-environment';
 import { AgentController } from './controllers/agent.controller';
 import { HealthController } from './controllers/health.controller';
-import { createDatabaseClient } from './infrastructure/database/prisma';
 import { PrismaEmployeeRepository } from './repositories/employee.repository';
 import { OnboardingAgentService } from './services/onboarding-agent.service';
 
 const environment = loadEnvironment();
-const database = createDatabaseClient();
+const database = new PrismaClient();
 const onboardingAgent = new OnboardingAgentService({
   employees: new PrismaEmployeeRepository(database),
 });
