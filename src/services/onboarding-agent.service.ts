@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { buildInvocationResult } from '../helpers/onboarding-agent.helpers';
 import { assertEmployeeReadAccess } from '../security/authorization';
+import { enforceIntentConsistency } from '../security/intent-consistency';
 import { redactSensitiveData } from '../security/pii-redaction';
 import { evaluateRequestSafety } from '../security/request-safety';
 import type { AgentInvocationRecord } from '../types/agent-invocation-record';
@@ -85,6 +86,8 @@ export class OnboardingAgentService {
         }),
       );
     }
+
+    request = enforceIntentConsistency(input.query, request);
 
     const requestStep: AgentRunStepRecord = {
       stepName: 'intent_normalization',

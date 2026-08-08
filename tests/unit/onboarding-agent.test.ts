@@ -22,7 +22,9 @@ function createService(
   } = {},
 ) {
   const reader: EmployeeReader = {
-    findByEmployeeCode: jest.fn().mockResolvedValue(input.record ?? employee),
+    findByEmployeeCode: jest
+      .fn()
+      .mockResolvedValue(input.record === undefined ? employee : input.record),
   };
   const recorder: AgentRunRecorder = {
     recordInvocation: jest.fn().mockResolvedValue(undefined),
@@ -153,6 +155,76 @@ describe('OnboardingAgentService', () => {
       missingFields: ['employeeId'],
     });
     expect(reader.findByEmployeeCode).not.toHaveBeenCalled();
+  });
+
+  it('does not look up a hallucinated employee code that differs from the query', async () => {
+    const { service, reader } = createService({
+      normalizedIntent: {
+        intent: 'ONBOARDING_REVIEW',
+        employeeCode: 'EMP-201',
+        thresholdDays: 30,
+        requestedAction: 'REVIEW_ONLY',
+        missingFields: [],
+      },
+    });
+
+    const result = await service.invoke({
+      query: 'Review EMP-202 onboarding status.',
+      actorEmployeeCode: 'EMP-200',
+      actorRole: 'MANAGER',
+      correlationId: 'corr-provenance-001',
+    });
+
+    expect(result).toMatchObject({
+      httpStatus: 200,
+      body: {
+        status: 'NEED_MORE_INFORMATION',
+        missingFields: ['employeeId'],
+      },
+    });
+    expect(reader.findByEmployeeCode).not.toHaveBeenCalled();
+  });
+
+  it('downgrades a hallucinated notification action to review only', async () => {
+    const { service } = createService({
+      normalizedIntent: {
+        intent: 'ONBOARDING_REVIEW',
+        employeeCode: 'EMP-201',
+        thresholdDays: 30,
+        requestedAction: 'NOTIFY_MANAGER',
+        missingFields: [],
+      },
+    });
+
+    const result = await service.invoke({
+      query: 'Review EMP-201 onboarding status.',
+      actorEmployeeCode: 'EMP-200',
+      actorRole: 'MANAGER',
+      correlationId: 'corr-provenance-002',
+    });
+
+    expect(result.body).toMatchObject({
+      status: 'COMPLETED',
+      data: {
+        action: 'REVIEW_ONLY',
+        actionPerformed: false,
+      },
+    });
+    expect(result.body.data).not.toHaveProperty('actionReason');
+  });
+
+  it('matches an explicitly supplied employee code case-insensitively', async () => {
+    const { service, reader } = createService();
+
+    const result = await service.invoke({
+      query: 'Review emp-201 onboarding status.',
+      actorEmployeeCode: 'EMP-200',
+      actorRole: 'MANAGER',
+      correlationId: 'corr-provenance-003',
+    });
+
+    expect(result.body.status).toBe('COMPLETED');
+    expect(reader.findByEmployeeCode).toHaveBeenCalledWith('EMP-201');
   });
 
   it('returns a stable unavailable response when intent normalization fails', async () => {
@@ -296,8 +368,13 @@ describe('OnboardingAgentService', () => {
     expect(JSON.stringify(record)).not.toContain(query);
   });
 
-  it('preserves explicit notification intent without claiming a notification was sent', async () => {
-    const { service } = createService({
+  it.each([
+    'notify the manager',
+    'send a reminder to the manager',
+    'tell the manager',
+    'request a manager notification',
+  ])('preserves explicit notification intent for "%s"', async (notificationPhrase) => {
+    const { service, recorder } = createService({
       normalizedIntent: {
         intent: 'ONBOARDING_REVIEW',
         employeeCode: 'EMP-201',
@@ -308,7 +385,7 @@ describe('OnboardingAgentService', () => {
     });
 
     const result = await service.invoke({
-      query: 'Review EMP-201 onboarding status and notify the manager',
+      query: `Review EMP-201 onboarding status and ${notificationPhrase}`,
       actorEmployeeCode: 'EMP-200',
       actorRole: 'MANAGER',
       correlationId: 'corr-test-004',
@@ -322,6 +399,30 @@ describe('OnboardingAgentService', () => {
         actionReason: 'NOTIFICATION_PROVIDER_NOT_CONFIGURED',
       },
     });
+    const record = (recorder.recordInvocation as jest.Mock).mock.calls[0][0];
+    expect(JSON.stringify(record)).not.toContain(notificationPhrase);
+  });
+
+  it('returns employee-not-found when the repository intentionally resolves null', async () => {
+    const { service, reader } = createService({ record: null });
+
+    const result = await service.invoke({
+      query: 'Review EMP-201 onboarding status.',
+      actorEmployeeCode: 'EMP-200',
+      actorRole: 'MANAGER',
+      correlationId: 'corr-employee-not-found',
+    });
+
+    expect(result).toMatchObject({
+      httpStatus: 404,
+      body: {
+        status: 'FAILED',
+        code: 'EMPLOYEE_NOT_FOUND',
+        message: 'Employee EMP-201 was not found.',
+        correlationId: 'corr-employee-not-found',
+      },
+    });
+    expect(reader.findByEmployeeCode).toHaveBeenCalledWith('EMP-201');
   });
 
   it('denies an unauthorized employee from reviewing another employee', async () => {

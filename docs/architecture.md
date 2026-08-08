@@ -63,7 +63,7 @@ HTTP / schedule / webhook / RabbitMQ
                  ↓
        typed application command
                  ↓
-      guard → workflow → tool
+      guard → intent normalizer → workflow → tool
                  ↓
           repository → PostgreSQL
 ```
