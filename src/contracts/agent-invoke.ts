@@ -4,7 +4,7 @@ const agentInvokeRequestSchema = z.object({
   query: z.string().trim().min(1, 'query must be a non-empty string').max(2_000),
 });
 
-export type AgentInvokeRequest = z.infer<typeof agentInvokeRequestSchema>;
+type AgentInvokeRequest = z.infer<typeof agentInvokeRequestSchema>;
 
 export function parseAgentInvokeRequest(input: unknown): AgentInvokeRequest {
   const parsed = agentInvokeRequestSchema.safeParse(input);

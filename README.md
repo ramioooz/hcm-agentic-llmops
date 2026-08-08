@@ -28,11 +28,11 @@ The second area and technical triggers are planned for Sprint 2. The current rel
 
 | Capability                                 | Status      | Notes                                                                       |
 | ------------------------------------------ | ----------- | --------------------------------------------------------------------------- |
-| Node.js and TypeScript service             | Implemented | Strict TypeScript build with Express application factory                    |
+| Node.js and TypeScript service             | Implemented | Strict TypeScript build with dependency-injected Express controllers        |
 | PostgreSQL persistence                     | Implemented | Prisma schema, migration, and sample seed records                           |
 | RabbitMQ development service               | Implemented | Docker Compose service; application event handling is planned for Sprint 2  |
 | Health and readiness endpoints             | Implemented | `/health` and `/ready`                                                      |
-| Focused unit tests                         | Implemented | Jest tests for configuration, onboarding decisions, and PII redaction       |
+| Focused unit tests                         | Implemented | Jest tests for controllers, configuration, onboarding, and PII redaction    |
 | Agent invocation endpoint                  | Implemented | `POST /api/v1/agent/invoke` with validation and correlation IDs             |
 | Employee onboarding review workflow        | Implemented | Deterministic review-period lookup and threshold evaluation                 |
 | Authorization and guardrails               | In progress | Header identity, role checks, and safe unsupported/need-more-info responses |
@@ -161,11 +161,13 @@ The current foundation and onboarding workflow contain the directories below. Ob
 ```text
 src/
 ├── config/ Environment validation and application settings
+├── controllers/ Express routes and HTTP request/response handling
 ├── contracts/ Request validation and result contracts
-├── infrastructure/database/ Prisma client setup
+├── helpers/ Pure onboarding request, date, and result helpers
 ├── security/ Authorization checks and PII redaction
 ├── repositories/ PostgreSQL employee data access
 ├── services/ Agent invocation and onboarding orchestration
+├── types/ Shared TypeScript definitions, one exported type or interface per file
 ├── workflows/onboarding/ Deterministic onboarding review calculation
 ├── app.ts Express application factory
 └── server.ts Runtime startup and graceful shutdown
@@ -174,6 +176,16 @@ prisma/ Schema, migrations, and seed data
 tests/unit/ Focused tests for critical deterministic behavior
 docs/ Architecture, data model, examples, and usage guidance
 ```
+
+`server.ts` is the composition root: it constructs repositories, services, and controllers and supplies each dependency explicitly. Each controller owns its Express router and delegates business work to an injected service. `app.ts` only installs shared middleware and mounts the controller collection. This keeps the dependency direction clear:
+
+```text
+controller → service → workflow/repository
+```
+
+Future schedule, webhook, and RabbitMQ adapters can call the same services without depending on Express.
+
+Shared onboarding definitions live under `src/types`, with one exported type per file. Pure parsing and result-building functions live under `src/helpers`. This keeps the onboarding service focused on coordinating authorization, data access, and workflow execution.
 
 ## Getting started
 

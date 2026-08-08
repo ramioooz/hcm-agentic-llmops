@@ -1,11 +1,4 @@
-export type AccessRole = 'HR' | 'MANAGER' | 'EMPLOYEE';
-
-export type AuthorizationRequest = {
-  actorRole: AccessRole;
-  actorEmployeeId: string;
-  targetEmployeeId: string;
-  targetManagerEmployeeId?: string | null;
-};
+import type { AuthorizationRequest } from '../types/authorization-request';
 
 export function assertEmployeeReadAccess(request: AuthorizationRequest): void {
   const canRead =

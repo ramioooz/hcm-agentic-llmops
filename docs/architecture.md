@@ -32,6 +32,26 @@ An employee request can arrive through HTTP today and through a schedule, webhoo
 
 The workflow owns the business decision, such as whether an onboarding review is inside its threshold. A tool performs one controlled operation, such as reading an employee record. Authorization is checked at that boundary so a future router or language model cannot bypass it. Repositories keep PostgreSQL details out of the workflow, while run and security records explain what happened without storing raw personal data.
 
+## HTTP controller registration and dependency injection
+
+HTTP endpoints are grouped in class-based controllers under `src/controllers`. Each controller declares a base path, owns an Express router, validates transport-specific input, and maps service results into HTTP responses. Business decisions remain in services and workflows.
+
+`server.ts` is the composition root. It creates the PostgreSQL client, repository, application service, and controllers, then passes the controller collection to `app.ts`. Constructor injection makes dependencies visible and lets controller tests provide small fakes without starting PostgreSQL or an HTTP server.
+
+```mermaid
+flowchart LR
+    SERVER["server.ts composition root"] --> REPO["Employee repository"]
+    SERVER --> SERVICE["Onboarding service"]
+    SERVER --> CONTROLLERS["HTTP controllers"]
+    REPO --> SERVICE
+    SERVICE --> CONTROLLERS
+    CONTROLLERS --> APP["app.ts controller mounting"]
+```
+
+The dependency direction is `controller → service → workflow/repository`. Scheduled jobs, webhook handlers, and RabbitMQ consumers will be separate trigger adapters that reuse the same services; they will not call HTTP controllers or duplicate workflow rules.
+
+Shared TypeScript definitions are kept in `src/types`, with one exported type per file so callers do not depend on the service implementation. Pure onboarding query parsing, date formatting, and invocation-result construction live in `src/helpers/onboarding-agent.helpers.ts`. The application service therefore focuses on orchestration: retrieving data, enforcing authorization and state rules, calling the deterministic workflow, and returning its result.
+
 This gives the system one business path with several safe entry points:
 
 ```text
@@ -46,4 +66,4 @@ HTTP / schedule / webhook / RabbitMQ
 
 ## Current versus planned
 
-The current release implements the application startup, configuration validation, health checks, PostgreSQL schema, migrations, seed data, the onboarding invocation endpoint, deterministic onboarding review, and focused unit tests. Leave workflows, durable run/security persistence, side-effect tools, and technical trigger adapters are added in later stories.
+The current release implements the application startup, configuration validation, dependency-injected HTTP controllers, health checks, PostgreSQL schema, migrations, seed data, the onboarding invocation endpoint, deterministic onboarding review, and focused unit tests. Leave workflows, durable run/security persistence, side-effect tools, and technical trigger adapters are added in later stories.

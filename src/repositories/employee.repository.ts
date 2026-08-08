@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
-import type { EmployeeReader, EmployeeRecord } from '../services/onboarding-agent.service';
+import type { EmployeeReader } from '../types/employee-reader';
+import type { EmployeeRecord } from '../types/employee-record';
 
 export class PrismaEmployeeRepository implements EmployeeReader {
   public constructor(private readonly database: PrismaClient) {}

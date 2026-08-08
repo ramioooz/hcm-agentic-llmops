@@ -1,8 +1,6 @@
-import {
-  OnboardingAgentService,
-  type EmployeeReader,
-  type EmployeeRecord,
-} from '../../src/services/onboarding-agent.service';
+import { OnboardingAgentService } from '../../src/services/onboarding-agent.service';
+import type { EmployeeReader } from '../../src/types/employee-reader';
+import type { EmployeeRecord } from '../../src/types/employee-record';
 
 const employee: EmployeeRecord = {
   employeeCode: 'EMP-201',

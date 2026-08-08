@@ -1,13 +1,13 @@
-export type OnboardingReviewAction = 'REVIEW_ONLY' | 'NOTIFY_MANAGER';
+import type { OnboardingReviewAction } from '../../types/onboarding-review-action';
 
-export type OnboardingReviewInput = {
+type OnboardingReviewInput = {
   reviewEndDate: string;
   today: string;
   thresholdDays: number;
   requestedAction?: OnboardingReviewAction;
 };
 
-export type OnboardingReviewResult = {
+type OnboardingReviewResult = {
   daysRemaining: number;
   withinThreshold: boolean;
   action: OnboardingReviewAction;
