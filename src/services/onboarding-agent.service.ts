@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { buildInvocationResult, parseOnboardingRequest } from '../helpers/onboarding-agent.helpers';
+import { buildInvocationResult } from '../helpers/onboarding-agent.helpers';
 import { assertEmployeeReadAccess } from '../security/authorization';
 import { redactSensitiveData } from '../security/pii-redaction';
 import { evaluateRequestSafety } from '../security/request-safety';
@@ -8,6 +8,8 @@ import type { AgentRunRecorder } from '../types/agent-run-recorder';
 import type { AgentRunStepRecord } from '../types/agent-run-step-record';
 import type { Clock } from '../types/clock';
 import type { EmployeeReader } from '../types/employee-reader';
+import type { HcmIntent } from '../types/hcm-intent';
+import type { HcmIntentNormalizer } from '../types/hcm-intent-normalizer';
 import type { OnboardingInvocationInput } from '../types/onboarding-invocation-input';
 import type { OnboardingInvocationResult } from '../types/onboarding-invocation-result';
 import type { SecurityEventRecord } from '../types/security-event-record';
@@ -19,6 +21,7 @@ export class OnboardingAgentService {
       employees: EmployeeReader;
       clock: Clock;
       recorder: AgentRunRecorder;
+      normalizer: HcmIntentNormalizer;
     },
   ) {}
 
@@ -57,22 +60,49 @@ export class OnboardingAgentService {
       );
     }
 
-    const request = parseOnboardingRequest(input.query);
+    let request: HcmIntent;
+    try {
+      request = await this.dependencies.normalizer.normalize(input.query);
+    } catch {
+      return this.completeInvocation(
+        input,
+        runId,
+        undefined,
+        [
+          {
+            stepName: 'intent_normalization',
+            status: 'FAILED',
+            outcomeCode: 'MODEL_UNAVAILABLE',
+          },
+        ],
+        [],
+        buildInvocationResult(503, {
+          status: 'FAILED',
+          code: 'MODEL_UNAVAILABLE',
+          message: 'The request could not be interpreted at this time.',
+          runId,
+          correlationId: input.correlationId,
+        }),
+      );
+    }
+
     const requestStep: AgentRunStepRecord = {
-      stepName: 'request_parsing',
-      status: request.supported ? 'COMPLETED' : 'REJECTED',
-      outcomeCode: request.supported ? 'REQUEST_PARSED' : 'UNSUPPORTED_REQUEST',
+      stepName: 'intent_normalization',
+      status: request.intent === 'ONBOARDING_REVIEW' ? 'COMPLETED' : 'REJECTED',
+      outcomeCode:
+        request.intent === 'ONBOARDING_REVIEW' ? 'INTENT_NORMALIZED' : 'UNSUPPORTED_REQUEST',
       inputData: {
-        supported: request.supported,
+        intent: request.intent,
         employeeCode: request.employeeCode,
         thresholdDays: request.thresholdDays,
         requestedAction: request.requestedAction,
+        missingFields: request.missingFields,
       },
     };
     const steps: AgentRunStepRecord[] = [requestStep];
     const securityEvents: SecurityEventRecord[] = [];
 
-    if (!request.supported) {
+    if (request.intent === 'UNSUPPORTED') {
       return this.completeInvocation(
         input,
         runId,
@@ -224,8 +254,8 @@ export class OnboardingAgentService {
     const review = evaluateOnboardingReview({
       reviewEndDate: employee.activeReviewPeriod.endDate,
       today: this.dependencies.clock.today(),
-      thresholdDays: request.thresholdDays,
-      requestedAction: request.requestedAction,
+      thresholdDays: request.thresholdDays ?? 30,
+      requestedAction: request.requestedAction ?? 'REVIEW_ONLY',
     });
 
     steps.push({
@@ -271,7 +301,7 @@ export class OnboardingAgentService {
   private async completeInvocation(
     input: OnboardingInvocationInput,
     runId: string,
-    request: ReturnType<typeof parseOnboardingRequest> | undefined,
+    request: HcmIntent | undefined,
     steps: AgentRunStepRecord[],
     securityEvents: SecurityEventRecord[],
     result: OnboardingInvocationResult,
@@ -282,13 +312,14 @@ export class OnboardingAgentService {
       correlationId: input.correlationId,
       triggerType: 'HTTP',
       actorEmployeeCode: input.actorEmployeeCode,
-      intent: request?.supported ? 'ONBOARDING_REVIEW' : undefined,
+      intent: request?.intent === 'ONBOARDING_REVIEW' ? 'ONBOARDING_REVIEW' : undefined,
       requestSummary: request
         ? redactSensitiveData({
-            supported: request.supported,
+            intent: request.intent,
             employeeCode: request.employeeCode,
             thresholdDays: request.thresholdDays,
             requestedAction: request.requestedAction,
+            missingFields: request.missingFields,
           })
         : { rejectedReasonCode },
       status: this.toRunStatus(result),

@@ -1,0 +1,42 @@
+import { ChatOpenAI } from '@langchain/openai';
+import { hcmIntentSchema } from '../contracts/hcm-intent.contract';
+import { buildHcmIntentNormalizationMessages } from '../prompts/normalize-hcm-intent.prompt';
+import type { HcmIntent } from '../types/hcm-intent';
+import type { HcmIntentNormalizer } from '../types/hcm-intent-normalizer';
+import type { StructuredOutputClient } from '../types/structured-output-client';
+
+const normalizationName = 'normalize_hcm_intent';
+
+export class OpenAiHcmIntentNormalizer implements HcmIntentNormalizer {
+  private readonly structuredOutputModel: ReturnType<
+    StructuredOutputClient['withStructuredOutput']
+  >;
+
+  public constructor(input: {
+    apiKey: string;
+    model: 'gpt-5.4-mini';
+    client?: StructuredOutputClient;
+  }) {
+    const client =
+      input.client ??
+      new ChatOpenAI({
+        apiKey: input.apiKey,
+        model: input.model,
+        maxRetries: 1,
+        timeout: 15_000,
+      });
+
+    this.structuredOutputModel = client.withStructuredOutput(hcmIntentSchema, {
+      name: normalizationName,
+      strict: true,
+    });
+  }
+
+  public async normalize(query: string): Promise<HcmIntent> {
+    const output = await this.structuredOutputModel.invoke(
+      buildHcmIntentNormalizationMessages(query),
+    );
+
+    return hcmIntentSchema.parse(output);
+  }
+}

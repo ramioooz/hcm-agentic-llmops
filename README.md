@@ -38,6 +38,7 @@ The second area and technical triggers are planned for Sprint 2. The current rel
 | Agent invocation endpoint                  | Implemented | `POST /api/v1/agent/invoke` with validation and correlation IDs                                                     |
 | Employee onboarding review workflow        | Implemented | Deterministic review-period lookup and threshold evaluation                                                         |
 | Authorization and guardrails               | In progress | Header identity, role checks, deterministic unsafe-request rejection, and safe unsupported/need-more-info responses |
+| Structured intent normalization            | Implemented | OpenAI structured output normalizes onboarding intent; deterministic controls remain authoritative                  |
 | Leave workflow                             | Planned     | Sprint 2                                                                                                            |
 | Scheduled, webhook, and RabbitMQ workflows | Planned     | Sprint 2                                                                                                            |
 | Integration and end-to-end tests           | Planned     | Added after the initial release                                                                                     |
@@ -49,7 +50,8 @@ flowchart TD
 Client["HTTP client"] --> API["Express API"]
 API --> Controller["Controllers"]
 Controller --> Service["Application services"]
-Service --> Router["Structured intent router"]
+Service --> Guard["Request-safety guard"]
+Guard --> Router["Structured intent normalizer"]
 Router --> Workflows["Business workflows"]
 Workflows --> Tools["Authorized tools"]
 Tools --> Repositories["Repository interfaces"]
@@ -86,7 +88,7 @@ sequenceDiagram
 participant C as Client
 participant A as Agent API
 participant G as Guardrails
-participant R as Intent Router
+participant R as Intent normalizer
 participant W as Workflow
 participant T as Authorized Tool
 participant D as PostgreSQL
@@ -94,7 +96,7 @@ participant D as PostgreSQL
     C->>A: Request with X-Correlation-Id
     A->>G: Validate input and identity
     G-->>A: Accept, ask for information, or reject
-    A->>R: Normalize supported intent
+    A->>R: Normalize supported intent after guard approval
     R-->>A: Typed command
     A->>W: Start runId
     W->>T: Check permission and execute operation
@@ -124,7 +126,7 @@ The planned leave workflow will retrieve the applicable leave policy and employe
 The security design uses several independent controls:
 
 - Request schemas reject malformed or oversized input.
-- The router accepts only supported intents.
+- A strict structured normalizer accepts only supported intents and extracts explicit request fields.
 - Deterministic request safety checks reject instruction overrides, bulk employee-data requests, security-control bypass attempts, and system-prompt disclosure requests before employee lookup. Rejections are recorded without storing the raw query.
 - Services and tools enforce authorization again after routing.
 - Business rules are evaluated by TypeScript code, not generated text.
@@ -192,7 +194,7 @@ controller → service → workflow/repository
 
 Future schedule, webhook, and RabbitMQ adapters can call the same services without depending on Express.
 
-Shared onboarding definitions live under `src/types`, with one exported type per file. Pure parsing and result-building functions live under `src/helpers`. This keeps the onboarding service focused on coordinating authorization, data access, and workflow execution.
+Shared onboarding definitions live under `src/types`, with one exported type per file. The OpenAI-backed intent normalizer is isolated behind a small dependency so workflows receive a schema-validated request. Date formatting and result-building functions live under `src/helpers`. This keeps the onboarding service focused on coordinating authorization, data access, and workflow execution.
 
 ## Getting started
 
@@ -209,6 +211,8 @@ npm install
 cp .env.example .env
 npm run db:generate
 ```
+
+Set `OPENAI_API_KEY` in `.env`. `OPENAI_MODEL` is fixed to `gpt-5.4-mini` for the structured intent normalizer.
 
 ### Start PostgreSQL and RabbitMQ
 
@@ -249,6 +253,7 @@ The initial release intentionally uses a small unit-test suite. It checks the hi
 ```bash
 npm run typecheck
 npm run lint
+npm run format:check
 npm test
 npm run build
 ```
@@ -256,6 +261,7 @@ npm run build
 Current unit-test areas:
 
 - Required configuration validation.
+- Strict OpenAI intent normalization using fake model dependencies.
 - Onboarding review threshold calculation.
 - Review-only versus explicit notification behavior.
 - Agent request validation and onboarding routing.

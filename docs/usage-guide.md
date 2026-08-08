@@ -8,6 +8,8 @@ cp .env.example .env
 docker compose up -d postgres rabbitmq
 ```
 
+Set `OPENAI_API_KEY` in `.env` before starting the API. The onboarding intent normalizer uses `OPENAI_MODEL=gpt-5.4-mini`.
+
 ## Prepare the database
 
 ```bash
@@ -51,6 +53,7 @@ When the API runs inside Docker Compose, use port `3300` instead of `3000`.
 ```bash
 npm run typecheck
 npm run lint
+npm run format:check
 npm test
 npm run build
 ```

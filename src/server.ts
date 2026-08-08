@@ -7,6 +7,7 @@ import { todayAsDateOnly } from './helpers/onboarding-agent.helpers';
 import { PrismaAgentRunRepository } from './repositories/agent-run.repository';
 import { PrismaEmployeeRepository } from './repositories/employee.repository';
 import { OnboardingAgentService } from './services/onboarding-agent.service';
+import { OpenAiHcmIntentNormalizer } from './services/openai-hcm-intent-normalizer.service';
 import { PinoApplicationLogger } from './observability/pino-application-logger';
 
 const environment = loadEnvironment();
@@ -17,6 +18,10 @@ const onboardingAgent = new OnboardingAgentService({
     today: todayAsDateOnly,
   },
   recorder: new PrismaAgentRunRepository(database),
+  normalizer: new OpenAiHcmIntentNormalizer({
+    apiKey: environment.openAiApiKey,
+    model: environment.openAiModel,
+  }),
 });
 const healthController = new HealthController(async () => {
   await database.$queryRaw`SELECT 1`;

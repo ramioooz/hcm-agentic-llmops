@@ -30,7 +30,7 @@ TRIG --> MQ[("RabbitMQ")]
 
 An employee request can arrive through HTTP today and through a schedule, webhook, or message later. Those transports should not each implement their own business rules. Controllers and trigger adapters therefore translate input into a typed application command, and the application service sends that command through the same guard, workflow, tool, and repository boundaries.
 
-The workflow owns the business decision, such as whether an onboarding review is inside its threshold. A deterministic request-safety check runs before request parsing and employee lookup, rejecting known unsafe patterns without retaining the raw query. A tool performs one controlled operation, such as reading an employee record. Authorization is checked at that boundary so a future router or language model cannot bypass it. Repositories keep PostgreSQL details out of the workflow, while run and security records explain what happened without storing raw personal data.
+The workflow owns the business decision, such as whether an onboarding review is inside its threshold. A deterministic request-safety check runs before OpenAI-backed intent normalization and employee lookup, rejecting known unsafe patterns without retaining the raw query. The normalizer uses strict structured output for only `ONBOARDING_REVIEW` and `UNSUPPORTED`; it can extract fields but cannot authorize access, calculate outcomes, or cause side effects. A tool performs one controlled operation, such as reading an employee record. Authorization is checked at that boundary so normalization cannot bypass it. Repositories keep PostgreSQL details out of the workflow, while run and security records explain what happened without storing raw personal data.
 
 ## HTTP controller registration and dependency injection
 
@@ -54,7 +54,7 @@ flowchart LR
 
 The dependency direction is `controller → service → workflow/repository`. Scheduled jobs, webhook handlers, and RabbitMQ consumers will be separate trigger adapters that reuse the same services; they will not call HTTP controllers or duplicate workflow rules.
 
-Shared TypeScript definitions are kept in `src/types`, with one exported type per file so callers do not depend on the service implementation. Pure onboarding query parsing, date formatting, and invocation-result construction live in `src/helpers/onboarding-agent.helpers.ts`. The application service therefore focuses on orchestration: retrieving data, enforcing authorization and state rules, calling the deterministic workflow, and returning its result.
+Shared TypeScript definitions are kept in `src/types`, with one exported type per file so callers do not depend on the service implementation. The prompt, strict Zod contract, and OpenAI normalizer are isolated from the onboarding service through a typed normalizer interface. Date formatting and invocation-result construction live in `src/helpers/onboarding-agent.helpers.ts`. The application service therefore focuses on orchestration: invoking the normalizer after the request guard, retrieving data, enforcing authorization and state rules, calling the deterministic workflow, and returning its result.
 
 This gives the system one business path with several safe entry points:
 
