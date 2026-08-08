@@ -1,4 +1,4 @@
-import type { OnboardingReviewAction } from '../workflows/onboarding/evaluate-onboarding-review';
+import type { OnboardingReviewAction } from './onboarding-review-action';
 
 export type OnboardingRequest = {
   employeeCode: string | null;

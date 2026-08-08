@@ -1,7 +1,7 @@
 import type { InvocationBody } from '../types/invocation-body';
 import type { OnboardingInvocationResult } from '../types/onboarding-invocation-result';
 import type { OnboardingRequest } from '../types/onboarding-request';
-import type { OnboardingReviewAction } from '../workflows/onboarding/evaluate-onboarding-review';
+import type { OnboardingReviewAction } from '../types/onboarding-review-action';
 
 const supportedRequestPattern = /onboard|review period|initial review|probation/i;
 const employeeCodePattern = /\bEMP-\d+\b/i;

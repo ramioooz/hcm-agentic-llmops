@@ -167,7 +167,7 @@ src/
 ├── security/ Authorization checks and PII redaction
 ├── repositories/ PostgreSQL employee data access
 ├── services/ Agent invocation and onboarding orchestration
-├── types/ Shared TypeScript definitions, one exported type per file
+├── types/ Shared TypeScript definitions, one exported type or interface per file
 ├── workflows/onboarding/ Deterministic onboarding review calculation
 ├── app.ts Express application factory
 └── server.ts Runtime startup and graceful shutdown

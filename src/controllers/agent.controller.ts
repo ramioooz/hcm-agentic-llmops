@@ -2,13 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
 import { parseAgentInvokeRequest } from '../contracts/agent-invoke';
 import type { AccessRole } from '../types/access-role';
-import type { OnboardingInvocationInput } from '../types/onboarding-invocation-input';
-import type { OnboardingInvocationResult } from '../types/onboarding-invocation-result';
+import type { AgentInvoker } from '../types/agent-invoker';
 import type { HttpController } from './http-controller';
-
-export type AgentInvoker = {
-  invoke(input: OnboardingInvocationInput): Promise<OnboardingInvocationResult>;
-};
 
 export class AgentController implements HttpController {
   public readonly basePath = '/api/v1/agent';

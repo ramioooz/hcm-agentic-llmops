@@ -11,7 +11,7 @@ const environmentSchema = z.object({
   AMQP_URL: z.string().url(),
 });
 
-export type Environment = {
+type Environment = {
   nodeEnv: 'development' | 'test' | 'production';
   port: number;
   databaseUrl: string;

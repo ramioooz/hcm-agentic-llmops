@@ -1,4 +1,4 @@
-export type StructuredFailure = {
+type StructuredFailure = {
   status: 'FAILED';
   code: 'AUTHORIZATION_DENIED' | 'VALIDATION_ERROR' | 'INTERNAL_ERROR';
   message: string;
