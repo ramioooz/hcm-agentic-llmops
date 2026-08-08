@@ -22,23 +22,23 @@ This repository builds that flow around two business areas:
 1. **Employee onboarding review** — review the end date and status of an employee's initial review period.
 2. **Leave requests** — check policy and balance before a leave request is created.
 
-The second area and technical triggers are planned for Sprint 2. The current branch contains the shared API and data foundation.
+The second area and technical triggers are planned for Sprint 2. The current release contains the shared API and data foundation plus the first onboarding review workflow.
 
 ## Current implementation status
 
-| Capability                                 | Status      | Notes                                                                      |
-| ------------------------------------------ | ----------- | -------------------------------------------------------------------------- |
-| Node.js and TypeScript service             | Implemented | Strict TypeScript build with Express application factory                   |
-| PostgreSQL persistence                     | Implemented | Prisma schema, migration, and sample seed records                          |
-| RabbitMQ development service               | Implemented | Docker Compose service; application event handling is planned for Sprint 2 |
-| Health and readiness endpoints             | Implemented | `/health` and `/ready`                                                     |
-| Focused unit tests                         | Implemented | Jest tests for configuration, onboarding decisions, and PII redaction      |
-| Agent invocation endpoint                  | Planned     | Sprint 1 onboarding workflow story                                         |
-| Employee onboarding review workflow        | Planned     | Sprint 1 onboarding workflow story                                         |
-| Authorization and guardrails               | Planned     | Sprint 1 security story                                                    |
-| Leave workflow                             | Planned     | Sprint 2                                                                   |
-| Scheduled, webhook, and RabbitMQ workflows | Planned     | Sprint 2                                                                   |
-| Integration and end-to-end tests           | Planned     | Added after the initial release                                            |
+| Capability                                 | Status      | Notes                                                                       |
+| ------------------------------------------ | ----------- | --------------------------------------------------------------------------- |
+| Node.js and TypeScript service             | Implemented | Strict TypeScript build with Express application factory                    |
+| PostgreSQL persistence                     | Implemented | Prisma schema, migration, and sample seed records                           |
+| RabbitMQ development service               | Implemented | Docker Compose service; application event handling is planned for Sprint 2  |
+| Health and readiness endpoints             | Implemented | `/health` and `/ready`                                                      |
+| Focused unit tests                         | Implemented | Jest tests for configuration, onboarding decisions, and PII redaction       |
+| Agent invocation endpoint                  | Implemented | `POST /api/v1/agent/invoke` with validation and correlation IDs             |
+| Employee onboarding review workflow        | Implemented | Deterministic review-period lookup and threshold evaluation                 |
+| Authorization and guardrails               | In progress | Header identity, role checks, and safe unsupported/need-more-info responses |
+| Leave workflow                             | Planned     | Sprint 2                                                                    |
+| Scheduled, webhook, and RabbitMQ workflows | Planned     | Sprint 2                                                                    |
+| Integration and end-to-end tests           | Planned     | Added after the initial release                                             |
 
 ## Architecture
 
@@ -156,14 +156,16 @@ See [docs/architecture.md](docs/architecture.md) for the reasoning behind the la
 
 ## Repository structure
 
-The current foundation contains the directories below. The API, repositories, services, tools, triggers, and additional workflow folders will be added as their stories are implemented.
+The current foundation and onboarding workflow contain the directories below. Observability persistence, leave, tools for side effects, and technical triggers will be added as their stories are implemented.
 
 ```text
 src/
 ├── config/ Environment validation and application settings
-├── contracts/ Shared failure and result contracts
+├── contracts/ Request validation and result contracts
 ├── infrastructure/database/ Prisma client setup
 ├── security/ Authorization checks and PII redaction
+├── repositories/ PostgreSQL employee data access
+├── services/ Agent invocation and onboarding orchestration
 ├── workflows/onboarding/ Deterministic onboarding review calculation
 ├── app.ts Express application factory
 └── server.ts Runtime startup and graceful shutdown
@@ -237,14 +239,16 @@ Current unit-test areas:
 - Required configuration validation.
 - Onboarding review threshold calculation.
 - Review-only versus explicit notification behavior.
+- Agent request validation and onboarding routing.
+- Authorization denial and structured failure mapping.
 - PII redaction.
 
-Authorization, structured failure mapping, leave decisions, and event idempotency will be added as their workflows are implemented. Integration and end-to-end tests are future improvements.
+Durable run and security-event persistence, leave decisions, and event idempotency will be added as their workflows are implemented. Integration and end-to-end tests are future improvements.
 
 ## Roadmap and improvement opportunities
 
-- Complete the `/api/v1/agent/invoke` onboarding workflow.
 - Add production-grade authentication and identity mapping.
+- Persist agent runs, workflow steps, and security events from the invocation path.
 - Add leave policies, balances, and requests.
 - Add scheduled, webhook, and RabbitMQ triggers.
 - Add broader automated testing, including integration and end-to-end coverage.
