@@ -6,12 +6,13 @@ const unsafePatterns: Array<{
 }> = [
   {
     reasonCode: 'INSTRUCTION_OVERRIDE',
-    pattern: /\b(?:ignore|disregard|forget)\s+(?:all\s+)?(?:previous|prior)\s+instructions?\b/i,
+    pattern:
+      /\b(?:ignore|disregard|forget)\s+(?:(?:all|the)\s+)?(?:previous|prior|system|developer)\s+instructions?\b/i,
   },
   {
     reasonCode: 'BULK_EMPLOYEE_DATA_REQUEST',
     pattern:
-      /\b(?:dump|export|list|show|send)\b.{0,80}\b(?:every|all)\s+employee(?:\s+(?:record|data|detail)s?)?\b/i,
+      /\b(?:dump|export|list|show|send|reveal|review)\b.{0,80}\b(?:every|all)\s+employee(?:\s+(?:record|data|detail)s?)?\b/i,
   },
   {
     reasonCode: 'SECURITY_CONTROL_BYPASS',
