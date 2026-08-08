@@ -26,20 +26,20 @@ The second area and technical triggers are planned for Sprint 2. The current rel
 
 ## Current implementation status
 
-| Capability                                 | Status      | Notes                                                                       |
-| ------------------------------------------ | ----------- | --------------------------------------------------------------------------- |
-| Node.js and TypeScript service             | Implemented | Strict TypeScript build with dependency-injected Express controllers        |
-| PostgreSQL persistence                     | Implemented | Prisma schema, migration, and sample seed records                           |
-| Run and security persistence               | Implemented | Transactional agent runs, workflow steps, and redacted security events      |
-| RabbitMQ development service               | Implemented | Docker Compose service; application event handling is planned for Sprint 2  |
-| Health and readiness endpoints             | Implemented | `/health` and `/ready`                                                      |
-| Focused unit tests                         | Implemented | Jest tests for controllers, configuration, onboarding, and PII redaction    |
-| Agent invocation endpoint                  | Implemented | `POST /api/v1/agent/invoke` with validation and correlation IDs             |
-| Employee onboarding review workflow        | Implemented | Deterministic review-period lookup and threshold evaluation                 |
-| Authorization and guardrails               | In progress | Header identity, role checks, and safe unsupported/need-more-info responses |
-| Leave workflow                             | Planned     | Sprint 2                                                                    |
-| Scheduled, webhook, and RabbitMQ workflows | Planned     | Sprint 2                                                                    |
-| Integration and end-to-end tests           | Planned     | Added after the initial release                                             |
+| Capability                                 | Status      | Notes                                                                                                               |
+| ------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------- |
+| Node.js and TypeScript service             | Implemented | Strict TypeScript build with dependency-injected Express controllers                                                |
+| PostgreSQL persistence                     | Implemented | Prisma schema, migration, and sample seed records                                                                   |
+| Run and security persistence               | Implemented | Transactional agent runs, workflow steps, and redacted security events                                              |
+| RabbitMQ development service               | Implemented | Docker Compose service; application event handling is planned for Sprint 2                                          |
+| Health and readiness endpoints             | Implemented | `/health` and `/ready`                                                                                              |
+| Focused unit tests                         | Implemented | Jest tests for controllers, configuration, onboarding, and PII redaction                                            |
+| Agent invocation endpoint                  | Implemented | `POST /api/v1/agent/invoke` with validation and correlation IDs                                                     |
+| Employee onboarding review workflow        | Implemented | Deterministic review-period lookup and threshold evaluation                                                         |
+| Authorization and guardrails               | In progress | Header identity, role checks, deterministic unsafe-request rejection, and safe unsupported/need-more-info responses |
+| Leave workflow                             | Planned     | Sprint 2                                                                                                            |
+| Scheduled, webhook, and RabbitMQ workflows | Planned     | Sprint 2                                                                                                            |
+| Integration and end-to-end tests           | Planned     | Added after the initial release                                                                                     |
 
 ## Architecture
 
@@ -124,7 +124,7 @@ The security design uses several independent controls:
 
 - Request schemas reject malformed or oversized input.
 - The router accepts only supported intents.
-- Unsafe instruction patterns are rejected and recorded as security events.
+- Deterministic request safety checks reject instruction overrides, bulk employee-data requests, security-control bypass attempts, and system-prompt disclosure requests before employee lookup. Rejections are recorded without storing the raw query.
 - Services and tools enforce authorization again after routing.
 - Business rules are evaluated by TypeScript code, not generated text.
 - Logs and traces redact names, email addresses, salary, phone numbers, addresses, and full employee identifiers.

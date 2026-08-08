@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { buildInvocationResult, parseOnboardingRequest } from '../helpers/onboarding-agent.helpers';
 import { assertEmployeeReadAccess } from '../security/authorization';
 import { redactSensitiveData } from '../security/pii-redaction';
+import { evaluateRequestSafety } from '../security/request-safety';
 import type { AgentInvocationRecord } from '../types/agent-invocation-record';
 import type { AgentRunRecorder } from '../types/agent-run-recorder';
 import type { AgentRunStepRecord } from '../types/agent-run-step-record';
@@ -23,6 +24,39 @@ export class OnboardingAgentService {
 
   public async invoke(input: OnboardingInvocationInput): Promise<OnboardingInvocationResult> {
     const runId = randomUUID();
+    const safety = evaluateRequestSafety(input.query);
+
+    if (!safety.isSafe) {
+      return this.completeInvocation(
+        input,
+        runId,
+        undefined,
+        [
+          {
+            stepName: 'request_guard',
+            status: 'REJECTED',
+            outcomeCode: safety.reasonCode,
+            inputData: { reasonCode: safety.reasonCode },
+          },
+        ],
+        [
+          {
+            eventType: 'UNSAFE_REQUEST_REJECTED',
+            severity: 'HIGH',
+            details: { reasonCode: safety.reasonCode },
+          },
+        ],
+        buildInvocationResult(403, {
+          status: 'FAILED',
+          code: 'UNSAFE_REQUEST_REJECTED',
+          message: 'The request was rejected by security controls.',
+          runId,
+          correlationId: input.correlationId,
+        }),
+        safety.reasonCode,
+      );
+    }
+
     const request = parseOnboardingRequest(input.query);
     const requestStep: AgentRunStepRecord = {
       stepName: 'request_parsing',
@@ -237,23 +271,26 @@ export class OnboardingAgentService {
   private async completeInvocation(
     input: OnboardingInvocationInput,
     runId: string,
-    request: ReturnType<typeof parseOnboardingRequest>,
+    request: ReturnType<typeof parseOnboardingRequest> | undefined,
     steps: AgentRunStepRecord[],
     securityEvents: SecurityEventRecord[],
     result: OnboardingInvocationResult,
+    rejectedReasonCode?: string,
   ): Promise<OnboardingInvocationResult> {
     const record: AgentInvocationRecord = {
       runId,
       correlationId: input.correlationId,
       triggerType: 'HTTP',
       actorEmployeeCode: input.actorEmployeeCode,
-      intent: request.supported ? 'ONBOARDING_REVIEW' : undefined,
-      requestSummary: redactSensitiveData({
-        supported: request.supported,
-        employeeCode: request.employeeCode,
-        thresholdDays: request.thresholdDays,
-        requestedAction: request.requestedAction,
-      }),
+      intent: request?.supported ? 'ONBOARDING_REVIEW' : undefined,
+      requestSummary: request
+        ? redactSensitiveData({
+            supported: request.supported,
+            employeeCode: request.employeeCode,
+            thresholdDays: request.thresholdDays,
+            requestedAction: request.requestedAction,
+          })
+        : { rejectedReasonCode },
       status: this.toRunStatus(result),
       resultSummary: redactSensitiveData(result.body),
       steps: steps.map((step) => ({
@@ -288,7 +325,8 @@ export class OnboardingAgentService {
 
     if (
       result.body.status === 'UNSUPPORTED_REQUEST' ||
-      result.body.status === 'NEED_MORE_INFORMATION'
+      result.body.status === 'NEED_MORE_INFORMATION' ||
+      result.body.code === 'UNSAFE_REQUEST_REJECTED'
     ) {
       return 'REJECTED';
     }
