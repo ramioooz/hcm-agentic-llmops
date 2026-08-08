@@ -303,6 +303,85 @@ describe('AgentController', () => {
       httpStatus: 403,
     });
   });
+
+  test('logs a handled service 500 result as a failure', async () => {
+    const invoke = jest
+      .fn<ReturnType<InvokeFunction>, Parameters<InvokeFunction>>()
+      .mockResolvedValue({
+        httpStatus: 500,
+        body: {
+          status: 'FAILED',
+          code: 'INTERNAL_ERROR',
+          message: 'The workflow could not be completed.',
+          runId: 'run-service-500',
+          correlationId: 'correlation-service-500',
+        },
+      });
+    const logs = captureLogger();
+    const controller = new AgentController({ agent: { invoke }, logger: logs.logger });
+    const captured = captureResponse();
+
+    await controller.handleInvoke(
+      requestWith({
+        body: { query: 'Review EMP-1001 onboarding' },
+        headers: {
+          'X-Correlation-Id': 'correlation-service-500',
+          'X-Employee-Id': 'EMP-9000',
+          'X-User-Role': 'HR',
+        },
+      }),
+      captured.response,
+    );
+
+    expect(captured.statusCode).toBe(500);
+    expect(logs.error).toHaveBeenCalledWith({
+      event: 'agent.invoke.failed',
+      correlationId: 'correlation-service-500',
+      runId: 'run-service-500',
+      status: 'FAILED',
+      code: 'INTERNAL_ERROR',
+      httpStatus: 500,
+    });
+  });
+
+  test('logs a handled service 200 rejection outcome as completed', async () => {
+    const invoke = jest
+      .fn<ReturnType<InvokeFunction>, Parameters<InvokeFunction>>()
+      .mockResolvedValue({
+        httpStatus: 200,
+        body: {
+          status: 'NEED_MORE_INFORMATION',
+          message: 'Please provide the employee ID.',
+          runId: 'run-more-information',
+          correlationId: 'correlation-more-information',
+        },
+      });
+    const logs = captureLogger();
+    const controller = new AgentController({ agent: { invoke }, logger: logs.logger });
+    const captured = captureResponse();
+
+    await controller.handleInvoke(
+      requestWith({
+        body: { query: 'Review onboarding' },
+        headers: {
+          'X-Correlation-Id': 'correlation-more-information',
+          'X-Employee-Id': 'EMP-9000',
+          'X-User-Role': 'HR',
+        },
+      }),
+      captured.response,
+    );
+
+    expect(captured.statusCode).toBe(200);
+    expect(logs.info).toHaveBeenCalledWith({
+      event: 'agent.invoke.completed',
+      correlationId: 'correlation-more-information',
+      runId: 'run-more-information',
+      status: 'NEED_MORE_INFORMATION',
+      httpStatus: 200,
+    });
+    expect(logs.warn).not.toHaveBeenCalled();
+  });
 });
 
 describe('HealthController', () => {

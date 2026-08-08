@@ -126,7 +126,7 @@ export class AgentController implements HttpController {
       return;
     }
 
-    if (httpStatus >= 400 || body.status !== 'COMPLETED') {
+    if (httpStatus >= 400) {
       this.dependencies.logger.warn({ event: 'agent.invoke.rejected', ...entry });
       return;
     }

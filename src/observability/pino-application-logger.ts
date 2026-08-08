@@ -10,6 +10,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function redact(value: unknown, key?: string): unknown {
+  if (key === 'employeeId') {
+    return '[REDACTED]';
+  }
+
   if (key && sensitiveKeys.has(key)) {
     return '[REDACTED]';
   }

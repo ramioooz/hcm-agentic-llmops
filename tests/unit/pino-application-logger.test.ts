@@ -18,6 +18,7 @@ describe('PinoApplicationLogger', () => {
       query: 'Review employee EMP-1001',
       details: {
         employeeCode: 'EMP-1001',
+        employeeId: 'EMP-1001',
         contact: { email: 'samira.noor@example.test' },
         error: { message: 'database connection for Samira failed', stack: 'stack trace' },
       },
@@ -31,6 +32,7 @@ describe('PinoApplicationLogger', () => {
       query: '[REDACTED]',
       details: {
         employeeCode: '[REDACTED]',
+        employeeId: '[REDACTED]',
         contact: { email: '[REDACTED]' },
         error: { message: '[REDACTED]', stack: '[REDACTED]' },
       },
