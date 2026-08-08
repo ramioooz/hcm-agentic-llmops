@@ -1,4 +1,5 @@
 import { OnboardingAgentService } from '../../src/services/onboarding-agent.service';
+import type { AgentRunRecorder } from '../../src/types/agent-run-recorder';
 import type { EmployeeReader } from '../../src/types/employee-reader';
 import type { EmployeeRecord } from '../../src/types/employee-record';
 
@@ -16,21 +17,26 @@ function createService(record: EmployeeRecord | null = employee) {
   const reader: EmployeeReader = {
     findByEmployeeCode: jest.fn().mockResolvedValue(record),
   };
+  const recorder: AgentRunRecorder = {
+    recordInvocation: jest.fn().mockResolvedValue(undefined),
+  };
 
   return {
     reader,
+    recorder,
     service: new OnboardingAgentService({
       employees: reader,
       clock: {
         today: () => '2026-08-07',
       },
+      recorder,
     }),
   };
 }
 
 describe('OnboardingAgentService', () => {
   it('reviews a supported onboarding request for an authorized manager', async () => {
-    const { service, reader } = createService();
+    const { service, reader, recorder } = createService();
 
     const result = await service.invoke({
       query: "Review EMP-201's onboarding status",
@@ -58,6 +64,20 @@ describe('OnboardingAgentService', () => {
       },
     });
     expect(reader.findByEmployeeCode).toHaveBeenCalledWith('EMP-201');
+    expect(recorder.recordInvocation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        runId: expect.any(String),
+        correlationId: 'corr-test-001',
+        status: 'SUCCEEDED',
+        steps: expect.arrayContaining([
+          expect.objectContaining({ stepName: 'onboarding_review', status: 'COMPLETED' }),
+        ]),
+      }),
+    );
+
+    const record = (recorder.recordInvocation as jest.Mock).mock.calls[0][0];
+    expect(JSON.stringify(record)).not.toContain('Samira Noor');
+    expect(JSON.stringify(record)).not.toContain('EMP-201');
   });
 
   it('returns need-more-information when the employee ID is missing', async () => {
@@ -122,7 +142,7 @@ describe('OnboardingAgentService', () => {
   });
 
   it('denies an unauthorized employee from reviewing another employee', async () => {
-    const { service } = createService();
+    const { service, recorder } = createService();
 
     const result = await service.invoke({
       query: 'Review EMP-201 onboarding status',
@@ -139,6 +159,42 @@ describe('OnboardingAgentService', () => {
         message: 'You are not authorized to perform this operation.',
         runId: expect.any(String),
         correlationId: 'corr-test-005',
+      },
+    });
+    expect(recorder.recordInvocation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'FAILED',
+        securityEvents: [
+          expect.objectContaining({
+            eventType: 'AUTHORIZATION_DENIED',
+            severity: 'MEDIUM',
+          }),
+        ],
+      }),
+    );
+  });
+
+  it('returns a structured internal failure when trace persistence fails', async () => {
+    const { service, recorder } = createService();
+    (recorder.recordInvocation as jest.Mock).mockRejectedValueOnce(
+      new Error('database unavailable'),
+    );
+
+    const result = await service.invoke({
+      query: "Review EMP-201's onboarding status",
+      actorEmployeeCode: 'EMP-200',
+      actorRole: 'MANAGER',
+      correlationId: 'corr-test-006',
+    });
+
+    expect(result).toMatchObject({
+      httpStatus: 500,
+      body: {
+        status: 'FAILED',
+        code: 'INTERNAL_ERROR',
+        message: 'The workflow could not be completed.',
+        correlationId: 'corr-test-006',
+        runId: expect.any(String),
       },
     });
   });

@@ -1,10 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { buildInvocationResult, parseOnboardingRequest } from '../helpers/onboarding-agent.helpers';
 import { assertEmployeeReadAccess } from '../security/authorization';
+import { redactSensitiveData } from '../security/pii-redaction';
+import type { AgentInvocationRecord } from '../types/agent-invocation-record';
+import type { AgentRunRecorder } from '../types/agent-run-recorder';
+import type { AgentRunStepRecord } from '../types/agent-run-step-record';
 import type { Clock } from '../types/clock';
 import type { EmployeeReader } from '../types/employee-reader';
 import type { OnboardingInvocationInput } from '../types/onboarding-invocation-input';
 import type { OnboardingInvocationResult } from '../types/onboarding-invocation-result';
+import type { SecurityEventRecord } from '../types/security-event-record';
 import { evaluateOnboardingReview } from '../workflows/onboarding/evaluate-onboarding-review';
 
 export class OnboardingAgentService {
@@ -12,42 +17,84 @@ export class OnboardingAgentService {
     private readonly dependencies: {
       employees: EmployeeReader;
       clock: Clock;
+      recorder: AgentRunRecorder;
     },
   ) {}
 
   public async invoke(input: OnboardingInvocationInput): Promise<OnboardingInvocationResult> {
     const runId = randomUUID();
     const request = parseOnboardingRequest(input.query);
+    const requestStep: AgentRunStepRecord = {
+      stepName: 'request_parsing',
+      status: request.supported ? 'COMPLETED' : 'REJECTED',
+      outcomeCode: request.supported ? 'REQUEST_PARSED' : 'UNSUPPORTED_REQUEST',
+      inputData: {
+        supported: request.supported,
+        employeeCode: request.employeeCode,
+        thresholdDays: request.thresholdDays,
+        requestedAction: request.requestedAction,
+      },
+    };
+    const steps: AgentRunStepRecord[] = [requestStep];
+    const securityEvents: SecurityEventRecord[] = [];
 
     if (!request.supported) {
-      return buildInvocationResult(200, {
-        status: 'UNSUPPORTED_REQUEST',
-        message: 'That request is outside the capabilities of this HCM agent.',
+      return this.completeInvocation(
+        input,
         runId,
-        correlationId: input.correlationId,
-      });
+        request,
+        steps,
+        securityEvents,
+        buildInvocationResult(200, {
+          status: 'UNSUPPORTED_REQUEST',
+          message: 'That request is outside the capabilities of this HCM agent.',
+          runId,
+          correlationId: input.correlationId,
+        }),
+      );
     }
 
     if (!request.employeeCode) {
-      return buildInvocationResult(200, {
-        status: 'NEED_MORE_INFORMATION',
-        message: 'Please provide the employee ID.',
-        missingFields: ['employeeId'],
+      requestStep.outcomeCode = 'EMPLOYEE_ID_REQUIRED';
+      return this.completeInvocation(
+        input,
         runId,
-        correlationId: input.correlationId,
-      });
+        request,
+        steps,
+        securityEvents,
+        buildInvocationResult(200, {
+          status: 'NEED_MORE_INFORMATION',
+          message: 'Please provide the employee ID.',
+          missingFields: ['employeeId'],
+          runId,
+          correlationId: input.correlationId,
+        }),
+      );
     }
 
     const employee = await this.dependencies.employees.findByEmployeeCode(request.employeeCode);
+    steps.push({
+      stepName: 'employee_lookup',
+      status: employee ? 'COMPLETED' : 'FAILED',
+      outcomeCode: employee ? 'EMPLOYEE_FOUND' : 'EMPLOYEE_NOT_FOUND',
+      inputData: { employeeCode: request.employeeCode },
+    });
 
     if (!employee) {
-      return buildInvocationResult(404, {
-        status: 'FAILED',
-        code: 'EMPLOYEE_NOT_FOUND',
-        message: `Employee ${request.employeeCode} was not found.`,
+      return this.completeInvocation(
+        input,
         runId,
-        correlationId: input.correlationId,
-      });
+        request,
+        steps,
+        securityEvents,
+        buildInvocationResult(404, {
+          status: 'FAILED',
+          code: 'EMPLOYEE_NOT_FOUND',
+          message: `Employee ${request.employeeCode} was not found.`,
+          runId,
+          correlationId: input.correlationId,
+        }),
+      );
     }
 
     try {
@@ -57,34 +104,87 @@ export class OnboardingAgentService {
         targetEmployeeId: employee.employeeCode,
         targetManagerEmployeeId: employee.managerEmployeeCode,
       });
-    } catch {
-      return buildInvocationResult(403, {
-        status: 'FAILED',
-        code: 'AUTHORIZATION_DENIED',
-        message: 'You are not authorized to perform this operation.',
-        runId,
-        correlationId: input.correlationId,
+      steps.push({
+        stepName: 'authorization',
+        status: 'COMPLETED',
+        outcomeCode: 'AUTHORIZED',
+        inputData: {
+          actorRole: input.actorRole,
+          targetEmployeeCode: employee.employeeCode,
+        },
       });
+    } catch {
+      steps.push({
+        stepName: 'authorization',
+        status: 'FAILED',
+        outcomeCode: 'AUTHORIZATION_DENIED',
+      });
+      securityEvents.push({
+        eventType: 'AUTHORIZATION_DENIED',
+        severity: 'MEDIUM',
+        details: {
+          actorRole: input.actorRole,
+          targetEmployeeCode: employee.employeeCode,
+        },
+      });
+      return this.completeInvocation(
+        input,
+        runId,
+        request,
+        steps,
+        securityEvents,
+        buildInvocationResult(403, {
+          status: 'FAILED',
+          code: 'AUTHORIZATION_DENIED',
+          message: 'You are not authorized to perform this operation.',
+          runId,
+          correlationId: input.correlationId,
+        }),
+      );
     }
 
     if (employee.status !== 'ACTIVE') {
-      return buildInvocationResult(409, {
+      steps.push({
+        stepName: 'employee_state_validation',
         status: 'FAILED',
-        code: 'EMPLOYEE_INACTIVE',
-        message: 'The employee is not active.',
-        runId,
-        correlationId: input.correlationId,
+        outcomeCode: 'EMPLOYEE_INACTIVE',
       });
+      return this.completeInvocation(
+        input,
+        runId,
+        request,
+        steps,
+        securityEvents,
+        buildInvocationResult(409, {
+          status: 'FAILED',
+          code: 'EMPLOYEE_INACTIVE',
+          message: 'The employee is not active.',
+          runId,
+          correlationId: input.correlationId,
+        }),
+      );
     }
 
     if (!employee.activeReviewPeriod) {
-      return buildInvocationResult(404, {
+      steps.push({
+        stepName: 'employee_state_validation',
         status: 'FAILED',
-        code: 'ONBOARDING_REVIEW_NOT_FOUND',
-        message: 'The employee does not have an active onboarding review period.',
-        runId,
-        correlationId: input.correlationId,
+        outcomeCode: 'ONBOARDING_REVIEW_NOT_FOUND',
       });
+      return this.completeInvocation(
+        input,
+        runId,
+        request,
+        steps,
+        securityEvents,
+        buildInvocationResult(404, {
+          status: 'FAILED',
+          code: 'ONBOARDING_REVIEW_NOT_FOUND',
+          message: 'The employee does not have an active onboarding review period.',
+          runId,
+          correlationId: input.correlationId,
+        }),
+      );
     }
 
     const review = evaluateOnboardingReview({
@@ -94,23 +194,105 @@ export class OnboardingAgentService {
       requestedAction: request.requestedAction,
     });
 
-    return buildInvocationResult(200, {
+    steps.push({
+      stepName: 'onboarding_review',
       status: 'COMPLETED',
-      message: 'Employee onboarding review completed.',
+      outcomeCode: 'REVIEW_EVALUATED',
+      inputData: {
+        employeeCode: employee.employeeCode,
+        reviewEndDate: employee.activeReviewPeriod.endDate,
+        thresholdDays: request.thresholdDays,
+        requestedAction: request.requestedAction,
+      },
+      outputData: review,
+    });
+
+    return this.completeInvocation(
+      input,
+      runId,
+      request,
+      steps,
+      securityEvents,
+      buildInvocationResult(200, {
+        status: 'COMPLETED',
+        message: 'Employee onboarding review completed.',
+        runId,
+        correlationId: input.correlationId,
+        data: {
+          employeeCode: employee.employeeCode,
+          fullName: employee.fullName,
+          reviewEndDate: employee.activeReviewPeriod.endDate,
+          daysRemaining: review.daysRemaining,
+          withinThreshold: review.withinThreshold,
+          action: review.action,
+          actionPerformed: false,
+          ...(review.action === 'NOTIFY_MANAGER'
+            ? { actionReason: 'NOTIFICATION_PROVIDER_NOT_CONFIGURED' }
+            : {}),
+        },
+      }),
+    );
+  }
+
+  private async completeInvocation(
+    input: OnboardingInvocationInput,
+    runId: string,
+    request: ReturnType<typeof parseOnboardingRequest>,
+    steps: AgentRunStepRecord[],
+    securityEvents: SecurityEventRecord[],
+    result: OnboardingInvocationResult,
+  ): Promise<OnboardingInvocationResult> {
+    const record: AgentInvocationRecord = {
       runId,
       correlationId: input.correlationId,
-      data: {
-        employeeCode: employee.employeeCode,
-        fullName: employee.fullName,
-        reviewEndDate: employee.activeReviewPeriod.endDate,
-        daysRemaining: review.daysRemaining,
-        withinThreshold: review.withinThreshold,
-        action: review.action,
-        actionPerformed: false,
-        ...(review.action === 'NOTIFY_MANAGER'
-          ? { actionReason: 'NOTIFICATION_PROVIDER_NOT_CONFIGURED' }
-          : {}),
-      },
-    });
+      triggerType: 'HTTP',
+      actorEmployeeCode: input.actorEmployeeCode,
+      intent: request.supported ? 'ONBOARDING_REVIEW' : undefined,
+      requestSummary: redactSensitiveData({
+        supported: request.supported,
+        employeeCode: request.employeeCode,
+        thresholdDays: request.thresholdDays,
+        requestedAction: request.requestedAction,
+      }),
+      status: this.toRunStatus(result),
+      resultSummary: redactSensitiveData(result.body),
+      steps: steps.map((step) => ({
+        ...step,
+        inputData: step.inputData ? redactSensitiveData(step.inputData) : undefined,
+        outputData: step.outputData ? redactSensitiveData(step.outputData) : undefined,
+      })),
+      securityEvents: securityEvents.map((event) => ({
+        ...event,
+        details: event.details ? redactSensitiveData(event.details) : undefined,
+      })),
+    };
+
+    try {
+      await this.dependencies.recorder.recordInvocation(record);
+      return result;
+    } catch {
+      return buildInvocationResult(500, {
+        status: 'FAILED',
+        code: 'INTERNAL_ERROR',
+        message: 'The workflow could not be completed.',
+        runId,
+        correlationId: input.correlationId,
+      });
+    }
+  }
+
+  private toRunStatus(result: OnboardingInvocationResult): AgentInvocationRecord['status'] {
+    if (result.body.status === 'COMPLETED') {
+      return 'SUCCEEDED';
+    }
+
+    if (
+      result.body.status === 'UNSUPPORTED_REQUEST' ||
+      result.body.status === 'NEED_MORE_INFORMATION'
+    ) {
+      return 'REJECTED';
+    }
+
+    return 'FAILED';
   }
 }

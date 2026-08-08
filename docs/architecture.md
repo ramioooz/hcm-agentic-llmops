@@ -68,4 +68,4 @@ HTTP / schedule / webhook / RabbitMQ
 
 ## Current versus planned
 
-The current release implements the application startup, configuration validation, dependency-injected HTTP controllers, health checks, PostgreSQL schema, migrations, seed data, the onboarding invocation endpoint, deterministic onboarding review, and focused unit tests. Leave workflows, durable run/security persistence, side-effect tools, and technical trigger adapters are added in later stories.
+The current release implements the application startup, configuration validation, dependency-injected HTTP controllers, health checks, PostgreSQL schema, migrations, seed data, the onboarding invocation endpoint, deterministic onboarding review, transactional run/step/security-event recording, and focused unit tests. Leave workflows, side-effect tools, structured log shipping, and technical trigger adapters are added in later stories.
