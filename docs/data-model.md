@@ -58,6 +58,8 @@ Nadia Rahman (EMP-100, HR partner)
 
 The table story follows the business lifecycle: `employees` identifies people and reporting relationships; `onboarding_review_periods` records the business period being evaluated; `agent_runs` records one workflow attempt; `agent_run_steps` records the decisions and tool operations inside that attempt; and `security_events` records rejected or suspicious activity related to it. No separate `users` table is needed in this release because development actors are represented by employee records and production authentication is a planned boundary.
 
+The onboarding service writes these operational records through the Prisma-backed agent-run repository in one transaction. The run stores the final status and redacted summaries, the step rows store the key decisions, and authorization failures create linked security-event rows. Database failures are mapped to the existing structured internal-error response and do not expose database details to the caller.
+
 ### Migration and seed behavior
 
 `npm run db:migrate` runs Prisma's deployment command. It applies each migration that is not already recorded in PostgreSQL's `_prisma_migrations` table and does nothing when the database is current. It is safe to run repeatedly, but it does not undo or repair a changed migration.

@@ -30,6 +30,7 @@ The second area and technical triggers are planned for Sprint 2. The current rel
 | ------------------------------------------ | ----------- | --------------------------------------------------------------------------- |
 | Node.js and TypeScript service             | Implemented | Strict TypeScript build with dependency-injected Express controllers        |
 | PostgreSQL persistence                     | Implemented | Prisma schema, migration, and sample seed records                           |
+| Run and security persistence               | Implemented | Transactional agent runs, workflow steps, and redacted security events      |
 | RabbitMQ development service               | Implemented | Docker Compose service; application event handling is planned for Sprint 2  |
 | Health and readiness endpoints             | Implemented | `/health` and `/ready`                                                      |
 | Focused unit tests                         | Implemented | Jest tests for controllers, configuration, onboarding, and PII redaction    |
@@ -136,6 +137,8 @@ The security design uses several independent controls:
 - `threadId` is optional and can group multiple runs in a future multi-turn conversation.
 
 One scheduled operation may therefore have one correlation ID and several run IDs. The same run ID links the routing decision, tool calls, tool results, final response, and any security event.
+
+The onboarding invocation persists this trace through a Prisma-backed recorder. Run summaries, workflow inputs and outputs, and security-event details are redacted before they are written to PostgreSQL. A recorder failure returns the same structured internal-error response shape used by other unexpected workflow failures.
 
 ## Data model
 
@@ -254,13 +257,13 @@ Current unit-test areas:
 - Agent request validation and onboarding routing.
 - Authorization denial and structured failure mapping.
 - PII redaction.
+- Trace recording with redacted run summaries, workflow steps, and authorization events.
 
-Durable run and security-event persistence, leave decisions, and event idempotency will be added as their workflows are implemented. Integration and end-to-end tests are future improvements.
+Leave decisions, event idempotency, and broader operational dashboards remain future improvements. Integration and end-to-end tests are also future improvements.
 
 ## Roadmap and improvement opportunities
 
 - Add production-grade authentication and identity mapping.
-- Persist agent runs, workflow steps, and security events from the invocation path.
 - Add leave policies, balances, and requests.
 - Add scheduled, webhook, and RabbitMQ triggers.
 - Add broader automated testing, including integration and end-to-end coverage.

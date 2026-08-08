@@ -5,6 +5,7 @@ const sensitiveKeys = new Set([
   'phone',
   'address',
   'employeeCode',
+  'targetEmployeeCode',
   'actorEmployeeCode',
 ]);
 
