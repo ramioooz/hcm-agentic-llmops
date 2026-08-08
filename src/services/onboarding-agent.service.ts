@@ -1,32 +1,22 @@
 import { randomUUID } from 'node:crypto';
-import {
-  buildInvocationResult,
-  parseOnboardingRequest,
-  todayAsDateOnly,
-} from '../helpers/onboarding-agent.helpers';
+import { buildInvocationResult, parseOnboardingRequest } from '../helpers/onboarding-agent.helpers';
 import { assertEmployeeReadAccess } from '../security/authorization';
+import type { Clock } from '../types/clock';
 import type { EmployeeReader } from '../types/employee-reader';
 import type { OnboardingInvocationInput } from '../types/onboarding-invocation-input';
 import type { OnboardingInvocationResult } from '../types/onboarding-invocation-result';
 import { evaluateOnboardingReview } from '../workflows/onboarding/evaluate-onboarding-review';
 
 export class OnboardingAgentService {
-  private readonly createRunId: () => string;
-  private readonly today: () => string;
-
   public constructor(
     private readonly dependencies: {
       employees: EmployeeReader;
-      createRunId?: () => string;
-      today?: () => string;
+      clock: Clock;
     },
-  ) {
-    this.createRunId = dependencies.createRunId ?? randomUUID;
-    this.today = dependencies.today ?? todayAsDateOnly;
-  }
+  ) {}
 
   public async invoke(input: OnboardingInvocationInput): Promise<OnboardingInvocationResult> {
-    const runId = this.createRunId();
+    const runId = randomUUID();
     const request = parseOnboardingRequest(input.query);
 
     if (!request.supported) {
@@ -99,7 +89,7 @@ export class OnboardingAgentService {
 
     const review = evaluateOnboardingReview({
       reviewEndDate: employee.activeReviewPeriod.endDate,
-      today: this.today(),
+      today: this.dependencies.clock.today(),
       thresholdDays: request.thresholdDays,
       requestedAction: request.requestedAction,
     });
