@@ -1,10 +1,8 @@
 import type { Request, Response } from 'express';
 import { AgentController } from '../../src/controllers/agent.controller';
 import { HealthController } from '../../src/controllers/health.controller';
-import type {
-  OnboardingInvocationInput,
-  OnboardingInvocationResult,
-} from '../../src/services/onboarding-agent.service';
+import type { OnboardingInvocationInput } from '../../src/types/onboarding-invocation-input';
+import type { OnboardingInvocationResult } from '../../src/types/onboarding-invocation-result';
 
 type InvokeFunction = (input: OnboardingInvocationInput) => Promise<OnboardingInvocationResult>;
 

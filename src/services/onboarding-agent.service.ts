@@ -1,74 +1,14 @@
 import { randomUUID } from 'node:crypto';
-import { assertEmployeeReadAccess, type AccessRole } from '../security/authorization';
 import {
-  evaluateOnboardingReview,
-  type OnboardingReviewAction,
-} from '../workflows/onboarding/evaluate-onboarding-review';
-
-export type EmployeeRecord = {
-  employeeCode: string;
-  fullName: string;
-  status: 'ACTIVE' | 'INACTIVE';
-  managerEmployeeCode: string | null;
-  activeReviewPeriod: {
-    endDate: string;
-  } | null;
-};
-
-export type EmployeeReader = {
-  findByEmployeeCode(employeeCode: string): Promise<EmployeeRecord | null>;
-};
-
-export type OnboardingInvocationInput = {
-  query: string;
-  actorEmployeeCode: string;
-  actorRole: AccessRole;
-  correlationId: string;
-};
-
-type InvocationBody = {
-  status: string;
-  message: string;
-  runId: string;
-  correlationId: string;
-  [key: string]: unknown;
-};
-
-export type OnboardingInvocationResult = {
-  httpStatus: number;
-  body: InvocationBody;
-};
-
-type OnboardingRequest = {
-  employeeCode: string | null;
-  thresholdDays: number;
-  requestedAction: OnboardingReviewAction;
-  supported: boolean;
-};
-
-const supportedRequestPattern = /onboard|review period|initial review|probation/i;
-const employeeCodePattern = /\bEMP-\d+\b/i;
-
-function parseOnboardingRequest(query: string): OnboardingRequest {
-  const thresholdMatch = query.match(/(?:within|next|threshold(?: of)?)\s+(\d+)\s+days?/i);
-  const employeeMatch = query.match(employeeCodePattern);
-  const requestedAction = /\bnotify\b|\bnotification\b|\bsend .*manager\b|\btell .*manager\b/i.test(
-    query,
-  )
-    ? 'NOTIFY_MANAGER'
-    : 'REVIEW_ONLY';
-
-  return {
-    employeeCode: employeeMatch?.[0].toUpperCase() ?? null,
-    thresholdDays: thresholdMatch ? Number(thresholdMatch[1]) : 30,
-    requestedAction,
-    supported: supportedRequestPattern.test(query),
-  };
-}
-
-function todayAsDateOnly(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+  buildInvocationResult,
+  parseOnboardingRequest,
+  todayAsDateOnly,
+} from '../helpers/onboarding-agent.helpers';
+import { assertEmployeeReadAccess } from '../security/authorization';
+import type { EmployeeReader } from '../types/employee-reader';
+import type { OnboardingInvocationInput } from '../types/onboarding-invocation-input';
+import type { OnboardingInvocationResult } from '../types/onboarding-invocation-result';
+import { evaluateOnboardingReview } from '../workflows/onboarding/evaluate-onboarding-review';
 
 export class OnboardingAgentService {
   private readonly createRunId: () => string;
@@ -90,7 +30,7 @@ export class OnboardingAgentService {
     const request = parseOnboardingRequest(input.query);
 
     if (!request.supported) {
-      return this.result(200, {
+      return buildInvocationResult(200, {
         status: 'UNSUPPORTED_REQUEST',
         message: 'That request is outside the capabilities of this HCM agent.',
         runId,
@@ -99,7 +39,7 @@ export class OnboardingAgentService {
     }
 
     if (!request.employeeCode) {
-      return this.result(200, {
+      return buildInvocationResult(200, {
         status: 'NEED_MORE_INFORMATION',
         message: 'Please provide the employee ID.',
         missingFields: ['employeeId'],
@@ -111,7 +51,7 @@ export class OnboardingAgentService {
     const employee = await this.dependencies.employees.findByEmployeeCode(request.employeeCode);
 
     if (!employee) {
-      return this.result(404, {
+      return buildInvocationResult(404, {
         status: 'FAILED',
         code: 'EMPLOYEE_NOT_FOUND',
         message: `Employee ${request.employeeCode} was not found.`,
@@ -128,7 +68,7 @@ export class OnboardingAgentService {
         targetManagerEmployeeId: employee.managerEmployeeCode,
       });
     } catch {
-      return this.result(403, {
+      return buildInvocationResult(403, {
         status: 'FAILED',
         code: 'AUTHORIZATION_DENIED',
         message: 'You are not authorized to perform this operation.',
@@ -138,7 +78,7 @@ export class OnboardingAgentService {
     }
 
     if (employee.status !== 'ACTIVE') {
-      return this.result(409, {
+      return buildInvocationResult(409, {
         status: 'FAILED',
         code: 'EMPLOYEE_INACTIVE',
         message: 'The employee is not active.',
@@ -148,7 +88,7 @@ export class OnboardingAgentService {
     }
 
     if (!employee.activeReviewPeriod) {
-      return this.result(404, {
+      return buildInvocationResult(404, {
         status: 'FAILED',
         code: 'ONBOARDING_REVIEW_NOT_FOUND',
         message: 'The employee does not have an active onboarding review period.',
@@ -164,7 +104,7 @@ export class OnboardingAgentService {
       requestedAction: request.requestedAction,
     });
 
-    return this.result(200, {
+    return buildInvocationResult(200, {
       status: 'COMPLETED',
       message: 'Employee onboarding review completed.',
       runId,
@@ -182,9 +122,5 @@ export class OnboardingAgentService {
           : {}),
       },
     });
-  }
-
-  private result(httpStatus: number, body: InvocationBody): OnboardingInvocationResult {
-    return { httpStatus, body };
   }
 }
