@@ -31,6 +31,7 @@ The second area and technical triggers are planned for Sprint 2. The current rel
 | Node.js and TypeScript service             | Implemented | Strict TypeScript build with dependency-injected Express controllers                                                |
 | PostgreSQL persistence                     | Implemented | Prisma schema, migration, and sample seed records                                                                   |
 | Run and security persistence               | Implemented | Transactional agent runs, workflow steps, and redacted security events                                              |
+| Structured invocation logging              | Implemented | Pino JSON events with correlation and run trace context, redacted at output                                         |
 | RabbitMQ development service               | Implemented | Docker Compose service; application event handling is planned for Sprint 2                                          |
 | Health and readiness endpoints             | Implemented | `/health` and `/ready`                                                                                              |
 | Focused unit tests                         | Implemented | Jest tests for controllers, configuration, onboarding, and PII redaction                                            |
@@ -127,7 +128,7 @@ The security design uses several independent controls:
 - Deterministic request safety checks reject instruction overrides, bulk employee-data requests, security-control bypass attempts, and system-prompt disclosure requests before employee lookup. Rejections are recorded without storing the raw query.
 - Services and tools enforce authorization again after routing.
 - Business rules are evaluated by TypeScript code, not generated text.
-- Logs and traces redact names, email addresses, salary, phone numbers, addresses, and full employee identifiers.
+- Invocation logs record only an event name, correlation ID, optional run ID, status, code, and HTTP status. Raw queries, employee identifiers, names, email addresses, error messages, and stack traces are redacted before Pino writes JSON.
 - Sample identities are for local development and are not production authentication.
 
 ## Run traceability
@@ -139,6 +140,8 @@ The security design uses several independent controls:
 One scheduled operation may therefore have one correlation ID and several run IDs. The same run ID links the routing decision, tool calls, tool results, final response, and any security event.
 
 The onboarding invocation persists this trace through a Prisma-backed recorder. Run summaries, workflow inputs and outputs, and security-event details are redacted before they are written to PostgreSQL. A recorder failure returns the same structured internal-error response shape used by other unexpected workflow failures.
+
+The HTTP controller also emits `agent.invoke.started`, `agent.invoke.rejected`, `agent.invoke.completed`, and `agent.invoke.failed` events. Rejections use warning-level logging except an unavailable agent configuration, which is logged as an error because it produces a server failure. Completed calls use info-level logging; handled server failures and unexpected exceptions use error-level logging.
 
 ## Data model
 
@@ -167,6 +170,7 @@ src/
 ├── controllers/ Express routes and HTTP request/response handling
 ├── contracts/ Request validation and result contracts
 ├── helpers/ Pure onboarding request, date, and result helpers
+├── observability/ Pino adapter for redacted structured operational logs
 ├── security/ Authorization checks and PII redaction
 ├── repositories/ PostgreSQL employee data access
 ├── services/ Agent invocation and onboarding orchestration

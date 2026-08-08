@@ -3,20 +3,35 @@ import { Router, type Request, type Response } from 'express';
 import { parseAgentInvokeRequest } from '../contracts/agent-invoke';
 import type { AccessRole } from '../types/access-role';
 import type { AgentInvoker } from '../types/agent-invoker';
+import type { ApplicationLogger } from '../types/application-logger';
+import type { InvocationBody } from '../types/invocation-body';
 import type { HttpController } from './http-controller';
 
 export class AgentController implements HttpController {
   public readonly basePath = '/api/v1/agent';
   public readonly router = Router();
 
-  public constructor(private readonly agent?: AgentInvoker) {
+  public constructor(
+    private readonly dependencies: { agent?: AgentInvoker; logger: ApplicationLogger },
+  ) {
     this.router.post('/invoke', this.handleInvoke);
   }
 
   public readonly handleInvoke = async (request: Request, response: Response): Promise<void> => {
     const correlationId = request.header('X-Correlation-Id')?.trim() || randomUUID();
+    this.dependencies.logger.info({
+      event: 'agent.invoke.started',
+      correlationId,
+    });
 
-    if (!this.agent) {
+    if (!this.dependencies.agent) {
+      this.dependencies.logger.error({
+        event: 'agent.invoke.rejected',
+        correlationId,
+        status: 'FAILED',
+        code: 'AGENT_NOT_CONFIGURED',
+        httpStatus: 503,
+      });
       response.status(503).json({
         status: 'FAILED',
         code: 'AGENT_NOT_CONFIGURED',
@@ -30,6 +45,13 @@ export class AgentController implements HttpController {
     try {
       body = parseAgentInvokeRequest(request.body);
     } catch (error) {
+      this.dependencies.logger.warn({
+        event: 'agent.invoke.rejected',
+        correlationId,
+        status: 'FAILED',
+        code: 'VALIDATION_ERROR',
+        httpStatus: 400,
+      });
       response.status(400).json({
         status: 'FAILED',
         code: 'VALIDATION_ERROR',
@@ -48,6 +70,13 @@ export class AgentController implements HttpController {
       !actorRoleHeader ||
       !validRoles.includes(actorRoleHeader as AccessRole)
     ) {
+      this.dependencies.logger.warn({
+        event: 'agent.invoke.rejected',
+        correlationId,
+        status: 'FAILED',
+        code: 'AUTHENTICATION_REQUIRED',
+        httpStatus: 401,
+      });
       response.status(401).json({
         status: 'FAILED',
         code: 'AUTHENTICATION_REQUIRED',
@@ -58,14 +87,22 @@ export class AgentController implements HttpController {
     }
 
     try {
-      const result = await this.agent.invoke({
+      const result = await this.dependencies.agent.invoke({
         query: body.query,
         actorEmployeeCode,
         actorRole: actorRoleHeader as AccessRole,
         correlationId,
       });
+      this.logResult(result.httpStatus, result.body, correlationId);
       response.status(result.httpStatus).json(result.body);
     } catch {
+      this.dependencies.logger.error({
+        event: 'agent.invoke.failed',
+        correlationId,
+        status: 'FAILED',
+        code: 'INTERNAL_ERROR',
+        httpStatus: 500,
+      });
       response.status(500).json({
         status: 'FAILED',
         code: 'INTERNAL_ERROR',
@@ -74,4 +111,26 @@ export class AgentController implements HttpController {
       });
     }
   };
+
+  private logResult(httpStatus: number, body: InvocationBody, correlationId: string): void {
+    const entry = {
+      correlationId,
+      runId: body.runId,
+      status: body.status,
+      ...(typeof body.code === 'string' ? { code: body.code } : {}),
+      httpStatus,
+    };
+
+    if (httpStatus >= 500) {
+      this.dependencies.logger.error({ event: 'agent.invoke.failed', ...entry });
+      return;
+    }
+
+    if (httpStatus >= 400 || body.status !== 'COMPLETED') {
+      this.dependencies.logger.warn({ event: 'agent.invoke.rejected', ...entry });
+      return;
+    }
+
+    this.dependencies.logger.info({ event: 'agent.invoke.completed', ...entry });
+  }
 }

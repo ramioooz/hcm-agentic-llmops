@@ -7,6 +7,7 @@ import { todayAsDateOnly } from './helpers/onboarding-agent.helpers';
 import { PrismaAgentRunRepository } from './repositories/agent-run.repository';
 import { PrismaEmployeeRepository } from './repositories/employee.repository';
 import { OnboardingAgentService } from './services/onboarding-agent.service';
+import { PinoApplicationLogger } from './observability/pino-application-logger';
 
 const environment = loadEnvironment();
 const database = new PrismaClient();
@@ -20,7 +21,10 @@ const onboardingAgent = new OnboardingAgentService({
 const healthController = new HealthController(async () => {
   await database.$queryRaw`SELECT 1`;
 });
-const agentController = new AgentController(onboardingAgent);
+const agentController = new AgentController({
+  agent: onboardingAgent,
+  logger: new PinoApplicationLogger(),
+});
 const app = createApp([healthController, agentController]);
 
 const server = app.listen(environment.port, () => {
