@@ -19,8 +19,6 @@ TRIG --> MQ[("RabbitMQ")]
 ## Design principles
 
 - Controllers translate transport details; they do not own business decisions.
-- Each controller owns its Express router and base path, then receives its service dependencies through its constructor.
-- `app.ts` mounts controller routers, while `server.ts` constructs the dependency graph.
 - Services coordinate application behavior and return stable result types.
 - Workflows are grouped by business domain rather than by transport.
 - Tools expose small operations with authorization at the boundary.
@@ -45,20 +43,6 @@ HTTP / schedule / webhook / RabbitMQ
                  ↓
           repository → PostgreSQL
 ```
-
-The HTTP composition is intentionally explicit and framework-free:
-
-```text
-server.ts
-   ↓ constructs
-HealthController / AgentController
-   ↓ mounted by
-app.ts
-   ↓ delegates to
-services → workflows → repositories
-```
-
-Scheduled jobs, webhooks, and RabbitMQ consumers will use the same services without depending on HTTP controllers.
 
 ## Current versus planned
 
