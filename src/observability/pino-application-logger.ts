@@ -3,7 +3,15 @@ import { redactSensitiveData } from '../security/pii-redaction';
 import type { ApplicationLogger } from '../types/application-logger';
 import type { OperationalLogEntry } from '../types/operational-log-entry';
 
-const sensitiveKeys = new Set(['message', 'name', 'query', 'stack']);
+const sensitiveKeys = new Set([
+  'cause',
+  'error',
+  'errorMessage',
+  'message',
+  'name',
+  'query',
+  'stack',
+]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

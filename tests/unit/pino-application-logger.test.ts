@@ -20,7 +20,13 @@ describe('PinoApplicationLogger', () => {
         employeeCode: 'EMP-1001',
         employeeId: 'EMP-1001',
         contact: { email: 'samira.noor@example.test' },
+        errorMessage: 'database connection for Samira failed',
         error: { message: 'database connection for Samira failed', stack: 'stack trace' },
+        cause: 'underlying service failure',
+        nested: {
+          error: 'nested error detail',
+          cause: { errorMessage: 'nested cause detail' },
+        },
       },
     });
 
@@ -34,10 +40,20 @@ describe('PinoApplicationLogger', () => {
         employeeCode: '[REDACTED]',
         employeeId: '[REDACTED]',
         contact: { email: '[REDACTED]' },
-        error: { message: '[REDACTED]', stack: '[REDACTED]' },
+        errorMessage: '[REDACTED]',
+        error: '[REDACTED]',
+        cause: '[REDACTED]',
+        nested: {
+          error: '[REDACTED]',
+          cause: '[REDACTED]',
+        },
       },
     });
     expect(JSON.stringify(entry)).not.toContain('Samira');
     expect(JSON.stringify(entry)).not.toContain('EMP-1001');
+    expect(JSON.stringify(entry)).not.toContain('database connection for Samira failed');
+    expect(JSON.stringify(entry)).not.toContain('underlying service failure');
+    expect(JSON.stringify(entry)).not.toContain('nested error detail');
+    expect(JSON.stringify(entry)).not.toContain('nested cause detail');
   });
 });
