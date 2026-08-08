@@ -40,7 +40,7 @@ HTTP endpoints are grouped in class-based controllers under `src/controllers`. E
 
 The onboarding service generates its own per-invocation run ID. Its business clock is supplied explicitly by the composition root, so production uses the system date while unit tests can use a fixed date without changing the service's production behavior.
 
-`AgentController` receives a required `ApplicationLogger` dependency. It emits a small lifecycle record for the start, rejection, completion, or failure of each invocation. The Pino adapter serializes those records as JSON and recursively redacts sensitive fields before writing. This preserves a link through `correlationId` and `runId` without placing the request query, employee identifiers, personal details, error messages, or stack traces in operational logs.
+`AgentController` receives a required `ApplicationLogger` dependency and reports invocation lifecycle events. The observability module owns the mapping from HTTP workflow results to completion, rejection, or failure log levels, keeping that operational policy out of the controller. The Pino adapter serializes those records as JSON and recursively redacts sensitive fields before writing. This preserves a link through `correlationId` and `runId` without placing the request query, employee identifiers, personal details, error messages, or stack traces in operational logs.
 
 ```mermaid
 flowchart LR

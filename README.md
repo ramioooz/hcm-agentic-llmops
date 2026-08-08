@@ -170,7 +170,7 @@ src/
 ├── controllers/ Express routes and HTTP request/response handling
 ├── contracts/ Request validation and result contracts
 ├── helpers/ Pure onboarding request, date, and result helpers
-├── observability/ Pino adapter for redacted structured operational logs
+├── observability/ Invocation log mapping and Pino adapter for redacted operational logs
 ├── security/ Authorization checks and PII redaction
 ├── repositories/ PostgreSQL employee data access
 ├── services/ Agent invocation and onboarding orchestration

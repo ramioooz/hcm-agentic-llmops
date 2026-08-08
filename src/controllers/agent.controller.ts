@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
 import { parseAgentInvokeRequest } from '../contracts/agent-invoke';
+import { logAgentInvocationResult } from '../observability/agent-invocation-logging';
 import type { AccessRole } from '../types/access-role';
 import type { AgentInvoker } from '../types/agent-invoker';
 import type { ApplicationLogger } from '../types/application-logger';
-import type { InvocationBody } from '../types/invocation-body';
 import type { HttpController } from './http-controller';
 
 export class AgentController implements HttpController {
@@ -93,7 +93,12 @@ export class AgentController implements HttpController {
         actorRole: actorRoleHeader as AccessRole,
         correlationId,
       });
-      this.logResult(result.httpStatus, result.body, correlationId);
+      logAgentInvocationResult(
+        this.dependencies.logger,
+        result.httpStatus,
+        result.body,
+        correlationId,
+      );
       response.status(result.httpStatus).json(result.body);
     } catch {
       this.dependencies.logger.error({
@@ -111,26 +116,4 @@ export class AgentController implements HttpController {
       });
     }
   };
-
-  private logResult(httpStatus: number, body: InvocationBody, correlationId: string): void {
-    const entry = {
-      correlationId,
-      runId: body.runId,
-      status: body.status,
-      ...(typeof body.code === 'string' ? { code: body.code } : {}),
-      httpStatus,
-    };
-
-    if (httpStatus >= 500) {
-      this.dependencies.logger.error({ event: 'agent.invoke.failed', ...entry });
-      return;
-    }
-
-    if (httpStatus >= 400) {
-      this.dependencies.logger.warn({ event: 'agent.invoke.rejected', ...entry });
-      return;
-    }
-
-    this.dependencies.logger.info({ event: 'agent.invoke.completed', ...entry });
-  }
 }
