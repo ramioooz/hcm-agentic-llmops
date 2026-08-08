@@ -1,4 +1,4 @@
-import type { AccessRole } from '../security/authorization';
+import type { AccessRole } from './access-role';
 
 export type OnboardingInvocationInput = {
   query: string;
