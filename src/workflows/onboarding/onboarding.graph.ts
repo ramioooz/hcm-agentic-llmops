@@ -31,6 +31,10 @@ import type { HcmIntent } from '../../types/hcm-intent';
 import type { HcmIntentNormalizer } from '../../types/hcm-intent-normalizer';
 import type { ManagerNotificationSender } from '../../types/manager-notification-sender';
 import type { OnboardingInvocationInput } from '../../types/onboarding-invocation-input';
+import type {
+  TechnicalOnboardingCommand,
+  UserOnboardingCommand,
+} from '../../types/onboarding-invocation-input';
 import type { OnboardingInvocationResult } from '../../types/onboarding-invocation-result';
 import type { SecurityEventRecord } from '../../types/security-event-record';
 import type {
@@ -83,6 +87,14 @@ export type OnboardingGraphDependencies = {
 };
 
 type EventSink = (event: AgentProgressEvent) => void;
+
+function isTechnicalCommand(input: OnboardingInvocationInput): input is TechnicalOnboardingCommand {
+  return input.kind === 'ONBOARDING_REVIEW';
+}
+
+function isUserCommand(input: OnboardingInvocationInput): input is UserOnboardingCommand {
+  return !isTechnicalCommand(input);
+}
 
 function safeErrorCode(error: unknown): string {
   const code = error instanceof Error ? error.message : '';
@@ -157,7 +169,7 @@ async function recordResult(
     runId,
     threadId: context.input.threadId,
     correlationId: context.input.correlationId,
-    triggerType: 'HTTP',
+    triggerType: context.input.triggerType ?? 'HTTP',
     actorEmployeeCode: context.input.actorEmployeeCode,
     intent: intent?.intent === 'ONBOARDING_REVIEW' ? 'ONBOARDING_REVIEW' : undefined,
     requestSummary: intent
@@ -285,7 +297,7 @@ async function recordThreadIdentityMismatch(
     threadId: input.threadId,
     runId,
     correlationId: input.correlationId,
-    triggerType: 'HTTP',
+    triggerType: input.triggerType ?? 'HTTP',
     actorEmployeeCode: input.actorEmployeeCode,
     status: 'REJECTED',
     requestSummary: {},
@@ -314,6 +326,14 @@ export function createOnboardingGraph(
 
   return new StateGraph(OnboardingGraphState)
     .addNode('request_guard', () => {
+      if (isTechnicalCommand(context.input)) {
+        nodeEvent(emit, runId, 'request_guard', 'completed', 'TYPED_COMMAND_ACCEPTED');
+        return {
+          route: 'CONTINUE' as const,
+          lastNode: 'request_guard',
+          outcomeCode: 'TYPED_COMMAND_ACCEPTED',
+        };
+      }
       const safety = evaluateRequestSafety(context.input.query);
       if (!safety.isSafe) {
         const outcomeCode = 'UNSAFE_REQUEST_REJECTED';
@@ -346,7 +366,43 @@ export function createOnboardingGraph(
       };
     })
     .addNode('intent_normalization', async (state) => {
+      if (isTechnicalCommand(context.input)) {
+        context.intent = {
+          intent: 'ONBOARDING_REVIEW',
+          employeeCode: context.input.targetEmployeeCode,
+          thresholdDays: context.input.thresholdDays,
+          requestedAction:
+            context.input.notificationPolicy === 'NONE' ? 'REVIEW_ONLY' : 'NOTIFY_MANAGER',
+          missingFields: [],
+        };
+        emit({
+          event: 'intent',
+          data: {
+            runId,
+            status: 'accepted',
+            intent: 'ONBOARDING_REVIEW',
+            requestedAction: context.intent.requestedAction,
+          },
+        });
+        context.steps.push({
+          stepName: 'command_intake',
+          status: 'COMPLETED',
+          outcomeCode: 'TYPED_COMMAND_ACCEPTED',
+          inputData: {
+            intent: context.intent.intent,
+            thresholdDays: context.intent.thresholdDays,
+            requestedAction: context.intent.requestedAction,
+          },
+        });
+        nodeEvent(emit, runId, 'intent_normalization', 'completed', 'TYPED_COMMAND_ACCEPTED');
+        return {
+          route: 'CONTINUE' as const,
+          lastNode: 'intent_normalization',
+          outcomeCode: 'TYPED_COMMAND_ACCEPTED',
+        };
+      }
       try {
+        if (!isUserCommand(context.input)) throw new Error('GRAPH_COMMAND_INVALID');
         context.intent = continueNormalizedIntent(
           context.input.query,
           enforceIntentConsistency(
@@ -697,6 +753,8 @@ export async function runOnboardingGraph(
       runId,
       correlationId: safeInput.correlationId,
       status: 'started',
+      triggerType: safeInput.triggerType ?? 'HTTP',
+      ...(isTechnicalCommand(safeInput) ? { eventId: safeInput.eventId } : {}),
     },
   });
   const owner = await dependencies.threadOwnership.resolveCanonicalOwner(
@@ -741,7 +799,8 @@ export async function runOnboardingGraph(
         toolNames,
         authorizationResult,
         retryCount: 0,
-        modelCallCount: nodePath.includes('intent_normalization') ? 1 : 0,
+        modelCallCount:
+          !isTechnicalCommand(safeInput) && nodePath.includes('intent_normalization') ? 1 : 0,
         tokenUsage: null,
         latencyMs: Math.max(0, Date.now() - startedAt),
         costUsd: null,

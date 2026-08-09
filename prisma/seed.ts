@@ -11,6 +11,7 @@ function dateOnlyFromToday(offsetDays: number): Date {
 
 async function main(): Promise<void> {
   await prisma.$transaction([
+    prisma.processedEvent.deleteMany(),
     prisma.securityEvent.deleteMany(),
     prisma.agentRunStep.deleteMany(),
     prisma.agentRun.deleteMany(),

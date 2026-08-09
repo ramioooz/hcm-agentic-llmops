@@ -3,13 +3,20 @@ import type { InvocationBody } from './invocation-body';
 export type AgentProgressEvent =
   | {
       event: 'run';
-      data: { threadId: string; runId: string; correlationId: string; status: 'started' };
+      data: {
+        threadId: string;
+        runId: string;
+        correlationId: string;
+        status: 'started';
+        triggerType: 'HTTP' | 'SCHEDULE' | 'WEBHOOK' | 'RABBITMQ';
+        eventId?: string;
+      };
     }
   | {
       event: 'intent';
       data: {
         runId: string;
-        status: 'normalized';
+        status: 'normalized' | 'accepted';
         intent: 'ONBOARDING_REVIEW' | 'UNSUPPORTED';
         requestedAction: 'REVIEW_ONLY' | 'NOTIFY_MANAGER' | null;
       };

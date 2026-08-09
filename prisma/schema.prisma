@@ -42,6 +42,12 @@ enum SecuritySeverity {
   HIGH
 }
 
+enum ProcessedEventStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
 model Employee {
   id             String                   @id @default(cuid())
   employeeCode   String                   @unique @map("employee_code")
@@ -131,4 +137,23 @@ model SecurityEvent {
   @@index([correlationId, createdAt])
   @@index([eventType, createdAt])
   @@map("security_events")
+}
+
+model ProcessedEvent {
+  eventId       String               @id @map("event_id")
+  type          String
+  payloadHash   String               @map("payload_hash")
+  status        ProcessedEventStatus @default(PROCESSING)
+  attempt       Int                  @default(1)
+  correlationId String               @map("correlation_id")
+  runId         String?              @map("run_id")
+  threadId      String?              @map("thread_id")
+  errorCode     String?              @map("error_code")
+  receivedAt    DateTime             @default(now()) @map("received_at")
+  completedAt   DateTime?            @map("completed_at")
+  updatedAt     DateTime             @updatedAt @map("updated_at")
+
+  @@index([status, updatedAt])
+  @@index([correlationId])
+  @@map("processed_events")
 }

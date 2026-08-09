@@ -32,6 +32,14 @@ function createService(
     managerEmployeeCode: 'EMP-100',
     activeReviewPeriod: null,
   };
+  const hr: EmployeeRecord = {
+    employeeCode: 'EMP-100',
+    fullName: 'Nadia Rahman',
+    accessRole: 'HR',
+    status: 'ACTIVE',
+    managerEmployeeCode: null,
+    activeReviewPeriod: null,
+  };
   const unrelatedEmployee: EmployeeRecord = {
     ...employee,
     employeeCode: 'EMP-300',
@@ -39,6 +47,7 @@ function createService(
   };
   const reader: EmployeeReader = {
     findByEmployeeCode: jest.fn(async (employeeCode: string) => {
+      if (employeeCode === 'EMP-100') return hr;
       if (employeeCode === 'EMP-200') return manager;
       if (employeeCode === 'EMP-300') return unrelatedEmployee;
       if (employeeCode === employee.employeeCode) {
@@ -88,6 +97,44 @@ function createService(
 }
 
 describe('OnboardingAgentService', () => {
+  it('executes a typed scheduled review without normalizing fabricated language', async () => {
+    const { service, normalize, send, recorder } = createService({
+      normalizerError: new Error('OpenAI must not be called for technical commands'),
+    });
+
+    const result = await service.invoke({
+      kind: 'ONBOARDING_REVIEW',
+      targetEmployeeCode: 'EMP-201',
+      thresholdDays: 30,
+      notificationPolicy: 'SYSTEM_POLICY',
+      actorEmployeeCode: 'EMP-100',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
+      triggerType: 'SCHEDULE',
+      eventId: 'schedule-v1-2026-08-07-4f8659a4',
+      threadId: '8b8a6d62-bf1c-4abf-9968-84b8e23b58cb',
+    });
+
+    expect(result).toMatchObject({
+      httpStatus: 200,
+      body: {
+        status: 'COMPLETED',
+        data: {
+          employeeCode: 'EMP-201',
+          action: 'NOTIFY_MANAGER',
+          actionPerformed: true,
+        },
+      },
+    });
+    expect(normalize).not.toHaveBeenCalled();
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(recorder.recordInvocation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        triggerType: 'SCHEDULE',
+        threadId: '8b8a6d62-bf1c-4abf-9968-84b8e23b58cb',
+      }),
+    );
+  });
+
   it('reviews a supported onboarding request for an authorized manager', async () => {
     const { service, reader, recorder } = createService();
 

@@ -21,5 +21,7 @@ Do not include credentials, real personal information, or private customer data 
 - Keep secrets in local environment files that are not committed.
 - Use fictional sample identities only.
 - Keep logs and traces PII-redacted.
+- Use a random webhook bearer key of at least 32 characters and rotate it through secret management.
+- Never log webhook credentials or raw webhook bodies; operational event persistence stores a SHA-256 payload hash only.
 - Recheck authorization inside business tools and services.
 - Treat untrusted model output as data that must be validated.

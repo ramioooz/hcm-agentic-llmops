@@ -8,7 +8,7 @@ cp .env.example .env
 docker compose up -d postgres rabbitmq
 ```
 
-Set `OPENAI_API_KEY` in `.env` before starting the API. The onboarding intent normalizer uses `OPENAI_MODEL=gpt-5.4-mini`.
+Set `OPENAI_API_KEY` and a random `WEBHOOK_API_KEY` of at least 32 characters in `.env` before starting the API. The onboarding user-query normalizer uses `OPENAI_MODEL=gpt-5.4-mini`. Technical trigger events carry typed fields and do not call OpenAI.
 
 ## Prepare the database
 
@@ -78,6 +78,35 @@ When the API runs inside Docker Compose, use port `3300` instead of `3000`.
 Tracing is off by default. `LANGSMITH_API_KEY` is required only when `LANGSMITH_AGENT_TRACING=true`. The explicit trace contains allowlisted operational metadata and completed numeric timestamps while omitting raw queries, prompt text, employee PII, tool payloads, arbitrary errors, and secrets. The API, evaluation, and Studio fail fast if `LANGSMITH_TRACING`, `LANGSMITH_TRACING_V2`, `LANGCHAIN_TRACING`, or `LANGCHAIN_TRACING_V2` enables an automatic tracing path.
 
 Use `npm run agent:studio` for deterministic graph scenarios and `npm run eval:agent` for the stable seven-case local report. Both use fakes and need no application credentials or live services. Evaluation upload is independent and occurs only when `LANGSMITH_EVALUATION_UPLOAD=true` with a LangSmith key.
+
+## Try the webhook trigger
+
+Use the versioned onboarding event contract and the configured bearer key:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/triggers/webhook \
+  -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer ${WEBHOOK_API_KEY}" \
+  -d '{"version":"1","eventId":"event-onboarding-001","type":"onboarding.review.requested","occurredAt":"2026-08-09T05:00:00.000Z","correlationId":"4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0","data":{"employeeCode":"EMP-201","thresholdDays":30,"action":"REVIEW_ONLY"}}'
+```
+
+`eventId` is the idempotency key. A completed duplicate returns `DUPLICATE` and does not repeat the graph or notification. Reusing the same ID with different content returns `EVENT_ID_CONFLICT`.
+
+## Try RabbitMQ publishing in development
+
+`POST /api/v1/dev/events` exists only when `NODE_ENV=development`. It validates and publishes the same event contract to the durable RabbitMQ topology:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/dev/events \
+  -H 'Content-Type: application/json' \
+  -d '{"version":"1","eventId":"event-onboarding-002","type":"onboarding.review.requested","occurredAt":"2026-08-09T05:00:00.000Z","data":{"employeeCode":"EMP-201","thresholdDays":30,"action":"NOTIFY_MANAGER"}}'
+```
+
+RabbitMQ uses publisher confirms, manual acknowledgement, `RABBITMQ_PREFETCH=10`, and `RABBITMQ_MAX_ATTEMPTS=3` by default. Final failures are published to `hcm.onboarding.review.dlq.v1`.
+
+## Enable the daily policy
+
+The scheduler is disabled by default. Set `SCHEDULER_ENABLED=true` to run daily at 09:00 `Asia/Dubai`. It selects active onboarding reviews ending within 30 days and applies the explicit system notification policy as `AUTOMATION_ACTOR_EMPLOYEE_CODE` (default fictional HR `EMP-100`); the graph resolves that actor and role from PostgreSQL.
 
 ## Quality checks
 

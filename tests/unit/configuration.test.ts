@@ -9,6 +9,7 @@ describe('parseEnvironment', () => {
         DATABASE_URL: 'postgresql://app:secret@localhost:5432/hcm',
         AMQP_URL: 'amqp://localhost:5672',
         OPENAI_API_KEY: 'unit-test-key',
+        WEBHOOK_API_KEY: 'unit-test-webhook-key-at-least-32-characters',
       }),
     ).toEqual({
       nodeEnv: 'test',
@@ -17,6 +18,11 @@ describe('parseEnvironment', () => {
       amqpUrl: 'amqp://localhost:5672',
       openAiApiKey: 'unit-test-key',
       openAiModel: 'gpt-5.4-mini',
+      webhookApiKey: 'unit-test-webhook-key-at-least-32-characters',
+      schedulerEnabled: false,
+      automationActorEmployeeCode: 'EMP-100',
+      rabbitPrefetch: 10,
+      rabbitMaxAttempts: 3,
       langSmithTracing: false,
       langSmithApiKey: undefined,
       langSmithProject: 'hcm-agentic-api',
@@ -31,6 +37,7 @@ describe('parseEnvironment', () => {
         DATABASE_URL: 'postgresql://app:secret@localhost:5432/hcm',
         AMQP_URL: 'amqp://localhost:5672',
         OPENAI_API_KEY: 'unit-test-key',
+        WEBHOOK_API_KEY: 'unit-test-webhook-key-at-least-32-characters',
       }),
     ).toThrow('PORT must be a valid port number');
   });
@@ -43,6 +50,7 @@ describe('parseEnvironment', () => {
         DATABASE_URL: 'postgresql://app:secret@localhost:5432/hcm',
         AMQP_URL: 'amqp://localhost:5672',
         OPENAI_API_KEY: 'unit-test-key',
+        WEBHOOK_API_KEY: 'unit-test-webhook-key-at-least-32-characters',
       }),
     ).toThrow('PORT must be a valid port number');
   });
@@ -55,6 +63,7 @@ describe('parseEnvironment', () => {
         DATABASE_URL: 'postgresql://app:secret@localhost:5432/hcm',
         AMQP_URL: 'amqp://localhost:5672',
         OPENAI_API_KEY: 'unit-test-key',
+        WEBHOOK_API_KEY: 'unit-test-webhook-key-at-least-32-characters',
       }),
     ).toMatchObject({
       langSmithTracing: false,
@@ -71,6 +80,7 @@ describe('parseEnvironment', () => {
         DATABASE_URL: 'postgresql://app:secret@localhost:5432/hcm',
         AMQP_URL: 'amqp://localhost:5672',
         OPENAI_API_KEY: 'unit-test-key',
+        WEBHOOK_API_KEY: 'unit-test-webhook-key-at-least-32-characters',
         LANGSMITH_AGENT_TRACING: 'false',
         LANGSMITH_API_KEY: '',
       }).langSmithApiKey,
@@ -85,6 +95,7 @@ describe('parseEnvironment', () => {
         DATABASE_URL: 'postgresql://app:secret@localhost:5432/hcm',
         AMQP_URL: 'amqp://localhost:5672',
         OPENAI_API_KEY: 'unit-test-key',
+        WEBHOOK_API_KEY: 'unit-test-webhook-key-at-least-32-characters',
         LANGSMITH_AGENT_TRACING: 'true',
       }),
     ).toThrow('LANGSMITH_API_KEY is required when LANGSMITH_AGENT_TRACING=true');
@@ -103,8 +114,44 @@ describe('parseEnvironment', () => {
         DATABASE_URL: 'postgresql://app:secret@localhost:5432/hcm',
         AMQP_URL: 'amqp://localhost:5672',
         OPENAI_API_KEY: 'unit-test-key',
+        WEBHOOK_API_KEY: 'unit-test-webhook-key-at-least-32-characters',
         [alias]: 'true',
       }),
     ).toThrow('Automatic LangChain tracing must remain disabled');
+  });
+
+  it('parses enabled automation and bounded RabbitMQ settings', () => {
+    const environment = parseEnvironment({
+      NODE_ENV: 'production',
+      PORT: '3010',
+      DATABASE_URL: 'postgresql://app:secret@localhost:5432/hcm',
+      AMQP_URL: 'amqp://localhost:5672',
+      OPENAI_API_KEY: 'unit-test-key',
+      WEBHOOK_API_KEY: 'unit-test-webhook-key-at-least-32-characters',
+      SCHEDULER_ENABLED: 'true',
+      AUTOMATION_ACTOR_EMPLOYEE_CODE: 'EMP-900',
+      RABBITMQ_PREFETCH: '7',
+      RABBITMQ_MAX_ATTEMPTS: '4',
+    });
+
+    expect(environment).toMatchObject({
+      schedulerEnabled: true,
+      automationActorEmployeeCode: 'EMP-900',
+      rabbitPrefetch: 7,
+      rabbitMaxAttempts: 4,
+    });
+  });
+
+  it('rejects a short webhook secret', () => {
+    expect(() =>
+      parseEnvironment({
+        NODE_ENV: 'test',
+        PORT: '3010',
+        DATABASE_URL: 'postgresql://app:secret@localhost:5432/hcm',
+        AMQP_URL: 'amqp://localhost:5672',
+        OPENAI_API_KEY: 'unit-test-key',
+        WEBHOOK_API_KEY: 'too-short',
+      }),
+    ).toThrow('Invalid environment: WEBHOOK_API_KEY');
   });
 });

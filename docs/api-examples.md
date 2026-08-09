@@ -69,3 +69,31 @@ If the employee ID is missing, the endpoint returns `NEED_MORE_INFORMATION`. If 
 Set `Accept: text/event-stream` to receive `run`, `intent`, `node`, `tool`, and final `response` events from the same graph runner. The final event carries the same result body and HTTP-status field used by JSON, while progress events contain no raw query or employee data.
 
 For a Docker Compose API, replace port `3000` with `3300` in these examples.
+
+## Authenticated onboarding webhook
+
+```http
+POST /api/v1/triggers/webhook
+Authorization: Bearer <WEBHOOK_API_KEY>
+Content-Type: application/json
+```
+
+```json
+{
+  "version": "1",
+  "eventId": "event-onboarding-001",
+  "type": "onboarding.review.requested",
+  "occurredAt": "2026-08-09T05:00:00.000Z",
+  "correlationId": "4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0",
+  "data": {
+    "employeeCode": "EMP-201",
+    "thresholdDays": 30,
+    "action": "REVIEW_ONLY",
+    "threadId": "8b8a6d62-bf1c-4abf-9968-84b8e23b58cb"
+  }
+}
+```
+
+The bearer value is compared through fixed-length SHA-256 digests. The body is strict: unknown fields, unsupported versions/types, invalid employee codes, or thresholds outside 0–365 return `WEBHOOK_VALIDATION_ERROR`. Technical events bypass language-model normalization and enter the same authorized onboarding graph as user requests.
+
+In development only, send the same JSON body to `POST /api/v1/dev/events` to publish it to RabbitMQ. The endpoint returns HTTP `202` after publisher confirmation.

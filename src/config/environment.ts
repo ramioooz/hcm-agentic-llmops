@@ -13,6 +13,27 @@ const environmentSchema = z
     AMQP_URL: z.string().url(),
     OPENAI_API_KEY: z.string().min(1),
     OPENAI_MODEL: z.literal('gpt-5.4-mini').default('gpt-5.4-mini'),
+    WEBHOOK_API_KEY: z.string().min(32),
+    SCHEDULER_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    AUTOMATION_ACTOR_EMPLOYEE_CODE: z
+      .string()
+      .regex(/^EMP-\d+$/)
+      .default('EMP-100'),
+    RABBITMQ_PREFETCH: z
+      .string()
+      .regex(/^\d+$/)
+      .default('10')
+      .transform(Number)
+      .refine((value) => value >= 1 && value <= 100),
+    RABBITMQ_MAX_ATTEMPTS: z
+      .string()
+      .regex(/^\d+$/)
+      .default('3')
+      .transform(Number)
+      .refine((value) => value >= 1 && value <= 10),
     LANGSMITH_AGENT_TRACING: z.enum(['true', 'false']).default('false'),
     LANGSMITH_API_KEY: z.preprocess(
       (value) => (value === '' ? undefined : value),
@@ -37,6 +58,11 @@ type Environment = {
   amqpUrl: string;
   openAiApiKey: string;
   openAiModel: 'gpt-5.4-mini';
+  webhookApiKey: string;
+  schedulerEnabled: boolean;
+  automationActorEmployeeCode: string;
+  rabbitPrefetch: number;
+  rabbitMaxAttempts: number;
   langSmithTracing: boolean;
   langSmithApiKey?: string;
   langSmithProject: string;
@@ -72,6 +98,11 @@ export function parseEnvironment(input: Record<string, string | undefined>): Env
     amqpUrl: parsed.data.AMQP_URL,
     openAiApiKey: parsed.data.OPENAI_API_KEY,
     openAiModel: parsed.data.OPENAI_MODEL,
+    webhookApiKey: parsed.data.WEBHOOK_API_KEY,
+    schedulerEnabled: parsed.data.SCHEDULER_ENABLED,
+    automationActorEmployeeCode: parsed.data.AUTOMATION_ACTOR_EMPLOYEE_CODE,
+    rabbitPrefetch: parsed.data.RABBITMQ_PREFETCH,
+    rabbitMaxAttempts: parsed.data.RABBITMQ_MAX_ATTEMPTS,
     langSmithTracing: parsed.data.LANGSMITH_AGENT_TRACING === 'true',
     langSmithApiKey: parsed.data.LANGSMITH_API_KEY,
     langSmithProject: parsed.data.LANGSMITH_PROJECT,

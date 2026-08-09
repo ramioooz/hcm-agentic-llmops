@@ -280,11 +280,13 @@ describe('AgentController', () => {
     });
     expect(captured.headers['X-Thread-Id']).toBe('8b8a6d62-bf1c-4abf-9968-84b8e23b58cb');
     expect(invoke).toHaveBeenCalledWith({
+      kind: 'USER_QUERY',
       query: 'Review onboarding for EMP-1001',
       actorEmployeeCode: 'EMP-9000',
       threadId: '8b8a6d62-bf1c-4abf-9968-84b8e23b58cb',
       runId: expect.any(String),
       correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
+      triggerType: 'HTTP',
     });
     expect(logs.info).toHaveBeenNthCalledWith(1, {
       event: 'agent.invoke.started',
@@ -348,9 +350,11 @@ describe('AgentController', () => {
       yield {
         event: 'run' as const,
         data: {
+          threadId: '8b8a6d62-bf1c-4abf-9968-84b8e23b58cb',
           runId: 'run-sse',
           correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
           status: 'started' as const,
+          triggerType: 'HTTP' as const,
         },
       };
       yield {
@@ -403,11 +407,13 @@ describe('AgentController', () => {
     expect(chunks.join('')).toContain('event: response\n');
     expect(stream).toHaveBeenCalledWith(
       expect.objectContaining({
+        kind: 'USER_QUERY',
         query: 'Review onboarding for EMP-201',
         actorEmployeeCode: 'EMP-200',
         threadId: expect.stringMatching(UUID_PATTERN),
         runId: expect.stringMatching(UUID_PATTERN),
         correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
+        triggerType: 'HTTP',
       }),
     );
     expect(invoke).not.toHaveBeenCalled();
@@ -419,9 +425,11 @@ describe('AgentController', () => {
       yield {
         event: 'run' as const,
         data: {
+          threadId: '8b8a6d62-bf1c-4abf-9968-84b8e23b58cb',
           runId: '6a650be1-90c6-49fb-966f-4608b10060ac',
           correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
           status: 'started' as const,
+          triggerType: 'HTTP' as const,
         },
       };
       throw new Error('provider secret details');
