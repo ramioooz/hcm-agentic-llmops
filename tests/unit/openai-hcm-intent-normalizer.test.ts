@@ -1,5 +1,5 @@
 import type { BaseMessage, BaseMessageLike } from '@langchain/core/messages';
-import { hcmIntentSchema } from '../../src/contracts/hcm-intent.contract';
+import { hcmIntentStructuredOutputSchema } from '../../src/contracts/hcm-intent.contract';
 import { OpenAiHcmIntentNormalizer } from '../../src/adapters/openai-hcm-intent-normalizer';
 import type { StructuredOutputClient } from '../../src/types/structured-output-client';
 
@@ -34,6 +34,8 @@ describe('OpenAiHcmIntentNormalizer', () => {
           employeeCode: 'EMP-201',
           thresholdDays: 14,
           requestedAction: 'NOTIFY_MANAGER',
+          leaveStartDate: null,
+          leaveEndDate: null,
           missingFields: [],
         },
         capture,
@@ -49,7 +51,7 @@ describe('OpenAiHcmIntentNormalizer', () => {
       requestedAction: 'NOTIFY_MANAGER',
       missingFields: [],
     });
-    expect(capture.schema).toBe(hcmIntentSchema);
+    expect(capture.schema).toBe(hcmIntentStructuredOutputSchema);
     expect(capture.options).toEqual({ name: 'normalize_hcm_intent', strict: true });
     expect((capture.input as BaseMessage[]).at(-1)).toMatchObject({
       content: 'Please notify the manager about EMP-201 in 14 days.',
@@ -63,6 +65,8 @@ describe('OpenAiHcmIntentNormalizer', () => {
         employeeCode: 'EMP-201',
         thresholdDays: 30,
         requestedAction: 'REVIEW_ONLY',
+        leaveStartDate: null,
+        leaveEndDate: null,
         missingFields: [],
         explanation: 'untrusted extra content',
       }),
@@ -79,6 +83,8 @@ describe('OpenAiHcmIntentNormalizer', () => {
         employeeCode: 'EMP-201',
         thresholdDays: null,
         requestedAction: null,
+        leaveStartDate: null,
+        leaveEndDate: null,
         missingFields: [],
       },
     },
@@ -89,6 +95,8 @@ describe('OpenAiHcmIntentNormalizer', () => {
         employeeCode: null,
         thresholdDays: 30,
         requestedAction: null,
+        leaveStartDate: null,
+        leaveEndDate: null,
         missingFields: [],
       },
     },
@@ -99,6 +107,8 @@ describe('OpenAiHcmIntentNormalizer', () => {
         employeeCode: null,
         thresholdDays: null,
         requestedAction: 'NOTIFY_MANAGER',
+        leaveStartDate: null,
+        leaveEndDate: null,
         missingFields: [],
       },
     },
@@ -109,6 +119,8 @@ describe('OpenAiHcmIntentNormalizer', () => {
         employeeCode: null,
         thresholdDays: null,
         requestedAction: null,
+        leaveStartDate: null,
+        leaveEndDate: null,
         missingFields: ['employeeId'],
       },
     },
@@ -119,6 +131,8 @@ describe('OpenAiHcmIntentNormalizer', () => {
         employeeCode: 'EMP-201',
         thresholdDays: null,
         requestedAction: 'REVIEW_ONLY',
+        leaveStartDate: null,
+        leaveEndDate: null,
         missingFields: [],
       },
     },
@@ -129,6 +143,8 @@ describe('OpenAiHcmIntentNormalizer', () => {
         employeeCode: 'EMP-201',
         thresholdDays: 30,
         requestedAction: null,
+        leaveStartDate: null,
+        leaveEndDate: null,
         missingFields: [],
       },
     },
@@ -139,6 +155,8 @@ describe('OpenAiHcmIntentNormalizer', () => {
         employeeCode: null,
         thresholdDays: 30,
         requestedAction: 'REVIEW_ONLY',
+        leaveStartDate: null,
+        leaveEndDate: null,
         missingFields: [],
       },
     },
@@ -149,6 +167,8 @@ describe('OpenAiHcmIntentNormalizer', () => {
         employeeCode: 'EMP-201',
         thresholdDays: 30,
         requestedAction: 'REVIEW_ONLY',
+        leaveStartDate: null,
+        leaveEndDate: null,
         missingFields: ['employeeId'],
       },
     },

@@ -1,5 +1,6 @@
 export type SafeAgentTrace = {
   runId: string;
+  threadId: string;
   correlationId: string;
   promptVersion: string;
   configuredModel: string;

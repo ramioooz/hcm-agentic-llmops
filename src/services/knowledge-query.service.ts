@@ -10,6 +10,7 @@ const INSUFFICIENT_EVIDENCE: KnowledgeQueryResult = {
   answer: 'Insufficient evidence in the indexed HR knowledge documents.',
   sources: [],
 };
+const MINIMUM_COSINE_SIMILARITY = 0.5;
 
 export class KnowledgeQueryService {
   public constructor(
@@ -34,7 +35,9 @@ export class KnowledgeQueryService {
       documentId: input.documentId,
       limit,
     });
-    const evidence = retrieved.filter((chunk) => chunk.score >= 0.65).slice(0, limit);
+    const evidence = retrieved
+      .filter((chunk) => chunk.score >= MINIMUM_COSINE_SIMILARITY)
+      .slice(0, limit);
     if (evidence.length === 0) return INSUFFICIENT_EVIDENCE;
 
     const generated = await this.dependencies.answers.generate({ query, evidence });

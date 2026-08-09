@@ -6,6 +6,7 @@ import type { SafeAgentTrace } from '../../src/types/safe-agent-trace';
 
 const safeTrace: SafeAgentTrace = {
   runId: '87a69b94-65d4-4a73-a11d-0e69258f772e',
+  threadId: '8b8a6d62-bf1c-4abf-9968-84b8e23b58cb',
   correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
   promptVersion: 'hcm-intent-v1',
   configuredModel: 'gpt-5.4-mini',
@@ -50,6 +51,7 @@ describe('LangSmithAgentTraceRecorder', () => {
       end_time: 1_000,
       inputs: {
         runId: safeTrace.runId,
+        threadId: safeTrace.threadId,
         correlationId: safeTrace.correlationId,
       },
       outputs: {

@@ -9,6 +9,18 @@ const dateOnly = z
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .nullable();
 
+export const hcmIntentStructuredOutputSchema = z
+  .object({
+    intent: z.enum(['ONBOARDING_REVIEW', 'LEAVE_REQUEST', 'UNSUPPORTED']),
+    employeeCode,
+    thresholdDays: z.number().int().min(1).max(365).nullable(),
+    requestedAction: z.enum(['REVIEW_ONLY', 'NOTIFY_MANAGER']).nullable(),
+    leaveStartDate: dateOnly,
+    leaveEndDate: dateOnly,
+    missingFields: z.array(z.enum(['employeeId', 'startDate', 'endDate'])),
+  })
+  .strict();
+
 const onboardingIntentSchema = z
   .object({
     intent: z.literal('ONBOARDING_REVIEW'),
@@ -71,7 +83,7 @@ const unsupportedIntentSchema = z
     employeeCode: z.null(),
     thresholdDays: z.null(),
     requestedAction: z.null(),
-    missingFields: z.array(z.never()).length(0),
+    missingFields: z.array(z.enum(['employeeId', 'startDate', 'endDate'])).length(0),
   })
   .strict();
 

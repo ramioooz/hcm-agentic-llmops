@@ -1,4 +1,4 @@
-import { hcmIntentSchema } from '../contracts/hcm-intent.contract';
+import { hcmIntentSchema, hcmIntentStructuredOutputSchema } from '../contracts/hcm-intent.contract';
 import { buildHcmIntentNormalizationMessages } from '../prompts/normalize-hcm-intent.prompt';
 import type { HcmIntent } from '../types/hcm-intent';
 import type { HcmIntentNormalizer } from '../types/hcm-intent-normalizer';
@@ -21,17 +21,45 @@ export class OpenAiHcmIntentNormalizer implements HcmIntentNormalizer {
   >;
 
   public constructor(client: StructuredOutputClient) {
-    this.structuredOutputModel = client.withStructuredOutput(hcmIntentSchema, {
+    this.structuredOutputModel = client.withStructuredOutput(hcmIntentStructuredOutputSchema, {
       name: normalizationName,
       strict: true,
     });
   }
 
   public async normalize(query: string): Promise<HcmIntent> {
-    const output = await this.structuredOutputModel.invoke(
-      buildHcmIntentNormalizationMessages(query),
+    const output = hcmIntentStructuredOutputSchema.parse(
+      await this.structuredOutputModel.invoke(buildHcmIntentNormalizationMessages(query)),
     );
 
-    return hcmIntentSchema.parse(output);
+    if (output.intent === 'ONBOARDING_REVIEW') {
+      return hcmIntentSchema.parse({
+        intent: output.intent,
+        employeeCode: output.employeeCode,
+        thresholdDays: output.thresholdDays,
+        requestedAction: output.requestedAction,
+        missingFields: output.missingFields,
+      });
+    }
+
+    if (output.intent === 'LEAVE_REQUEST') {
+      return hcmIntentSchema.parse({
+        intent: output.intent,
+        employeeCode: output.employeeCode,
+        thresholdDays: output.thresholdDays,
+        requestedAction: output.requestedAction,
+        leaveStartDate: output.leaveStartDate,
+        leaveEndDate: output.leaveEndDate,
+        missingFields: output.missingFields,
+      });
+    }
+
+    return hcmIntentSchema.parse({
+      intent: output.intent,
+      employeeCode: output.employeeCode,
+      thresholdDays: output.thresholdDays,
+      requestedAction: output.requestedAction,
+      missingFields: output.missingFields,
+    });
   }
 }

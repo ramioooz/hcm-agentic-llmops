@@ -1125,6 +1125,7 @@ export async function runOnboardingGraph(
     try {
       await dependencies.traceRecorder.record({
         runId,
+        threadId: safeInput.threadId,
         correlationId: safeInput.correlationId,
         promptVersion: HCM_INTENT_PROMPT_VERSION,
         configuredModel: dependencies.configuredModel ?? 'unconfigured',

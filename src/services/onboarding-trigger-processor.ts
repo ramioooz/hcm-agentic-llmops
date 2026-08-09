@@ -78,7 +78,7 @@ export class OnboardingTriggerProcessor {
       await this.dependencies.events.complete({
         eventId: input.event.eventId,
         runId: result.body.runId,
-        threadId: input.event.data.threadId,
+        threadId: result.body.threadId,
       });
       return { status: 'COMPLETED', runId: result.body.runId };
     } catch (error) {

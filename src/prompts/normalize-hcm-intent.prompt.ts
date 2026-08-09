@@ -15,6 +15,7 @@ Use REVIEW_ONLY unless the request explicitly asks to notify or message a manage
 Use NOTIFY_MANAGER only when the request explicitly asks to notify or message a manager.
 For ONBOARDING_REVIEW without an employee code, include employeeId in missingFields. Do not infer employee identifiers or notification actions.
 For LEAVE_REQUEST, use null for thresholdDays and requestedAction. Extract leaveStartDate and leaveEndDate only as explicit YYYY-MM-DD values; include startDate or endDate in missingFields when absent. The employeeCode may be null because the authenticated actor defaults to themself.
+For ONBOARDING_REVIEW and UNSUPPORTED, use null for leaveStartDate and leaveEndDate.
 For UNSUPPORTED, use null for employeeCode, thresholdDays, and requestedAction, with an empty missingFields array.`;
 
 export function buildHcmIntentNormalizationMessages(query: string) {
@@ -27,6 +28,8 @@ export function buildHcmIntentNormalizationMessages(query: string) {
         employeeCode: 'EMP-201',
         thresholdDays: 14,
         requestedAction: 'REVIEW_ONLY',
+        leaveStartDate: null,
+        leaveEndDate: null,
         missingFields: [],
       }),
     ),
@@ -37,6 +40,8 @@ export function buildHcmIntentNormalizationMessages(query: string) {
         employeeCode: 'EMP-201',
         thresholdDays: 30,
         requestedAction: 'NOTIFY_MANAGER',
+        leaveStartDate: null,
+        leaveEndDate: null,
         missingFields: [],
       }),
     ),
@@ -47,6 +52,8 @@ export function buildHcmIntentNormalizationMessages(query: string) {
         employeeCode: null,
         thresholdDays: 30,
         requestedAction: 'REVIEW_ONLY',
+        leaveStartDate: null,
+        leaveEndDate: null,
         missingFields: ['employeeId'],
       }),
     ),

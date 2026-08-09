@@ -35,6 +35,7 @@ export class LangSmithAgentTraceRecorder implements AgentTraceRecorder {
       end_time: endTime,
       inputs: {
         runId: trace.runId,
+        threadId: trace.threadId,
         correlationId: trace.correlationId,
       },
       outputs: {
