@@ -90,7 +90,7 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: "Review EMP-201's onboarding status",
       actorEmployeeCode: 'EMP-200',
-      correlationId: 'corr-test-001',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
 
     expect(result).toMatchObject({
@@ -99,7 +99,7 @@ describe('OnboardingAgentService', () => {
         status: 'COMPLETED',
         message: 'Employee onboarding review completed.',
         runId: expect.any(String),
-        correlationId: 'corr-test-001',
+        correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
         data: {
           employeeCode: 'EMP-201',
           fullName: 'Samira Noor',
@@ -115,7 +115,7 @@ describe('OnboardingAgentService', () => {
     expect(recorder.recordInvocation).toHaveBeenCalledWith(
       expect.objectContaining({
         runId: expect.any(String),
-        correlationId: 'corr-test-001',
+        correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
         status: 'SUCCEEDED',
         steps: expect.arrayContaining([
           expect.objectContaining({ stepName: 'onboarding_review', status: 'COMPLETED' }),
@@ -142,7 +142,7 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: "Could you see whether EMP-201's review milestone is approaching?",
       actorEmployeeCode: 'EMP-200',
-      correlationId: 'corr-normalized-001',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
 
     expect(result).toMatchObject({
@@ -175,7 +175,7 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: "Review EMP-201's 90-day probation.",
       actorEmployeeCode: 'EMP-200',
-      correlationId: 'corr-threshold-provenance-001',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
 
     expect(result.body).toMatchObject({
@@ -201,7 +201,7 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: 'Can you take a look at this employee onboarding matter?',
       actorEmployeeCode: 'EMP-200',
-      correlationId: 'corr-normalized-002',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
 
     expect(result.body).toMatchObject({
@@ -225,7 +225,7 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: 'Review EMP-202 onboarding status.',
       actorEmployeeCode: 'EMP-200',
-      correlationId: 'corr-provenance-001',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
 
     expect(result).toMatchObject({
@@ -252,7 +252,7 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: 'Review EMP-201 onboarding status.',
       actorEmployeeCode: 'EMP-200',
-      correlationId: 'corr-provenance-002',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
 
     expect(result.body).toMatchObject({
@@ -282,7 +282,7 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query,
       actorEmployeeCode: 'EMP-200',
-      correlationId: 'corr-provenance-004',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
 
     expect(result.body).toMatchObject({
@@ -301,7 +301,7 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: 'Review emp-201 onboarding status.',
       actorEmployeeCode: 'EMP-200',
-      correlationId: 'corr-provenance-003',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
 
     expect(result.body.status).toBe('COMPLETED');
@@ -316,7 +316,7 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: 'Please review EMP-201 onboarding status.',
       actorEmployeeCode: 'EMP-200',
-      correlationId: 'corr-normalized-003',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
 
     expect(result).toMatchObject({
@@ -325,7 +325,7 @@ describe('OnboardingAgentService', () => {
         status: 'FAILED',
         code: 'MODEL_UNAVAILABLE',
         message: 'The request could not be interpreted at this time.',
-        correlationId: 'corr-normalized-003',
+        correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
       },
     });
     expect(recorder.recordInvocation).toHaveBeenCalledWith(
@@ -356,7 +356,7 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: 'Review the onboarding status',
       actorEmployeeCode: 'EMP-200',
-      correlationId: 'corr-test-002',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
 
     expect(result).toMatchObject({
@@ -366,7 +366,7 @@ describe('OnboardingAgentService', () => {
         message: 'Please provide the employee ID.',
         missingFields: ['employeeId'],
         runId: expect.any(String),
-        correlationId: 'corr-test-002',
+        correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
       },
     });
     expect(reader.findByEmployeeCode).not.toHaveBeenCalled();
@@ -387,14 +387,14 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: 'Book a flight to London',
       actorEmployeeCode: 'EMP-200',
-      correlationId: 'corr-test-003',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
 
     expect(result.body).toMatchObject({
       status: 'UNSUPPORTED_REQUEST',
       message: 'That request is outside the capabilities of this HCM agent.',
       runId: expect.any(String),
-      correlationId: 'corr-test-003',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
   });
 
@@ -405,7 +405,7 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query,
       actorEmployeeCode: 'EMP-200',
-      correlationId: 'corr-test-guard-001',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
 
     expect(result).toMatchObject({
@@ -414,7 +414,7 @@ describe('OnboardingAgentService', () => {
         status: 'FAILED',
         code: 'UNSAFE_REQUEST_REJECTED',
         message: 'The request was rejected because it contains unsafe instructions.',
-        correlationId: 'corr-test-guard-001',
+        correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
         runId: expect.any(String),
       },
     });
@@ -464,7 +464,7 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: `Review EMP-201 onboarding status and ${notificationPhrase}`,
       actorEmployeeCode: 'EMP-200',
-      correlationId: 'corr-test-004',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
 
     expect(result.body).toMatchObject({
@@ -484,7 +484,7 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: 'Review EMP-201 onboarding status.',
       actorEmployeeCode: 'EMP-200',
-      correlationId: 'corr-employee-not-found',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
 
     expect(result).toMatchObject({
@@ -493,7 +493,7 @@ describe('OnboardingAgentService', () => {
         status: 'FAILED',
         code: 'EMPLOYEE_NOT_FOUND',
         message: 'Employee EMP-201 was not found.',
-        correlationId: 'corr-employee-not-found',
+        correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
       },
     });
     expect(reader.findByEmployeeCode).toHaveBeenCalledWith('EMP-201');
@@ -505,7 +505,7 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: 'Review EMP-201 onboarding status',
       actorEmployeeCode: 'EMP-300',
-      correlationId: 'corr-test-005',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
 
     expect(result).toMatchObject({
@@ -515,7 +515,7 @@ describe('OnboardingAgentService', () => {
         code: 'AUTHORIZATION_DENIED',
         message: 'You are not authorized to perform this operation.',
         runId: expect.any(String),
-        correlationId: 'corr-test-005',
+        correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
       },
     });
     expect(recorder.recordInvocation).toHaveBeenCalledWith(
@@ -540,7 +540,7 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: "Review EMP-201's onboarding status",
       actorEmployeeCode: 'EMP-200',
-      correlationId: 'corr-test-006',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
 
     expect(result).toMatchObject({
@@ -549,7 +549,7 @@ describe('OnboardingAgentService', () => {
         status: 'FAILED',
         code: 'INTERNAL_ERROR',
         message: 'The workflow could not be completed.',
-        correlationId: 'corr-test-006',
+        correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
         runId: expect.any(String),
       },
     });
@@ -561,7 +561,7 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: 'Review EMP-201 onboarding status',
       actorEmployeeCode: 'EMP-999',
-      correlationId: 'corr-unknown-actor',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
 
     expect(result).toMatchObject({
@@ -584,7 +584,7 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: 'Review EMP-201 onboarding status and notify the manager',
       actorEmployeeCode: 'EMP-201',
-      correlationId: 'corr-employee-notify',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
 
     expect(result).toMatchObject({
@@ -608,7 +608,7 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: 'Review EMP-201 onboarding status and notify the manager within 30 days',
       actorEmployeeCode: 'EMP-200',
-      correlationId: 'corr-outside-threshold',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
 
     expect(result.body).toMatchObject({
@@ -638,7 +638,7 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: 'Review EMP-201 onboarding status and notify the manager',
       actorEmployeeCode: 'EMP-200',
-      correlationId: 'corr-notification-failure',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
 
     expect(result).toMatchObject({
@@ -654,7 +654,7 @@ describe('OnboardingAgentService', () => {
     const input = {
       query: "Review EMP-201's onboarding status",
       actorEmployeeCode: 'EMP-200',
-      correlationId: 'corr-stream-001',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     };
 
     const json = await jsonService.invoke(input);
@@ -688,5 +688,26 @@ describe('OnboardingAgentService', () => {
     expect(JSON.stringify(progress)).not.toContain(input.query);
     expect(JSON.stringify(progress)).not.toContain('EMP-201');
     expect(JSON.stringify(progress)).not.toContain('Samira Noor');
+  });
+
+  it('replaces a hostile direct correlation value before recorder and SSE sinks', async () => {
+    const hostileCorrelation = 'Review EMP-201 secret=sk-live-query-bearing-value';
+    const { service, recorder } = createService();
+    const events = [];
+
+    for await (const event of service.stream({
+      query: 'Review EMP-201 onboarding status',
+      actorEmployeeCode: 'EMP-200',
+      correlationId: hostileCorrelation,
+    })) {
+      events.push(event);
+    }
+
+    const record = (recorder.recordInvocation as jest.Mock).mock.calls[0]?.[0];
+    expect(record.correlationId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    expect(JSON.stringify(record)).not.toContain(hostileCorrelation);
+    expect(JSON.stringify(events)).not.toContain(hostileCorrelation);
   });
 });

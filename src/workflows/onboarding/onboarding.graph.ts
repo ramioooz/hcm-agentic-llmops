@@ -3,6 +3,7 @@ import { buildInvocationResult } from '../../helpers/onboarding-agent.helpers';
 import { enforceIntentConsistency } from '../../security/intent-consistency';
 import { redactSensitiveData } from '../../security/pii-redaction';
 import { evaluateRequestSafety } from '../../security/request-safety';
+import { resolveSafeCorrelationId } from '../../security/correlation-id';
 import {
   createEmployeeLookupTool,
   createManagerNotificationTool,
@@ -503,15 +504,19 @@ export async function runOnboardingGraph(
   runId: string,
   emit: EventSink = () => undefined,
 ): Promise<OnboardingInvocationResult> {
+  const safeInput = {
+    ...input,
+    correlationId: resolveSafeCorrelationId(input.correlationId),
+  };
   const context: ExecutionContext = {
-    input,
+    input: safeInput,
     actionPerformed: false,
     steps: [],
     securityEvents: [],
   };
   emit({
     event: 'run',
-    data: { runId, correlationId: input.correlationId, status: 'started' },
+    data: { runId, correlationId: safeInput.correlationId, status: 'started' },
   });
   const graph = createOnboardingGraph(dependencies, context, emit);
   await graph.invoke({ runId, route: 'CONTINUE', lastNode: 'start', outcomeCode: 'RUN_STARTED' });

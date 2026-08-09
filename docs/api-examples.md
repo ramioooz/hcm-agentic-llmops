@@ -28,7 +28,7 @@ The onboarding workflow uses a single entry point:
 
 ```http
 POST /api/v1/agent/invoke
-X-Correlation-Id: corr-example-001
+X-Correlation-Id: 4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0
 X-Employee-Id: EMP-200
 Content-Type: application/json
 ```
@@ -46,7 +46,7 @@ Successful review response:
   "status": "COMPLETED",
   "message": "Employee onboarding review completed.",
   "runId": "7ea4e83c-64e6-4f61-a0a0-17c1df4bf5af",
-  "correlationId": "corr-example-001",
+  "correlationId": "4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0",
   "data": {
     "employeeCode": "EMP-201",
     "fullName": "Samira Noor",

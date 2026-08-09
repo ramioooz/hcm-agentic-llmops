@@ -38,12 +38,14 @@ curl http://localhost:3000/ready
 ```bash
 curl -X POST http://localhost:3000/api/v1/agent/invoke \
   -H 'Content-Type: application/json' \
-  -H 'X-Correlation-Id: corr-local-001' \
+  -H 'X-Correlation-Id: 4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0' \
   -H 'X-Employee-Id: EMP-200' \
   -d '{"query":"Review EMP-201 onboarding status"}'
 ```
 
 `X-Employee-Id` is the sole local mock identity header. The API loads its canonical role and manager relationships from PostgreSQL. Use `EMP-100` for HR access or `EMP-200` for manager access to the direct reports `EMP-201` and `EMP-202`.
+
+`X-Correlation-Id` is optional and accepts only a UUID v4. Missing or invalid values are replaced with a generated UUID before logging or workflow execution.
 
 Request safe lifecycle streaming with the same body and identity by adding:
 

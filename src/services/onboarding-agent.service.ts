@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { resolveSafeCorrelationId } from '../security/correlation-id';
 import type { AgentInvoker } from '../types/agent-invoker';
 import type { AgentProgressEvent } from '../types/agent-progress-event';
 import type { OnboardingInvocationInput } from '../types/onboarding-invocation-input';
@@ -12,7 +13,11 @@ export class OnboardingAgentService implements AgentInvoker {
   public constructor(private readonly dependencies: OnboardingGraphDependencies) {}
 
   public invoke(input: OnboardingInvocationInput): Promise<OnboardingInvocationResult> {
-    return runOnboardingGraph(this.dependencies, input, randomUUID());
+    return runOnboardingGraph(
+      this.dependencies,
+      { ...input, correlationId: resolveSafeCorrelationId(input.correlationId) },
+      randomUUID(),
+    );
   }
 
   public async *stream(input: OnboardingInvocationInput): AsyncIterable<AgentProgressEvent> {
@@ -20,11 +25,16 @@ export class OnboardingAgentService implements AgentInvoker {
     let wake: (() => void) | undefined;
     let complete = false;
     let failure: unknown;
-    const execution = runOnboardingGraph(this.dependencies, input, randomUUID(), (event) => {
-      events.push(event);
-      wake?.();
-      wake = undefined;
-    })
+    const execution = runOnboardingGraph(
+      this.dependencies,
+      { ...input, correlationId: resolveSafeCorrelationId(input.correlationId) },
+      randomUUID(),
+      (event) => {
+        events.push(event);
+        wake?.();
+        wake = undefined;
+      },
+    )
       .catch((error: unknown) => {
         failure = error;
       })
