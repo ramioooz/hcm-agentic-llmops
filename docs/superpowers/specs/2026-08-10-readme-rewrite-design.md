@@ -11,7 +11,7 @@ Replace the existing README with an accurate, self-contained introduction to the
 - Clearly separate language-model interpretation from deterministic authorization, calculations, persistence, and side effects.
 - Keep diagrams readable by giving each diagram one purpose.
 - Keep detailed command collections in the existing usage and API guides, while retaining enough setup and examples for the README to stand alone.
-- Keep the repository focused on its technical and business purpose without personal or generated-work framing.
+- Keep the repository focused on its technical and business purpose.
 
 ## Proposed structure
 
@@ -51,5 +51,5 @@ The rewritten README will contain four focused Mermaid diagrams:
 - Cross-check every architecture claim against the current source, Prisma schema, migrations, environment schema, and registered controllers.
 - Confirm Mermaid blocks and Markdown fences are balanced.
 - Run Prettier and the repository formatting check.
-- Review the final diff for obsolete sprint language, contradictory roadmap claims, unsupported behavior, private data, and disallowed attribution.
+- Review the final diff for obsolete sprint language, contradictory roadmap claims, unsupported behavior, and private data.
 - Commit and push the rewrite to `release`, then confirm PR #45 contains the new commit.

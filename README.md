@@ -1,232 +1,595 @@
 # Agentic LLMOps for HCM
 
-Backend-only Human Capital Management API built with Node.js, TypeScript, and Express. The project explores how an agent can interpret employee-related requests, select a controlled workflow, call authorized business tools, and return a traceable result.
+A backend service that combines a real language model with deterministic Human Capital Management workflows. It uses OpenAI for structured language understanding and grounded policy answers, LangGraph for stateful orchestration, PostgreSQL for business data and checkpoints, RabbitMQ for event delivery, and LangSmith for optional agent tracing and evaluation.
 
-The design keeps business decisions in application code. The language model may help understand a request, but it does not decide permissions, calculate leave, expose employee records, or invent side effects.
+The central design rule is simple: **the model interprets language, while application code controls permissions, calculations, persistence, and side effects.**
 
+[![Node.js 22](https://img.shields.io/badge/Node.js-22-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## Project idea
+## What the system does
 
-HCM systems contain sensitive employee information and business rules. A useful agent must therefore do more than produce a fluent answer:
+The API supports two conversational HCM workflows:
 
-- It must understand what the user is asking for.
-- It must identify missing information instead of guessing.
-- It must allow only supported capabilities.
-- It must authorize every business operation.
-- It must keep decisions deterministic and traceable.
-- It must avoid putting personal information into logs.
+- **Employee onboarding review:** find an employee's active initial-review period, calculate the days remaining, apply a warning threshold, and optionally notify the manager when the user explicitly requests it.
+- **Annual leave request:** retrieve policy and balance in parallel, calculate a proposal, pause for human confirmation, then create one idempotent request and PDF after approval.
 
-This repository builds that flow around two business areas:
+It also provides:
 
-1. **Employee onboarding review** — review the end date and status of an employee's initial review period.
-2. **Leave requests** — check policy and balance before a leave request is created.
+- versioned HR-policy document ingestion and retrieval with PostgreSQL vector search;
+- two read-only MCP tools for onboarding status and knowledge search;
+- user, schedule, webhook, and RabbitMQ workflow triggers;
+- PostgreSQL-backed LangGraph conversation checkpoints;
+- JSON and Server-Sent Events (SSE) responses from the same agent endpoint;
+- deterministic prompt-injection controls, tool-boundary authorization, and PII-safe telemetry;
+- optional LangSmith traces, LangGraph Studio visualization, and a bounded evaluation runner.
 
-The current release contains the shared API and data foundation, onboarding review workflows and technical triggers, plus an annual-leave proposal workflow.
+## Implemented capabilities
 
-## Current implementation status
-
-| Capability                                 | Status      | Notes                                                                                                              |
-| ------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------ |
-| Node.js and TypeScript service             | Implemented | Strict TypeScript build with dependency-injected Express controllers                                               |
-| PostgreSQL persistence                     | Implemented | Prisma schema, migration, and sample seed records                                                                  |
-| Run and security persistence               | Implemented | Transactional agent runs, workflow steps, and redacted security events                                             |
-| Structured invocation logging              | Implemented | Pino JSON events with correlation and run trace context, redacted at output                                        |
-| RabbitMQ onboarding events                 | Implemented | Durable versioned topology, confirms, manual acknowledgements, bounded retry, and a dead-letter queue              |
-| Health and readiness endpoints             | Implemented | `/health` and `/ready`                                                                                             |
-| Focused unit tests                         | Implemented | Jest tests for controllers, configuration, onboarding, and PII redaction                                           |
-| Agent invocation endpoint                  | Implemented | `POST /api/v1/agent/invoke` with distinct thread, run, and correlation IDs                                         |
-| Durable conversation state                 | Implemented | PostgreSQL LangGraph checkpoints resume missing-information requests for the same identity                         |
-| Employee onboarding review workflow        | Implemented | Deterministic review-period lookup and threshold evaluation                                                        |
-| Authorization and guardrails               | Implemented | One mock identity header; canonical roles and manager relationships are loaded from PostgreSQL at tool boundaries  |
-| Structured intent normalization            | Implemented | OpenAI structured output normalizes onboarding and leave intent; deterministic controls remain authoritative       |
-| Typed onboarding graph and tools           | Implemented | LangGraph coordinates guarded lookup, deterministic calculation, notification policy, audit, and safe SSE progress |
-| Optional agent tracing and evaluation      | Implemented | LangSmith receives allowlisted metadata only; Studio and evaluation run with deterministic fake dependencies       |
-| Leave workflow                             | Implemented | Human approval interrupt, approval-time revalidation, idempotent submission, and stored PDF document               |
-| Scheduled, webhook, and RabbitMQ workflows | Implemented | Shared typed onboarding commands, idempotency, API-key webhook, and disabled-by-default daily policy               |
-| Versioned HR policy retrieval              | Implemented | HR-only bounded indexing, active-version pgvector search, grounded answers, and page/chunk sources                 |
-| Read-only MCP endpoint                     | Implemented | Stateless Streamable HTTP at `/mcp` with two authorized, non-mutating tools                                        |
-| Integration and end-to-end tests           | Planned     | Added after the initial release                                                                                    |
+| Area                   | Implemented behavior                                                                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| LLM integration        | OpenAI `ChatOpenAI` with versioned prompts and strict Zod structured output for onboarding, leave, missing-information, and unsupported requests        |
+| Agent orchestration    | A typed LangGraph supervisor routes to onboarding and leave workers using deterministic conditional edges                                               |
+| Stateful conversations | LangGraph `PostgresSaver` checkpoints support multi-turn continuation and survive API restarts                                                          |
+| Onboarding tools       | Authorized employee lookup, deterministic review calculation, and explicit manager notification through a development adapter                           |
+| Leave workflow         | Parallel policy/balance tools, deterministic working-day calculation, human approval interrupt, revalidation, idempotent submission, and PDF generation |
+| Streaming              | JSON by default and safe lifecycle events over SSE when `Accept: text/event-stream` is supplied                                                         |
+| RAG                    | HR-only PDF/TXT/Markdown ingestion, OpenAI embeddings, active-version pgvector search, grounded answers, and page/chunk sources                         |
+| MCP                    | Stateless Streamable HTTP endpoint with exactly two authorized read-only tools                                                                          |
+| Triggers               | Disabled-by-default schedule, API-key webhook, RabbitMQ publish/consume, bounded retries, dead-lettering, and event idempotency                         |
+| Security               | Pre-model injection guard, PostgreSQL-derived development identity, authorization at tool boundaries, explicit side effects, and field-aware masking    |
+| Observability          | Pino operational logs, durable run/step/security audit records, optional LangSmith agent traces, a Studio demonstration entrypoint, and evaluations     |
+| Engineering foundation | Node.js 22, strict TypeScript, Express controllers, Prisma, Docker Compose, Jest, ESLint, Prettier, and GitHub Actions                                  |
 
 ## Architecture
 
+The system has several entry points, but they reuse the same application and business boundaries.
+
+```mermaid
+flowchart LR
+    subgraph Entry["Entry points"]
+        User["HTTP user"]
+        Schedule["09:00 Asia/Dubai schedule"]
+        Webhook["API-key webhook"]
+        EventPublisher["Event publisher"]
+        McpClient["MCP client"]
+        KnowledgeClient["Knowledge API client"]
+    end
+
+    subgraph Transport["Transport adapters"]
+        AgentApi["Express agent controller<br/>JSON or SSE"]
+        TriggerAdapters["Schedule, webhook, and<br/>RabbitMQ adapters"]
+        RabbitMQ[("RabbitMQ<br/>retry and DLQ")]
+        McpApi["Stateless /mcp endpoint"]
+        KnowledgeApi["Knowledge controllers"]
+    end
+
+    subgraph Agent["LangGraph agent"]
+        Guard["Deterministic request guard"]
+        Normalizer["intent_normalization node<br/>model only for user queries"]
+        Supervisor["Deterministic supervisor"]
+        Onboarding["Onboarding worker"]
+        Leave["Leave worker and<br/>human approval"]
+        Checkpoints["Conversation checkpoints"]
+    end
+
+    subgraph Models["OpenAI"]
+        IntentModel["Chat model<br/>intent normalization"]
+        EmbeddingModel["Embedding model"]
+        AnswerModel["Chat model<br/>grounded answer"]
+    end
+
+    subgraph Business["Controlled business capabilities"]
+        EmployeeTools["Authorized employee and<br/>onboarding tools"]
+        LeaveTools["Authorized leave tools"]
+        Notification["Development notification adapter"]
+        KnowledgeServices["Versioned ingestion and<br/>knowledge query services"]
+    end
+
+    subgraph Data["Data and messaging"]
+        PostgreSQL[("PostgreSQL<br/>business, audit, checkpoints")]
+        Pgvector[("pgvector<br/>active knowledge index")]
+    end
+
+    subgraph Ops["LLMOps and operations"]
+        Pino["Pino JSON logs"]
+        Audit["Run, step, and<br/>security audit"]
+        LangSmith["Optional LangSmith<br/>trace and evaluation"]
+        Studio["LangGraph Studio<br/>deterministic onboarding demo"]
+    end
+
+    User --> AgentApi
+    AgentApi --> Guard
+    Guard --> Normalizer
+    Normalizer <-->|"user queries only"| IntentModel
+    Normalizer --> Supervisor
+    Supervisor --> Onboarding
+    Supervisor --> Leave
+
+    Schedule --> TriggerAdapters
+    Webhook --> TriggerAdapters
+    EventPublisher --> RabbitMQ
+    RabbitMQ <--> TriggerAdapters
+    TriggerAdapters -->|"typed onboarding command"| Guard
+
+    Onboarding --> EmployeeTools
+    Onboarding --> Notification
+    Leave --> LeaveTools
+    EmployeeTools --> PostgreSQL
+    LeaveTools --> PostgreSQL
+    Onboarding --> Checkpoints
+    Leave --> Checkpoints
+    Checkpoints --> PostgreSQL
+
+    KnowledgeClient --> KnowledgeApi
+    KnowledgeApi --> KnowledgeServices
+    KnowledgeServices <--> EmbeddingModel
+    KnowledgeServices <--> AnswerModel
+    KnowledgeServices <--> Pgvector
+    Pgvector --- PostgreSQL
+
+    McpClient --> McpApi
+    McpApi --> EmployeeTools
+    McpApi --> KnowledgeServices
+
+    AgentApi --> Pino
+    McpApi --> Pino
+    Onboarding --> Audit
+    Leave --> Audit
+    Audit --> PostgreSQL
+    Onboarding -.->|"allowlisted metadata"| LangSmith
+    Leave -.->|"allowlisted metadata"| LangSmith
+```
+
+### Main dependency direction
+
+```text
+controller or trigger → application service → LangGraph workflow → authorized tool → repository
+```
+
+`server.ts` is the composition root. It creates the database client, checkpointer, model adapters, repositories, tools, services, trigger transports, and controllers. Controllers translate HTTP details; business decisions stay in workflows and deterministic helpers.
+
+## Where the LLM is used
+
+The application has three explicit model boundaries.
+
+| Model boundary         | Input                                                                           | Output                                                                                                                                 | Control around it                                                                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Intent normalization   | A user query that passed the deterministic safety guard                         | Strict `ONBOARDING_REVIEW`, `LEAVE_REQUEST`, or `UNSUPPORTED` structured data, including missing fields and explicit requested actions | Versioned prompt `hcm-intent-v2`, focused examples, strict Zod schema, a 15-second timeout, and one bounded retry                       |
+| Knowledge embeddings   | Extracted document chunks during indexing or a knowledge query during retrieval | 1,536-dimensional vectors from `OPENAI_EMBEDDING_MODEL`                                                                                | External processing must be explicitly enabled; file size, extraction, chunk, query, and result limits are enforced in code             |
+| Grounded policy answer | A question and the retrieved evidence above the similarity threshold            | A structured answer with cited chunk IDs                                                                                               | Only retrieved evidence is supplied; application code validates citations and returns `INSUFFICIENT_EVIDENCE` without supported sources |
+
+The model does **not** perform these operations:
+
+- detect the known prompt-injection patterns that must be stopped before a model call;
+- authenticate the development identity or authorize access to employee data;
+- select the worker after the intent has been normalized;
+- calculate onboarding dates, leave working days, notice, limits, or balance availability;
+- decide whether a notification or database write is allowed;
+- approve leave, enforce idempotency, publish retries, or generate PDFs;
+- write audit records or decide what telemetry is safe to expose.
+
+Raw user queries are sent to OpenAI only after the deterministic guard accepts them. They are not stored in checkpoints, Pino logs, PostgreSQL audit summaries, or LangSmith trace metadata.
+
+## Agent workflow
+
 ```mermaid
 flowchart TD
-Client["HTTP client"] --> API["Express API"]
-API --> Controller["Controllers"]
-Controller --> Service["Application services"]
-Service --> Guard["Request-safety guard"]
-Guard --> Router["Structured intent normalizer"]
-Router --> Workflows["Business workflows"]
-Workflows --> Tools["Authorized tools"]
-Tools --> Repositories["Repository interfaces"]
-Repositories --> PostgreSQL[("PostgreSQL")]
+    Request["POST /api/v1/agent/invoke"] --> Validate["Validate body and X-Employee-Id"]
+    Validate --> Guard["Deterministic request guard"]
+    Guard -->|"unsafe"| SecurityEvent["Reject before model and tools<br/>record security event"]
+    Guard -->|"safe user query"| IntentNode["intent_normalization node"]
+    IntentNode --> Normalize["OpenAI structured intent normalization<br/>hcm-intent-v2"]
 
-    Scheduler["Scheduler"] --> Service
-    Webhook["Webhook trigger"] --> Service
-    Events["RabbitMQ consumer"] --> Service
+    Normalize -->|"missing fields"| NeedInfo["Checkpoint continuation state<br/>return NEED_MORE_INFORMATION"]
+    Normalize -->|"unsupported"| Unsupported["Return UNSUPPORTED_REQUEST"]
+    Normalize -->|"onboarding"| Supervisor["Deterministic supervisor"]
+    Normalize -->|"leave"| Supervisor
 
-    Service --> Observability["Run tracking and structured logs"]
-    Observability --> PostgreSQL
-    Controller --> Security["Validation and guardrails"]
-    Security --> Observability
+    Supervisor --> Onboarding["Onboarding worker"]
+    Onboarding --> EmployeeLookup["Authorized employee lookup tool"]
+    EmployeeLookup --> ReviewCalc["Deterministic threshold calculation"]
+    ReviewCalc --> NotificationDecision{"Explicit notification requested<br/>and inside threshold?"}
+    NotificationDecision -->|"yes"| Notify["Development notification tool"]
+    NotificationDecision -->|"no"| ResponseAudit["Response and durable audit"]
+    Notify --> ResponseAudit
 
+    Supervisor --> Leave["Leave worker"]
+    Leave --> Parallel["Policy lookup + balance lookup<br/>in parallel"]
+    Parallel --> Proposal["Deterministic proposal calculation"]
+    Proposal -->|"ineligible"| ResponseAudit
+    Proposal -->|"eligible"| Interrupt["LangGraph interrupt<br/>202 AWAITING_APPROVAL"]
+    Interrupt --> Resume["POST /api/v1/agent/resume<br/>APPROVE or REJECT"]
+    Resume --> Owner["Verify same thread owner"]
+    Owner -->|"reject"| ResponseAudit
+    Owner -->|"approve"| Revalidate["Re-read policy and balance<br/>recalculate proposal"]
+    Revalidate --> Create["Create one SUBMITTED request<br/>and deterministic PDF"]
+    Create --> ResponseAudit
+
+    ResponseAudit --> Output["Structured JSON or safe SSE events"]
+
+    Technical["Schedule, webhook, or RabbitMQ<br/>typed onboarding command"] --> Guard
+    Guard -->|"typed command"| TechnicalIntake["Accept structured intent<br/>no model call"]
+    TechnicalIntake --> Supervisor
 ```
 
-### Layer responsibilities
+### Onboarding behavior
 
-| Layer                | Responsibility                                                                     |
-| -------------------- | ---------------------------------------------------------------------------------- |
-| API controllers      | Translate HTTP requests and responses; contain no business rules                   |
-| Application services | Coordinate authorization, routing, workflow execution, and result handling         |
-| Workflows            | Group decisions by business area, such as onboarding and leave                     |
-| Tools                | Perform one controlled business operation, such as employee lookup or notification |
-| Repositories         | Hide PostgreSQL details behind business-oriented interfaces                        |
-| Security             | Validate input, reject unsafe requests, enforce access, and redact sensitive data  |
-| Observability        | Record run IDs, correlation IDs, workflow steps, outcomes, and security events     |
-| Triggers             | Adapt schedules, webhooks, and events into typed application commands              |
+The workflow loads the target employee and active `onboarding_review_periods` record, authorizes the actor, and calculates `daysRemaining` and `withinThreshold`. A review-only request never sends a notification. The notification tool runs only when the request explicitly asks for it and the review end date is inside the threshold; the scheduled workflow is a separate explicit system policy.
 
-## Request flow
+Development authorization is derived from PostgreSQL:
+
+- an employee may review only their own record;
+- a manager may review a direct report;
+- HR may review any employee;
+- every protected tool checks authorization at its own boundary.
+
+### Leave behavior
+
+The supervisor routes annual-leave intent to a worker that starts policy and balance lookups together. TypeScript then counts Monday–Friday working days, checks notice, maximum consecutive days, and available balance. An eligible proposal pauses at `interrupt()` before any request is written.
+
+The same development identity must resume the thread with `APPROVE` or `REJECT`. Approval reloads policy and balance, recalculates eligibility, creates exactly one `SUBMITTED` row keyed by the approval thread, and stores a deterministic PDF. Rejection creates no request. Employees and managers may submit only for themselves; HR may submit for any employee.
+
+### Multi-turn state
+
+Each invocation returns three different identifiers:
+
+| Identifier      | Meaning                                                                                            |
+| --------------- | -------------------------------------------------------------------------------------------------- |
+| `threadId`      | One durable conversation. Reuse it with `X-Thread-Id` or the resume body to continue the workflow. |
+| `runId`         | One graph execution attempt. A resumed conversation receives a new run.                            |
+| `correlationId` | One transport request propagated through logs, audit records, events, and downstream operations.   |
+
+`PostgresSaver` checkpoints continuation-safe graph state after LangGraph super-steps. The service also binds a thread to its initiating `X-Employee-Id`; another identity cannot resume it. Raw queries, returned employee records, and secrets are kept out of checkpoint state.
+
+### JSON and SSE
+
+`POST /api/v1/agent/invoke` returns JSON by default. With `Accept: text/event-stream`, the same workflow emits these safe event types with a status inside each event's data:
+
+- `run` — execution started;
+- `intent` — intent normalized or a typed technical intent accepted;
+- `node` — graph node completed, failed, or rejected;
+- `tool` — tool completed, failed, or was skipped;
+- `approval` — waiting, approved, or rejected;
+- `document` — leave PDF generated or already available;
+- `response` — final HTTP status and structured response body.
+
+Progress events include trace identifiers and stable outcome metadata, not raw queries or employee records.
+
+## Versioned HR-policy RAG
+
+RAG is implemented as a dedicated knowledge boundary. It is used by the knowledge HTTP APIs and the MCP `search_knowledge_documents` tool.
 
 ```mermaid
-sequenceDiagram
-participant C as Client
-participant A as Agent API
-participant G as Guardrails
-participant R as Intent normalizer
-participant W as Workflow
-participant T as Authorized Tool
-participant D as PostgreSQL
+flowchart LR
+    subgraph Ingestion["Ingestion and index versioning"]
+        Upload["HR uploads PDF, TXT, or Markdown<br/>maximum 5 MiB"]
+        Extract["Bounded text extraction<br/>binary discarded"]
+        Chunk["Bounded chunking<br/>chunking version recorded"]
+        EmbedDocs["OpenAI document embeddings"]
+        Stage["Write a new side-by-side<br/>index version"]
+        Activate["Atomically activate version"]
 
-    C->>A: Request with X-Correlation-Id
-    A->>G: Validate input and identity
-    G-->>A: Accept, ask for information, or reject
-    A->>R: Normalize supported intent after guard approval
-    R-->>A: Typed command
-    A->>W: Start runId
-    W->>T: Check permission and execute operation
-    T->>D: Read or write business state
-    D-->>T: Result
-    T-->>W: Tool result
-    W->>D: Persist run steps and outcome
-    W-->>A: Structured result
-    A-->>C: Status, message, data, runId, correlationId
+        Upload --> Extract --> Chunk --> EmbedDocs --> Stage --> Activate
+    end
 
+    subgraph Retrieval["Retrieval and grounded answer"]
+        Sources["Knowledge API or<br/>MCP read-only tool"]
+        EmbedQuery["OpenAI query embedding"]
+        Search["pgvector cosine search<br/>active version only; limit 1-8"]
+        Threshold{"Evidence score at least 0.5?"}
+        Ground["OpenAI grounded answer<br/>retrieved text marked untrusted"]
+        Validate["Validate cited chunk IDs"]
+        Answer["ANSWERED with document,<br/>page, and chunk sources"]
+        NoEvidence["INSUFFICIENT_EVIDENCE"]
+
+        Sources --> EmbedQuery --> Search --> Threshold
+        Threshold -->|"yes"| Ground --> Validate --> Answer
+        Threshold -->|"no"| NoEvidence
+        Validate -->|"no valid citations"| NoEvidence
+    end
+
+    Documents[("knowledge_documents<br/>active version + content hash")]
+    Chunks[("knowledge_chunks<br/>text + pgvector embedding")]
+
+    Stage --> Chunks
+    Activate --> Documents
+    Documents --> Search
+    Chunks --> Search
 ```
 
-The rule for side effects is simple: **silence is not permission**. A request to review information does not automatically send a message or change a record.
+### Index versioning
 
-## Supported workflows
+`knowledge_documents.active_index_version` identifies the visible index. Every `knowledge_chunks` row records its document, index version, embedding model, chunking version, page number, and chunk position. Reindexing writes a complete new version beside the active one and switches the document only after the new index is ready. Queries join only the active version.
 
-### Employee onboarding review
+`RAG_EXTERNAL_PROCESSING_ENABLED=false` is the safe default. When enabled, the configured OpenAI embedding and answer models receive extracted chunks or selected evidence. Document text is treated as untrusted data: it cannot replace system instructions, grant permissions, or request tool execution, and it is excluded from Pino and LangSmith telemetry.
 
-The workflow reads an employee and their active onboarding review period, calculates the number of days remaining, and returns a structured result. A manager notification is a separate action that requires explicit intent or an explicitly configured scheduled policy.
-
-### Leave requests
-
-The leave workflow retrieves policy and balance in parallel, calculates a proposal, then pauses with HTTP `202 AWAITING_APPROVAL`. `POST /api/v1/agent/resume` accepts `APPROVE` or `REJECT` for the same thread and PostgreSQL-derived identity. Approval revalidates policy and balance, creates one idempotent `SUBMITTED` request, and stores its deterministic PDF; rejection creates nothing. Employees and managers may act only for themselves, while HR may act for any employee.
-
-## Security model
-
-The security design uses several independent controls:
-
-- Request schemas reject malformed or oversized input.
-- A strict structured normalizer accepts only supported intents and extracts explicit request fields.
-- Deterministic request safety checks reject instruction overrides, bulk employee-data requests, security-control bypass attempts, and system-prompt disclosure requests before employee lookup. Rejections are recorded without storing the raw query.
-- Services and tools enforce authorization again after routing.
-- Business rules are evaluated by TypeScript code, not generated text.
-- Invocation logs record only an event name, correlation ID, optional run ID, status, code, and HTTP status. Raw queries, employee identifiers, names, email addresses, error messages, and stack traces are redacted before Pino writes JSON.
-- Sample identities are for local development and are not production authentication.
-
-## Run traceability
-
-- `threadId` is a UUID v4 that identifies one durable conversation across requests. Supply it with `X-Thread-Id` to resume a conversation; otherwise the API creates one and returns it in both the response header and body.
-- `runId` is a new UUID v4 for each workflow execution attempt, including each request in the same thread.
-- `correlationId` follows one request across HTTP, workflow, audit, and downstream work. A caller can supply a UUID v4 with `X-Correlation-Id`; otherwise the API creates one.
-
-Threads are bound to the canonical `X-Employee-Id` stored in protected checkpoint state. A different identity cannot resume the thread. Checkpoints retain only normalized continuation intent, missing fields, and owner metadata; raw queries, employee records, names, email addresses, secrets, and final employee data remain transient.
-
-One scheduled operation may therefore have one correlation ID and several run IDs. The same run ID links the routing decision, tool calls, tool results, final response, and any security event.
-
-The onboarding invocation persists this trace through a Prisma-backed recorder. Technical deliveries also record event ID, type, SHA-256 payload hash, attempt, status, correlation ID, optional run/thread IDs, timestamps, and stable error code in `processed_events`. No raw event payload is stored. Run summaries, workflow inputs and outputs, and security-event details are redacted before they are written to PostgreSQL. Raw queries and employee records are held outside checkpointable graph state. A recorder failure returns the same structured internal-error response shape used by other unexpected workflow failures.
-
-The HTTP controller also emits `agent.invoke.started`, `agent.invoke.rejected`, `agent.invoke.completed`, and `agent.invoke.failed` events. Rejections use warning-level logging except an unavailable agent configuration, which is logged as an error because it produces a server failure. Completed calls use info-level logging; handled server failures and unexpected exceptions use error-level logging.
-
-LangSmith tracing is disabled by default and remains separate from Pino operational logging and PostgreSQL durable audit. When enabled, the application creates one explicit invocation run containing safe UUIDs, the existing prompt version, configured model, normalized intent, node/tool paths, authorization outcome, bounded metrics, and stable failure codes. Raw queries, prompt text, employee values, tool payloads, arbitrary errors, stack traces, and secrets are omitted. Token usage and cost remain `null` when unavailable.
-
-## HR knowledge retrieval
-
-PostgreSQL 16 runs from the pinned `pgvector/pgvector:0.8.1-pg16` image while retaining the existing `hcm_postgres_data` volume. HR users can upload one PDF, TXT, or Markdown document up to 5 MiB. Extraction is bounded, the upload buffer is cleared after processing, and only extracted chunks plus embeddings are persisted.
-
-External RAG processing is disabled by default. Setting `RAG_EXTERNAL_PROCESSING_ENABLED=true` explicitly permits the configured OpenAI embedding and answer models to receive extracted policy text/chunks. Document text is never written to operational logs or LangSmith traces.
-
-Each document stores one active index version and content hash. Reindexing writes chunks under a new version beside the active version, then conditionally activates it. Queries join only the active version, retrieve at most eight chunks, treat every retrieved chunk as untrusted evidence, and return either a grounded answer with document/page/chunk sources or the stable `INSUFFICIENT_EVIDENCE` result. The included `fixtures/fictional-flexible-work-policy.md` contains demonstration data only.
+The natural-language supervisor currently supports onboarding and leave intents. Policy questions use the dedicated knowledge API or MCP tool rather than the main `/agent/invoke` route.
 
 ## Read-only MCP
 
-`POST /mcp` is a stateless Streamable HTTP endpoint built with the official TypeScript MCP SDK. It exposes only `get_employee_onboarding_status` and `search_knowledge_documents`. Every request requires the same PostgreSQL-derived development identity in `X-Employee-Id` used by the HTTP API. The onboarding tool reuses the existing authorized calculation tool; knowledge search reuses the existing query service. Employee identifiers are masked, document evidence remains untrusted, and errors contain stable codes without internal exception text. Mutation, notification, and leave tools are not registered.
+`POST /mcp` uses the official TypeScript MCP SDK and a new stateless Streamable HTTP transport for each request. It exposes exactly two tools:
 
-The endpoint accepts an optional UUID v4 `X-Correlation-Id`, returns the resolved value in the response header and tool structured content, and records only safe MCP lifecycle metadata. See [docs/usage-guide.md](docs/usage-guide.md) for MCP Inspector discovery and call examples.
+| Tool                             | Reused implementation                               | Side effects |
+| -------------------------------- | --------------------------------------------------- | ------------ |
+| `get_employee_onboarding_status` | The existing authorized onboarding calculation tool | None         |
+| `search_knowledge_documents`     | The active-version knowledge query service          | None         |
+
+Every MCP call requires `X-Employee-Id`, resolves the canonical employee and role from PostgreSQL, and accepts an optional UUID `X-Correlation-Id`. The onboarding tool masks its employee identifier; the knowledge tool returns a grounded answer and source metadata. Both use stable errors. Notification, leave creation, upload, reindex, and other mutations are not registered. Knowledge search returns `RAG_EXTERNAL_PROCESSING_DISABLED` unless external RAG processing is enabled.
+
+See [the MCP Inspector guide](docs/usage-guide.md#mcp-inspector) for discovery and invocation steps.
+
+## Triggers and automation
+
+All trigger adapters reuse the same onboarding graph and authorized tools.
+
+| Trigger               | Input path                      | Important behavior                                                                                                                                    |
+| --------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| User                  | `POST /api/v1/agent/invoke`     | Runs the deterministic request guard and OpenAI intent normalization before routing                                                                   |
+| Schedule              | Internal cron adapter           | Disabled by default; when enabled, runs at 09:00 `Asia/Dubai` as the configured automation employee and treats notification as explicit system policy |
+| Webhook               | `POST /api/v1/triggers/webhook` | Validates a versioned Zod payload and Bearer API key using timing-safe comparison                                                                     |
+| RabbitMQ              | Durable topic queue             | Publisher confirms, manual acknowledgement, bounded retries, dead-letter exchange, prefetch control, and correlation propagation                      |
+| Development publisher | `POST /api/v1/dev/events`       | Registered only when `NODE_ENV=development`; publishes the same versioned event contract                                                              |
+
+Technical commands already contain a typed onboarding intent, so schedule, webhook, and RabbitMQ deliveries do not fabricate a natural-language query or call OpenAI for normalization. They still pass through graph routing, PostgreSQL identity resolution, authorization, calculation, notification policy, and audit recording.
+
+`processed_events` atomically claims event IDs and stores only a SHA-256 payload hash plus delivery metadata. Completed duplicates do not repeat the graph or side effects; reusing an event ID with different content is rejected. Failed deliveries are retried up to the configured bound and then dead-lettered.
+
+## Security model
+
+Security is layered around the non-deterministic components rather than delegated to them.
+
+1. **Schema validation:** Zod validates request, model-output, webhook, event, resume, MCP, and knowledge-query inputs.
+2. **Pre-model safety guard:** deterministic rules reject instruction overrides, bulk employee-record extraction, security-control bypasses, and system-prompt disclosure attempts before OpenAI or employee lookup.
+3. **Development identity:** `X-Employee-Id` is resolved against PostgreSQL; request-supplied roles are not trusted.
+4. **Tool authorization:** every protected employee or leave tool rechecks the canonical role and reporting relationship.
+5. **Explicit side effects:** silence never authorizes notification or persistence; leave creation requires a resumed human approval.
+6. **RAG isolation:** retrieved content is untrusted evidence and cannot change prompts, permissions, or tool policy.
+7. **PII-safe observability:** safe fields are allowlisted, sensitive values are masked, and raw content is omitted.
+8. **Webhook secret handling:** the configured Bearer key and raw payload are never logged or persisted.
+
+Field-aware masking retains just enough shape to show that protection was applied:
+
+```text
+0501234567         → 05********
+EMP-201            → EMP-***
+samira@company.com → s*****@company.com
+Samira Noor        → S***** N***
+```
+
+The header-based identity mechanism and fictional seeded roles are intentionally development-only. Production deployments need a trusted identity provider and mapping from authenticated principals to employee records.
+
+## LLMOps, tracing, and evaluation
+
+The project separates four kinds of operational evidence:
+
+| Mechanism        | Purpose                                                          | Stored information                                                                                                                                         |
+| ---------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| LangSmith        | Optional AI-agent trace and evaluation view                      | Safe identifiers, prompt version, configured model, normalized intent, node/tool paths, authorization outcome, end-to-end latency, and stable failure code |
+| LangGraph Studio | Run and inspect the exported deterministic onboarding entrypoint | Seven fake-backed onboarding scenarios and their summarized status/code results                                                                            |
+| Pino             | Application and HTTP/MCP operational logs                        | JSON lifecycle events with correlation/run identifiers and stable status codes                                                                             |
+| PostgreSQL audit | Durable business and security traceability                       | `agent_runs`, `agent_run_steps`, and `security_events` with redacted summaries and outcomes                                                                |
+
+LangSmith tracing is disabled by default. The application deliberately uses one explicit, allowlisted invocation trace instead of global automatic LangChain tracing, because automatic tracing may capture raw model inputs or duplicate runs. The current trace sets retry count to `0`, leaves token and estimated-cost fields empty, and infers model-call count as `0` or `1` from whether intent normalization ran; these are not provider-collected usage metrics.
+
+### Prompt versioning
+
+The intent prompt is source-controlled as `hcm-intent-v2`. Its version is included in safe invocation trace metadata, allowing a behavior change to be compared with the prompt and model that produced it. The offline evaluation report currently contains the suite name, case outcomes, and pass/fail summary. Prompt text and hidden reasoning are not placed in telemetry.
+
+### Evaluation
+
+```bash
+npm run eval:agent
+```
+
+The bounded runner uses deterministic fake dependencies and covers intent normalization, missing data, unsupported and unsafe requests, authorization denial, explicit notification, and tool failure. It reports case-level outcomes and a pass/fail summary without making a live OpenAI call. Live invocation traces separately record complete-run latency and the inferred model-call indicator described above. Evaluation results are uploaded only when `LANGSMITH_EVALUATION_UPLOAD=true` and LangSmith is configured.
+
+### Studio
+
+```bash
+npm run agent:studio
+```
+
+`langgraph.json` exports a deterministic onboarding demonstration entrypoint without starting Express. It runs the seven fake-backed evaluation scenarios through `OnboardingAgentService` and returns a summarized result; it does not expose separate production onboarding and leave worker graphs or their complete internal topology. Keep automatic LangChain/LangSmith tracing environment aliases unset because the project rejects them to preserve its explicit safe tracing path.
 
 ## Data model
 
-Sprint 1 uses only the tables required by the implemented foundation:
+The application owns eleven domain, audit, delivery, and knowledge tables.
 
 ```mermaid
 erDiagram
-EMPLOYEES ||--o{ ONBOARDING_REVIEW_PERIODS : has
-EMPLOYEES ||--o{ AGENT_RUNS : initiates
-AGENT_RUNS ||--o{ AGENT_RUN_STEPS : contains
-AGENT_RUNS ||--o{ SECURITY_EVENTS : relates
-EMPLOYEES ||--o{ SECURITY_EVENTS : causes
-PROCESSED_EVENTS {
-  string event_id PK
-  string payload_hash
-  string status
-}
+    EMPLOYEES {
+        string id PK
+        string employee_code UK
+        string manager_id FK
+        string access_role
+        string status
+    }
+    ONBOARDING_REVIEW_PERIODS {
+        string id PK
+        string employee_id FK
+        date start_date
+        date end_date
+        string status
+    }
+    LEAVE_POLICIES {
+        string id PK
+        string code UK
+        int annual_allowance_days
+        int minimum_notice_working_days
+        int maximum_consecutive_working_days
+    }
+    LEAVE_BALANCES {
+        string id PK
+        string employee_id FK
+        string leave_policy_id FK
+        int year
+        int allocated_days
+        int used_days
+        int pending_days
+    }
+    LEAVE_REQUESTS {
+        string id PK
+        string employee_id FK
+        string leave_policy_id FK
+        date start_date
+        date end_date
+        string approval_thread_id UK
+        bytes document_pdf
+        string status
+    }
+    AGENT_RUNS {
+        string id PK
+        string run_id UK
+        string correlation_id
+        string thread_id
+        string actor_employee_code FK
+        string status
+    }
+    AGENT_RUN_STEPS {
+        string id PK
+        string agent_run_id FK
+        string step_name
+        string status
+        string outcome_code
+    }
+    SECURITY_EVENTS {
+        string id PK
+        string agent_run_id FK
+        string actor_employee_code FK
+        string event_type
+        string severity
+    }
+    PROCESSED_EVENTS {
+        string event_id PK
+        string payload_hash
+        string status
+        int attempt
+        string correlation_id
+        string run_id
+        string thread_id
+    }
+    KNOWLEDGE_DOCUMENTS {
+        string id PK
+        string content_hash
+        int active_index_version
+        string created_by_employee_code
+    }
+    KNOWLEDGE_CHUNKS {
+        string id PK
+        string document_id FK
+        int index_version
+        string embedding_model
+        string chunking_version
+        int chunk_index
+        int page_number
+        vector embedding
+    }
+
+    EMPLOYEES o|--o{ EMPLOYEES : manages
+    EMPLOYEES ||--o{ ONBOARDING_REVIEW_PERIODS : has
+    EMPLOYEES o|--o{ AGENT_RUNS : initiates
+    AGENT_RUNS ||--o{ AGENT_RUN_STEPS : contains
+    AGENT_RUNS o|--o{ SECURITY_EVENTS : relates_to
+    EMPLOYEES o|--o{ SECURITY_EVENTS : causes
+    EMPLOYEES ||--o{ LEAVE_BALANCES : owns
+    EMPLOYEES ||--o{ LEAVE_REQUESTS : submits
+    LEAVE_POLICIES ||--o{ LEAVE_BALANCES : governs
+    LEAVE_POLICIES ||--o{ LEAVE_REQUESTS : governs
+    KNOWLEDGE_DOCUMENTS ||--o{ KNOWLEDGE_CHUNKS : versions
 ```
 
-See [docs/data-model.md](docs/data-model.md) for table purposes, relationships, PII classification, seed records, and future tables.
+| Table                       | Why it exists                                                                                                 |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `employees`                 | Fictional employee directory, PostgreSQL-derived development roles, and manager relationships                 |
+| `onboarding_review_periods` | Active, completed, or cancelled initial-review dates evaluated by the onboarding workflow                     |
+| `leave_policies`            | Annual-leave allowance, working week, notice, and consecutive-day rules                                       |
+| `leave_balances`            | Allocated, used, and pending leave for one employee, policy, and year                                         |
+| `leave_requests`            | Approved submission dates, idempotent approval thread, status, and generated PDF bytes                        |
+| `agent_runs`                | One durable record for each graph execution with run, thread, correlation, actor, trigger, intent, and status |
+| `agent_run_steps`           | Ordered workflow decisions, tool outcomes, and redacted input/output summaries for a run                      |
+| `security_events`           | Linked authorization denials and unsafe-request rejections                                                    |
+| `processed_events`          | RabbitMQ/webhook delivery idempotency, attempts, hashes, trace identifiers, and stable error codes            |
+| `knowledge_documents`       | Document metadata, content hash, creator code, and active index version                                       |
+| `knowledge_chunks`          | Versioned extracted text, page/chunk coordinates, embedding metadata, and pgvector vectors                    |
 
-See [docs/architecture.md](docs/architecture.md) for the reasoning behind the layers and [docs/usage-guide.md](docs/usage-guide.md) for migration and seed behavior.
+LangGraph `PostgresSaver` creates and manages its own checkpoint tables during API startup. Those framework tables store conversation state and pending checkpoint writes; they have no invented foreign-key relationship to the application tables above. Checkpoints enable continuation, while `agent_runs`, `agent_run_steps`, and `security_events` remain the durable audit trail.
+
+See [docs/data-model.md](docs/data-model.md) for seed records, PII classification, and migration behavior.
+
+## HTTP and MCP interfaces
+
+| Method and path                                         | Purpose                                                |
+| ------------------------------------------------------- | ------------------------------------------------------ |
+| `GET /health`                                           | Process liveness                                       |
+| `GET /ready`                                            | PostgreSQL readiness                                   |
+| `POST /api/v1/agent/invoke`                             | Onboarding or annual-leave agent request; JSON or SSE  |
+| `POST /api/v1/agent/resume`                             | Resume a leave approval with `APPROVE` or `REJECT`     |
+| `GET /api/v1/leave-requests/:leaveRequestId/document`   | Authorized PDF download with `Cache-Control: no-store` |
+| `POST /api/v1/triggers/webhook`                         | API-key-protected onboarding event trigger             |
+| `POST /api/v1/dev/events`                               | Development-only RabbitMQ event publisher              |
+| `POST /api/v1/knowledge/documents`                      | HR-only document upload and initial index              |
+| `POST /api/v1/knowledge/documents/:documentId/versions` | HR-only side-by-side reindex and active-version switch |
+| `POST /api/v1/knowledge/documents/:documentId/query`    | Query one active document version                      |
+| `POST /api/v1/knowledge/query`                          | Query across active document versions                  |
+| `POST /mcp`                                             | Stateless Streamable HTTP MCP endpoint                 |
+
+Employee-facing protected routes use `X-Employee-Id`; the webhook uses its configured Bearer API key instead. `X-Correlation-Id` and `X-Thread-Id` are optional UUID v4 headers on supported agent paths; generated values are returned when absent.
+
+### Minimal onboarding request
+
+```bash
+curl -X POST http://localhost:3000/api/v1/agent/invoke \
+  -H 'Content-Type: application/json' \
+  -H 'X-Employee-Id: EMP-201' \
+  -d '{"query":"Review my onboarding status"}'
+```
+
+### Stream the same endpoint
+
+```bash
+curl -N -X POST http://localhost:3000/api/v1/agent/invoke \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: text/event-stream' \
+  -H 'X-Employee-Id: EMP-201' \
+  -d '{"query":"Review my onboarding status"}'
+```
+
+Complete onboarding, leave approval, trigger, RAG, and MCP examples are in [docs/api-examples.md](docs/api-examples.md) and [docs/usage-guide.md](docs/usage-guide.md).
 
 ## Repository structure
 
-The current foundation contains onboarding and leave workflows alongside shared observability and technical-trigger infrastructure.
-
 ```text
 src/
-├── adapters/ External provider implementations behind application interfaces
-├── config/ Environment validation and application settings
-├── controllers/ Express routes and HTTP request/response handling
-├── contracts/ Request validation and result contracts
-├── helpers/ Pure date and invocation-result helpers
-├── observability/ Invocation log mapping and Pino adapter for redacted operational logs
-├── security/ Authorization checks and PII redaction
-├── repositories/ PostgreSQL employee data access
-├── services/ Shared graph and idempotent technical-trigger processing
-├── tools/ Typed, authorized employee, calculation, and notification operations
-├── triggers/ Scheduler, webhook composition, and RabbitMQ transport adapters
-├── types/ Shared TypeScript definitions, one exported type or interface per file
-├── workflows/onboarding/ Deterministic onboarding review calculation
-├── workflows/leave/ Deterministic annual-leave proposal calculation
-├── app.ts Express application factory
-└── server.ts Runtime startup and graceful shutdown
+├── adapters/        OpenAI, RabbitMQ, scheduler, and development notification adapters
+├── config/          Environment validation and runtime settings
+├── contracts/       Zod HTTP, event, model-output, and resume schemas
+├── controllers/     Express routes and transport-to-service mapping
+├── evaluation/      Bounded agent evaluation dataset and runner
+├── helpers/         Pure date and response helpers
+├── mcp/             Official SDK read-only MCP server
+├── observability/   Pino adapter, log mapping, and safe LangSmith recorder
+├── prompts/         Versioned intent-normalization prompt and examples
+├── repositories/    Prisma business, audit, delivery, leave, and knowledge access
+├── security/        Injection checks, trace-ID validation, authorization, and masking
+├── services/        Agent composition, knowledge services, and trigger processing
+├── studio/          Standalone graph export for LangGraph Studio
+├── tools/           Typed onboarding, leave, and knowledge tools
+├── triggers/        Schedule, webhook, and RabbitMQ transport adapters
+├── types/           Shared TypeScript interfaces and result types
+├── workflows/
+│   ├── onboarding/  Supervisor graph, onboarding worker, approval, and audit
+│   └── leave/       Parallel context tools and deterministic leave calculation
+├── app.ts           Middleware and controller mounting
+└── server.ts        Runtime composition and graceful shutdown
 
-prisma/ Schema, migrations, and seed data
-tests/unit/ Focused tests for critical deterministic behavior
-docs/ Architecture, data model, examples, and usage guidance
+prisma/              Schema, controlled migrations, and fictional seed data
+tests/unit/           Focused critical unit tests with fake external dependencies
+docs/                 Architecture, data model, API examples, and usage guides
+langgraph.json        Studio graph configuration
+docker-compose.yml    PostgreSQL/pgvector, RabbitMQ, and API services
 ```
-
-`server.ts` is the composition root: it constructs repositories, services, and controllers and supplies each dependency explicitly. Each controller owns its Express router and delegates business work to an injected service. `app.ts` only installs shared middleware and mounts the controller collection. This keeps the dependency direction clear:
-
-```text
-controller → service → workflow/repository
-```
-
-Schedule, webhook, and RabbitMQ adapters call the same typed service without depending on the user-query controller. Technical commands carry deterministic onboarding fields directly and therefore do not fabricate natural language or call OpenAI.
-
-Shared workflow definitions live under `src/types`, with one exported type per file. The application graph invokes the same typed runner for JSON and SSE. Its supervisor routes normalized onboarding intents to the onboarding worker and `LEAVE_REQUEST` to the leave worker; business policy remains deterministic and tools re-check authorization. `server.ts` initializes the PostgreSQL LangGraph checkpointer before listening and closes it during shutdown alongside Prisma.
 
 ## Getting started
 
@@ -235,98 +598,113 @@ Shared workflow definitions live under `src/types`, with one exported type per f
 - Node.js 22 or newer
 - npm
 - Docker Desktop with Docker Compose
+- an OpenAI API key
 
-### Install and configure
+### Local API with Docker infrastructure
 
 ```bash
 npm install
 cp .env.example .env
-npm run db:generate
 ```
 
-Set `OPENAI_API_KEY` and a random `WEBHOOK_API_KEY` of at least 32 characters in `.env`. `OPENAI_MODEL` is fixed to `gpt-5.4-mini` for user-query intent normalization. The scheduler defaults to disabled; enabling it runs the explicit system onboarding notification policy daily at 09:00 `Asia/Dubai` as the database-resolved `AUTOMATION_ACTOR_EMPLOYEE_CODE` (default fictional HR `EMP-100`).
+Set these local values in `.env`:
 
-Leave `LANGSMITH_AGENT_TRACING=false` for normal local use; no LangSmith key is then required. To enable the single safe application tracing path, set `LANGSMITH_AGENT_TRACING=true`, provide `LANGSMITH_API_KEY`, and optionally change `LANGSMITH_PROJECT`. Do not set `LANGSMITH_TRACING`, `LANGSMITH_TRACING_V2`, `LANGCHAIN_TRACING`, or `LANGCHAIN_TRACING_V2`; the API, offline evaluation, and Studio reject those automatic tracing aliases because they may capture raw inputs and create duplicate runs.
+```dotenv
+OPENAI_API_KEY=your-api-key
+OPENAI_MODEL=gpt-5.4-mini
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+WEBHOOK_API_KEY=replace-with-at-least-32-random-characters
+```
 
-### Start PostgreSQL and RabbitMQ
+Then start PostgreSQL and RabbitMQ, apply migrations, seed the fictional HCM data, and run the local API:
 
 ```bash
 docker compose up -d postgres rabbitmq
-```
-
-The local PostgreSQL service uses port `55432` to avoid collisions with an existing local PostgreSQL installation. RabbitMQ uses ports `5672` and `15672`.
-
-### Create and seed the database
-
-```bash
+npm run db:generate
 npm run db:migrate
 npm run db:seed
-```
-
-### Start the API
-
-```bash
 npm run dev
 ```
 
-Check the service:
+The locally started API listens on `http://localhost:3000`. PostgreSQL is exposed on `55432`, RabbitMQ on `5672`, and RabbitMQ Management on `15672`.
+
+Check it:
 
 ```bash
 curl http://localhost:3000/health
 curl http://localhost:3000/ready
 ```
 
-When the API runs inside Docker Compose, use port `3300` instead: `curl http://localhost:3300/health`.
-
-The complete local usage flow is documented in [docs/usage-guide.md](docs/usage-guide.md).
-
-## Testing and quality checks
-
-The initial release intentionally uses a small unit-test suite. It checks the highest-risk deterministic behavior without requiring a database, broker, or running server.
+### Full Docker Compose stack
 
 ```bash
+docker compose up -d --build
+docker compose exec api npm run db:seed
+```
+
+Run the seed command after the first startup, or whenever the fictional development dataset should be reset. It is intentionally destructive to that sample dataset and must not be used against data that should be preserved.
+
+The containerized API listens on `http://localhost:3300` by default. `PORT=3000` is the port inside the API process; `API_PORT=3300` is only the host-side Docker Compose mapping.
+
+### Optional RAG and LangSmith settings
+
+External RAG processing is off by default. Enable it only when policy text may be sent to the configured OpenAI models:
+
+```dotenv
+RAG_EXTERNAL_PROCESSING_ENABLED=true
+```
+
+Safe application tracing is also off by default:
+
+```dotenv
+LANGSMITH_AGENT_TRACING=true
+LANGSMITH_API_KEY=your-langsmith-key
+LANGSMITH_PROJECT=hcm-agentic-llmops
+```
+
+Do not enable global automatic LangChain tracing aliases; the application rejects them so raw inputs are not captured outside the explicit allowlisted trace path.
+
+For migration, seed, Docker, RabbitMQ, RAG, Studio, and MCP details, see [docs/usage-guide.md](docs/usage-guide.md).
+
+## Testing and quality
+
+The automated suite focuses on important deterministic behavior and uses fake models, queues, embeddings, checkpointers, PDF generators, and loggers. CI does not make live OpenAI or LangSmith calls.
+
+```bash
+npm run db:generate
+npm test
 npm run typecheck
 npm run lint
 npm run format:check
-npm test
 npm run build
-npm run eval:agent
 ```
 
-`npm run eval:agent` executes seven bounded fake-only cases covering normalization, missing data, unsupported and unsafe requests, authorization, notification, and tool failure. It makes no live calls by default. Upload occurs only when `LANGSMITH_EVALUATION_UPLOAD=true` and a key is provided.
+Integration and end-to-end coverage are intentionally limited in this release. Live OpenAI, LangSmith, PostgreSQL checkpoint, RabbitMQ, SSE, RAG, Studio, and MCP behavior is verified through the documented manual flows.
 
-`npm run agent:studio` loads the onboarding graph with deterministic scenarios without importing or starting Express.
+## Current boundaries
 
-Current unit-test areas:
+- `X-Employee-Id` is a development identity, not production SSO, OAuth, or JWT authentication.
+- Manager notifications use a development adapter rather than an external notification provider.
+- The main conversational supervisor routes onboarding and leave; policy Q&A is exposed through the knowledge API and MCP.
+- External RAG processing and LangSmith tracing require explicit opt-in configuration.
+- Leave calculations use a Monday–Friday workweek but do not integrate a public-holiday calendar.
+- Generated leave PDFs are stored in PostgreSQL rather than external object storage.
+- Automated tests are focused unit tests; broad integration, end-to-end, load, and fault-injection suites are not included.
+- Production deployment still requires managed secrets, trusted identity, infrastructure hardening, scaling, alerting, and recovery procedures.
 
-- Required configuration validation.
-- Strict OpenAI intent normalization using fake model dependencies.
-- Onboarding review threshold calculation.
-- Review-only versus explicit notification behavior.
-- Agent request validation and onboarding routing.
-- Authorization denial and structured failure mapping.
-- PII redaction.
-- Trace recording with redacted run summaries, workflow steps, and authorization events.
-- Trigger validation, timing-safe webhook authentication, schedule policy, event idempotency, and RabbitMQ retry/dead-letter ordering with fakes.
+## Further documentation
 
-Manager/HR decision workflows beyond the initiating employee approval remain future improvements. Integration and end-to-end tests are also future improvements.
-
-## Roadmap and improvement opportunities
-
-- Add production-grade authentication and identity mapping.
-- Add downstream manager/HR leave decision workflows.
-- Add broader automated testing, including integration and end-to-end coverage.
-- Add durable distributed tracing and operational dashboards.
-- Add transactional event publishing and stronger retry handling.
-- Add retrieval augmentation for approved HR policy documents.
-- Add production deployment, scaling, and secret-management guidance.
-
-The roadmap is intentionally separate from the implementation-status table so planned capabilities are not presented as completed behavior.
+- [Architecture guide](docs/architecture.md)
+- [Data model](docs/data-model.md)
+- [API examples](docs/api-examples.md)
+- [Usage guide](docs/usage-guide.md)
+- [Security policy](SECURITY.md)
+- [Contribution guide](CONTRIBUTING.md)
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for branch, pull-request, testing, and documentation expectations. Security concerns should follow [SECURITY.md](SECURITY.md).
+Issues and focused pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for branch, verification, documentation, and review expectations. Report security concerns through [SECURITY.md](SECURITY.md).
 
 ## License
 
-This project is available under the [MIT License](LICENSE).
+Agentic LLMOps for HCM is available under the [MIT License](LICENSE).
