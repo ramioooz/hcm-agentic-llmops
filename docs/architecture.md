@@ -54,6 +54,10 @@ flowchart LR
 
 The dependency direction is `controller → service → workflow/repository`. Scheduled jobs, webhook handlers, and RabbitMQ consumers will be separate trigger adapters that reuse the same services; they will not call HTTP controllers or duplicate workflow rules.
 
+Pino remains the operational HTTP logger and PostgreSQL remains the durable audit store. Optional LangSmith tracing is an invocation-level graph adapter and does not rely on global LangChain tracing, which prevents model messages and raw request text from becoming implicit spans. Its payload is built from an allowlist: safe UUIDs, the existing prompt version, configured model, normalized intent, ordered node/tool paths, authorization result, retry/model-call counts, latency, optional token/cost metrics, and stable failure codes.
+
+Field-aware masking preserves only a recognition-safe shape: `0501234567` becomes `05********`, `EMP-201` becomes `EMP-***`, `samira@company.com` becomes `s*****@company.com`, and `Samira Noor` becomes `S***** N***`.
+
 Shared TypeScript definitions are kept in `src/types`, with one exported type per file so callers do not depend on the service implementation. The onboarding graph depends on a typed normalizer interface; the concrete OpenAI normalizer is an outbound adapter under `src/adapters`, and `server.ts` supplies it during composition. The model only normalizes intent. Graph routing, authorization, review calculation, tool selection, and notification conditions are deterministic. Structured employee lookup, onboarding calculation, and manager notification tools re-check authorization using canonical roles and manager relationships loaded from PostgreSQL.
 
 This gives the system one business path with several safe entry points:

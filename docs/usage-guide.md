@@ -20,6 +20,8 @@ npm run db:seed
 
 The migration command is safe to repeat. Prisma records applied migrations in `_prisma_migrations` and skips migrations that are already complete. The seed command is also repeatable for local development, but it first clears the current Sprint 1 sample/runtime records and recreates the fictional dataset. Do not use the seed command against data that must be preserved.
 
+The forward migration that removes `PII_REDACTION_APPLIED` checks `security_events` first and fails before changing the enum if any historical row still uses the value. Resolve those rows according to the deployment's retention policy before retrying; do not edit the initial migration.
+
 ## Run the API
 
 ```bash
@@ -57,6 +59,12 @@ The SSE response emits `run`, `intent`, `node`, `tool`, and `response` events. P
 
 When the API runs inside Docker Compose, use port `3300` instead of `3000`.
 
+## Optional tracing, Studio, and evaluation
+
+Tracing is off by default. `LANGSMITH_API_KEY` is required only when `LANGSMITH_AGENT_TRACING=true`. The explicit trace contains allowlisted operational metadata and omits raw queries, prompt text, employee PII, tool payloads, arbitrary errors, and secrets. Do not enable the upstream `LANGSMITH_TRACING` environment switch; this service intentionally avoids global automatic traces.
+
+Use `npm run agent:studio` for deterministic graph scenarios and `npm run eval:agent` for the stable seven-case local report. Both use fakes and need no application credentials or live services. Evaluation upload is independent and occurs only when `LANGSMITH_EVALUATION_UPLOAD=true` with a LangSmith key.
+
 ## Quality checks
 
 ```bash
@@ -65,6 +73,7 @@ npm run lint
 npm run format:check
 npm test
 npm run build
+npm run eval:agent
 ```
 
 The current tests are focused unit tests. They do not require Docker or a live database. Infrastructure is verified manually during local setup until integration tests are added in a later release.

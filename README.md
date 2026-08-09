@@ -40,6 +40,7 @@ The second area and technical triggers are planned for Sprint 2. The current rel
 | Authorization and guardrails               | Implemented | One mock identity header; canonical roles and manager relationships are loaded from PostgreSQL at tool boundaries  |
 | Structured intent normalization            | Implemented | OpenAI structured output normalizes onboarding intent; deterministic controls remain authoritative                 |
 | Typed onboarding graph and tools           | Implemented | LangGraph coordinates guarded lookup, deterministic calculation, notification policy, audit, and safe SSE progress |
+| Optional agent tracing and evaluation      | Implemented | LangSmith receives allowlisted metadata only; Studio and evaluation run with deterministic fake dependencies       |
 | Leave workflow                             | Planned     | Sprint 2                                                                                                           |
 | Scheduled, webhook, and RabbitMQ workflows | Planned     | Sprint 2                                                                                                           |
 | Integration and end-to-end tests           | Planned     | Added after the initial release                                                                                    |
@@ -146,6 +147,8 @@ The onboarding invocation persists this trace through a Prisma-backed recorder. 
 
 The HTTP controller also emits `agent.invoke.started`, `agent.invoke.rejected`, `agent.invoke.completed`, and `agent.invoke.failed` events. Rejections use warning-level logging except an unavailable agent configuration, which is logged as an error because it produces a server failure. Completed calls use info-level logging; handled server failures and unexpected exceptions use error-level logging.
 
+LangSmith tracing is disabled by default and remains separate from Pino operational logging and PostgreSQL durable audit. When enabled, the application creates one explicit invocation run containing safe UUIDs, the existing prompt version, configured model, normalized intent, node/tool paths, authorization outcome, bounded metrics, and stable failure codes. Raw queries, prompt text, employee values, tool payloads, arbitrary errors, stack traces, and secrets are omitted. Token usage and cost remain `null` when unavailable.
+
 ## Data model
 
 Sprint 1 uses only the tables required by the implemented foundation:
@@ -217,6 +220,8 @@ npm run db:generate
 
 Set `OPENAI_API_KEY` in `.env`. `OPENAI_MODEL` is fixed to `gpt-5.4-mini` for the structured intent normalizer.
 
+Leave `LANGSMITH_AGENT_TRACING=false` for normal local use; no LangSmith key is then required. To enable the single safe application tracing path, set `LANGSMITH_AGENT_TRACING=true`, provide `LANGSMITH_API_KEY`, and optionally change `LANGSMITH_PROJECT`. Do not set the upstream `LANGSMITH_TRACING` switch, because global automatic tracing may capture model inputs and create duplicate runs.
+
 ### Start PostgreSQL and RabbitMQ
 
 ```bash
@@ -259,7 +264,12 @@ npm run lint
 npm run format:check
 npm test
 npm run build
+npm run eval:agent
 ```
+
+`npm run eval:agent` executes seven bounded fake-only cases covering normalization, missing data, unsupported and unsafe requests, authorization, notification, and tool failure. It makes no live calls by default. Upload occurs only when `LANGSMITH_EVALUATION_UPLOAD=true` and a key is provided.
+
+`npm run agent:studio` loads the onboarding graph with deterministic scenarios without importing or starting Express.
 
 Current unit-test areas:
 

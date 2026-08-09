@@ -34,7 +34,6 @@ enum RunStatus {
 enum SecurityEventType {
   AUTHORIZATION_DENIED
   UNSAFE_REQUEST_REJECTED
-  PII_REDACTION_APPLIED
 }
 
 enum SecuritySeverity {

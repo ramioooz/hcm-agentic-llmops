@@ -1,0 +1,7 @@
+{
+  "graphs": {
+    "onboarding_agent": "./src/studio/onboarding.studio.ts:graph"
+  },
+  "node_version": "22",
+  "env": ".env"
+}

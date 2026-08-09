@@ -14,6 +14,7 @@ import { PrismaAgentRunRepository } from './repositories/agent-run.repository';
 import { PrismaEmployeeRepository } from './repositories/employee.repository';
 import { OnboardingAgentService } from './services/onboarding-agent.service';
 import { PinoApplicationLogger } from './observability/pino-application-logger';
+import { createLangSmithAgentTraceRecorder } from './observability/langsmith-agent-trace-recorder';
 
 const environment = loadEnvironment();
 const database = new PrismaClient();
@@ -32,6 +33,15 @@ const onboardingAgent = new OnboardingAgentService({
       }),
     ),
   ),
+  configuredModel: environment.openAiModel,
+  ...(environment.langSmithTracing
+    ? {
+        traceRecorder: createLangSmithAgentTraceRecorder({
+          apiKey: environment.langSmithApiKey as string,
+          projectName: environment.langSmithProject,
+        }),
+      }
+    : {}),
 });
 const healthController = new HealthController(async () => {
   await database.$queryRaw`SELECT 1`;

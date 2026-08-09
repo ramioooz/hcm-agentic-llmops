@@ -21,6 +21,7 @@ function createService(
     record?: EmployeeRecord | null;
     normalizedIntent?: HcmIntent;
     normalizerError?: Error;
+    traceRecorder?: { record(trace: unknown): Promise<void> };
   } = {},
 ) {
   const manager: EmployeeRecord = {
@@ -79,6 +80,9 @@ function createService(
       recorder,
       normalizer,
       notifications: { send },
+      ...(input.traceRecorder
+        ? { traceRecorder: input.traceRecorder, configuredModel: 'gpt-5.4-mini' }
+        : {}),
     }),
   };
 }
@@ -709,5 +713,74 @@ describe('OnboardingAgentService', () => {
     );
     expect(JSON.stringify(record)).not.toContain(hostileCorrelation);
     expect(JSON.stringify(events)).not.toContain(hostileCorrelation);
+  });
+
+  it('records one safe allowlisted trace without prompts or employee PII', async () => {
+    const traces: unknown[] = [];
+    const { service } = createService({
+      traceRecorder: {
+        record: async (trace) => {
+          traces.push(trace);
+        },
+      },
+    });
+    const query = 'Review EMP-201 onboarding status.';
+
+    await service.invoke({
+      query,
+      actorEmployeeCode: 'EMP-200',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
+    });
+
+    expect(traces).toHaveLength(1);
+    expect(traces[0]).toMatchObject({
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
+      promptVersion: 'hcm-intent-v1',
+      configuredModel: 'gpt-5.4-mini',
+      normalizedIntent: 'ONBOARDING_REVIEW',
+      nodePath: [
+        'request_guard',
+        'intent_normalization',
+        'routing',
+        'employee_lookup',
+        'onboarding_calculation',
+      ],
+      toolNames: ['employee_lookup', 'onboarding_calculation'],
+      authorizationResult: 'AUTHORIZED',
+      retryCount: 0,
+      modelCallCount: 1,
+      tokenUsage: null,
+      costUsd: null,
+      failureCode: null,
+    });
+    expect(JSON.stringify(traces)).not.toContain(query);
+    expect(JSON.stringify(traces)).not.toContain('EMP-201');
+    expect(JSON.stringify(traces)).not.toContain('Samira Noor');
+    expect(JSON.stringify(traces)).not.toContain('samira@company.com');
+  });
+
+  it('records a stable failure code and attempted model call when normalization fails', async () => {
+    const traces: Array<Record<string, unknown>> = [];
+    const { service } = createService({
+      normalizerError: new Error('provider stack and secret'),
+      traceRecorder: {
+        record: async (trace) => {
+          traces.push(trace as unknown as Record<string, unknown>);
+        },
+      },
+    });
+
+    await service.invoke({
+      query: 'Review EMP-201 onboarding status.',
+      actorEmployeeCode: 'EMP-200',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
+    });
+
+    expect(traces).toHaveLength(1);
+    expect(traces[0]).toMatchObject({
+      modelCallCount: 1,
+      failureCode: 'MODEL_UNAVAILABLE',
+    });
+    expect(JSON.stringify(traces)).not.toContain('provider stack and secret');
   });
 });
