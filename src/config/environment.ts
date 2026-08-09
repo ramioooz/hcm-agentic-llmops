@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { assertAutomaticTracingDisabled } from '../observability/automatic-tracing-guard';
 
 const environmentSchema = z
   .object({
@@ -42,9 +43,7 @@ type Environment = {
 };
 
 export function parseEnvironment(input: Record<string, string | undefined>): Environment {
-  if (input.LANGSMITH_TRACING === 'true' || input.LANGCHAIN_TRACING_V2 === 'true') {
-    throw new Error('LANGSMITH_TRACING must remain unset to prevent automatic duplicate traces');
-  }
+  assertAutomaticTracingDisabled(input);
 
   const parsed = environmentSchema.safeParse(input);
 

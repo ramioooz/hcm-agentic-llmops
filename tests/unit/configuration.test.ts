@@ -90,7 +90,12 @@ describe('parseEnvironment', () => {
     ).toThrow('LANGSMITH_API_KEY is required when LANGSMITH_AGENT_TRACING=true');
   });
 
-  it('rejects the upstream global tracing switch to prevent duplicate unsafe traces', () => {
+  it.each([
+    'LANGSMITH_TRACING',
+    'LANGSMITH_TRACING_V2',
+    'LANGCHAIN_TRACING',
+    'LANGCHAIN_TRACING_V2',
+  ])('rejects automatic tracing alias %s to prevent duplicate unsafe traces', (alias) => {
     expect(() =>
       parseEnvironment({
         NODE_ENV: 'test',
@@ -98,8 +103,8 @@ describe('parseEnvironment', () => {
         DATABASE_URL: 'postgresql://app:secret@localhost:5432/hcm',
         AMQP_URL: 'amqp://localhost:5672',
         OPENAI_API_KEY: 'unit-test-key',
-        LANGSMITH_TRACING: 'true',
+        [alias]: 'true',
       }),
-    ).toThrow('LANGSMITH_TRACING must remain unset to prevent automatic duplicate traces');
+    ).toThrow('Automatic LangChain tracing must remain disabled');
   });
 });

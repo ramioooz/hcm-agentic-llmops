@@ -1,8 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { entrypoint } from '@langchain/langgraph';
 import { createOfflineAgentDependencies } from '../evaluation/onboarding-agent.evaluation';
+import { assertAutomaticTracingDisabled } from '../observability/automatic-tracing-guard';
 import type { HcmIntent } from '../types/hcm-intent';
 import { runOnboardingGraph } from '../workflows/onboarding/onboarding.graph';
+
+assertAutomaticTracingDisabled(process.env);
 
 type StudioScenario =
   | 'review'

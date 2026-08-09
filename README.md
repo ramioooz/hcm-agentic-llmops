@@ -220,7 +220,7 @@ npm run db:generate
 
 Set `OPENAI_API_KEY` in `.env`. `OPENAI_MODEL` is fixed to `gpt-5.4-mini` for the structured intent normalizer.
 
-Leave `LANGSMITH_AGENT_TRACING=false` for normal local use; no LangSmith key is then required. To enable the single safe application tracing path, set `LANGSMITH_AGENT_TRACING=true`, provide `LANGSMITH_API_KEY`, and optionally change `LANGSMITH_PROJECT`. Do not set the upstream `LANGSMITH_TRACING` switch, because global automatic tracing may capture model inputs and create duplicate runs.
+Leave `LANGSMITH_AGENT_TRACING=false` for normal local use; no LangSmith key is then required. To enable the single safe application tracing path, set `LANGSMITH_AGENT_TRACING=true`, provide `LANGSMITH_API_KEY`, and optionally change `LANGSMITH_PROJECT`. Do not set `LANGSMITH_TRACING`, `LANGSMITH_TRACING_V2`, `LANGCHAIN_TRACING`, or `LANGCHAIN_TRACING_V2`; the API, offline evaluation, and Studio reject those automatic tracing aliases because they may capture raw inputs and create duplicate runs.
 
 ### Start PostgreSQL and RabbitMQ
 

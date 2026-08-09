@@ -22,7 +22,12 @@ const safeTrace: SafeAgentTrace = {
 };
 
 describe('LangSmithAgentTraceRecorder', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('uploads one chain run containing only allowlisted safe trace fields', async () => {
+    jest.spyOn(Date, 'now').mockReturnValue(1_000);
     const runs: unknown[] = [];
     const recorder = new LangSmithAgentTraceRecorder(
       {
@@ -41,6 +46,8 @@ describe('LangSmithAgentTraceRecorder', () => {
       name: 'hcm-onboarding-agent',
       run_type: 'chain',
       project_name: 'hcm-agentic-api-test',
+      start_time: 988,
+      end_time: 1_000,
       inputs: {
         runId: safeTrace.runId,
         correlationId: safeTrace.correlationId,

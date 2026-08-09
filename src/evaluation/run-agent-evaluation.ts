@@ -1,9 +1,15 @@
 import 'dotenv/config';
 import { Client } from 'langsmith';
+import { assertAutomaticTracingDisabled } from '../observability/automatic-tracing-guard';
+import { uploadAgentEvaluationReport } from './agent-evaluation-upload';
 import { runOfflineAgentEvaluation } from './onboarding-agent.evaluation';
 
+assertAutomaticTracingDisabled(process.env);
+
 async function main(): Promise<void> {
+  const startTime = Date.now();
   const report = await runOfflineAgentEvaluation();
+  const endTime = Math.max(startTime, Date.now());
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
 
   if (process.env.LANGSMITH_EVALUATION_UPLOAD === 'true') {
@@ -16,13 +22,12 @@ async function main(): Promise<void> {
       autoBatchTracing: false,
       omitTracedRuntimeInfo: true,
     });
-    await client.createRun({
-      name: report.suite,
-      run_type: 'chain',
-      project_name: process.env.LANGSMITH_PROJECT ?? 'hcm-agentic-api',
-      inputs: { suite: report.suite },
-      outputs: { summary: report.summary, cases: report.cases },
-      extra: { metadata: { evaluationMode: 'offline-fakes' } },
+    await uploadAgentEvaluationReport({
+      client,
+      projectName: process.env.LANGSMITH_PROJECT ?? 'hcm-agentic-api',
+      report,
+      startTime,
+      endTime,
     });
   }
 

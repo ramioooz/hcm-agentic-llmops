@@ -1,3 +1,7 @@
+BEGIN;
+
+LOCK TABLE "security_events" IN ACCESS EXCLUSIVE MODE;
+
 DO $$
 BEGIN
   IF EXISTS (
@@ -18,3 +22,5 @@ ALTER TABLE "security_events"
   USING ("event_type"::text::"SecurityEventType");
 
 DROP TYPE "SecurityEventType_old";
+
+COMMIT;

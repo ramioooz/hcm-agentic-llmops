@@ -1,6 +1,13 @@
 import { runOfflineAgentEvaluation } from '../../src/evaluation/onboarding-agent.evaluation';
 
 describe('offline onboarding agent evaluation', () => {
+  afterEach(() => {
+    delete process.env.LANGSMITH_TRACING;
+    delete process.env.LANGSMITH_TRACING_V2;
+    delete process.env.LANGCHAIN_TRACING;
+    delete process.env.LANGCHAIN_TRACING_V2;
+  });
+
   it('runs the bounded fake-only cases and returns a stable PII-free report', async () => {
     const report = await runOfflineAgentEvaluation();
 
@@ -56,5 +63,18 @@ describe('offline onboarding agent evaluation', () => {
     expect(JSON.stringify(report)).not.toContain('Samira');
     expect(JSON.stringify(report)).not.toContain('@');
     expect(JSON.stringify(report)).not.toContain('query');
+  });
+
+  it.each([
+    'LANGSMITH_TRACING',
+    'LANGSMITH_TRACING_V2',
+    'LANGCHAIN_TRACING',
+    'LANGCHAIN_TRACING_V2',
+  ])('rejects automatic tracing alias %s before running cases', async (alias) => {
+    process.env[alias] = 'true';
+
+    await expect(runOfflineAgentEvaluation()).rejects.toThrow(
+      'Automatic LangChain tracing must remain disabled',
+    );
   });
 });

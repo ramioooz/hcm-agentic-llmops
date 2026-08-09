@@ -54,7 +54,7 @@ flowchart LR
 
 The dependency direction is `controller → service → workflow/repository`. Scheduled jobs, webhook handlers, and RabbitMQ consumers will be separate trigger adapters that reuse the same services; they will not call HTTP controllers or duplicate workflow rules.
 
-Pino remains the operational HTTP logger and PostgreSQL remains the durable audit store. Optional LangSmith tracing is an invocation-level graph adapter and does not rely on global LangChain tracing, which prevents model messages and raw request text from becoming implicit spans. Its payload is built from an allowlist: safe UUIDs, the existing prompt version, configured model, normalized intent, ordered node/tool paths, authorization result, retry/model-call counts, latency, optional token/cost metrics, and stable failure codes.
+Pino remains the operational HTTP logger and PostgreSQL remains the durable audit store. Optional LangSmith tracing is an invocation-level graph adapter and does not rely on global LangChain tracing; a shared guard rejects every recognized LangSmith/LangChain automatic-tracing alias in API, evaluation, and Studio entrypoints. Its completed run payload is built from an allowlist: safe UUIDs, numeric start/end times, the existing prompt version, configured model, normalized intent, ordered node/tool paths, authorization result, retry/model-call counts, latency, optional token/cost metrics, and stable failure codes.
 
 Field-aware masking preserves only a recognition-safe shape: `0501234567` becomes `05********`, `EMP-201` becomes `EMP-***`, `samira@company.com` becomes `s*****@company.com`, and `Samira Noor` becomes `S***** N***`.
 

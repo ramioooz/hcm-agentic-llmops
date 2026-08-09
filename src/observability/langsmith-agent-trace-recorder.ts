@@ -7,6 +7,8 @@ export type LangSmithRun = {
   name: string;
   run_type: 'chain';
   project_name: string;
+  start_time: number;
+  end_time: number;
   inputs: Record<string, unknown>;
   outputs: Record<string, unknown>;
   extra: { metadata: Record<string, unknown> };
@@ -23,11 +25,14 @@ export class LangSmithAgentTraceRecorder implements AgentTraceRecorder {
   ) {}
 
   public async record(trace: SafeAgentTrace): Promise<void> {
+    const endTime = Date.now();
     await this.client.createRun({
       id: trace.runId,
       name: 'hcm-onboarding-agent',
       run_type: 'chain',
       project_name: this.projectName,
+      start_time: endTime - trace.latencyMs,
+      end_time: endTime,
       inputs: {
         runId: trace.runId,
         correlationId: trace.correlationId,

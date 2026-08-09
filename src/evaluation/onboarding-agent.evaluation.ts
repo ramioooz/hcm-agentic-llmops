@@ -1,4 +1,5 @@
 import type { EmployeeRecord } from '../types/employee-record';
+import { assertAutomaticTracingDisabled } from '../observability/automatic-tracing-guard';
 import type { HcmIntent } from '../types/hcm-intent';
 import type { OnboardingInvocationResult } from '../types/onboarding-invocation-result';
 import {
@@ -187,6 +188,7 @@ function evaluationOutcome(result: OnboardingInvocationResult): string {
 }
 
 export async function runOfflineAgentEvaluation(): Promise<AgentEvaluationReport> {
+  assertAutomaticTracingDisabled(process.env);
   const cases = [];
   for (const [index, evaluationCase] of evaluationCases.entries()) {
     const result = await runOnboardingGraph(
