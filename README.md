@@ -1,4 +1,4 @@
-# HCM Agentic API
+# Agentic LLMOps for HCM
 
 Backend-only Human Capital Management API built with Node.js, TypeScript, and Express. The project explores how an agent can interpret employee-related requests, select a controlled workflow, call authorized business tools, and return a traceable result.
 

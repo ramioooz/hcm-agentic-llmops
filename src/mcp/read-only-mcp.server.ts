@@ -50,7 +50,7 @@ export function createReadOnlyMcpServer(input: {
   clock: Clock;
   knowledgeQueries?: Pick<KnowledgeQueryService, 'query'>;
 }): McpServer {
-  const server = new McpServer({ name: 'hcm-agentic-api', version: '1.0.0' });
+  const server = new McpServer({ name: 'hcm-agentic-llmops', version: '1.0.0' });
   const onboarding = createOnboardingCalculationTool(input.employees);
 
   server.registerTool(

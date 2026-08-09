@@ -44,7 +44,7 @@ const environmentSchema = z
       (value) => (value === '' ? undefined : value),
       z.string().min(1).optional(),
     ),
-    LANGSMITH_PROJECT: z.string().min(1).default('hcm-agentic-api'),
+    LANGSMITH_PROJECT: z.string().min(1).default('hcm-agentic-llmops'),
   })
   .superRefine((environment, context) => {
     if (environment.LANGSMITH_AGENT_TRACING === 'true' && !environment.LANGSMITH_API_KEY) {

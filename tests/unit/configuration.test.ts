@@ -27,7 +27,7 @@ describe('parseEnvironment', () => {
       rabbitMaxAttempts: 3,
       langSmithTracing: false,
       langSmithApiKey: undefined,
-      langSmithProject: 'hcm-agentic-api',
+      langSmithProject: 'hcm-agentic-llmops',
     });
   });
 
@@ -70,7 +70,7 @@ describe('parseEnvironment', () => {
     ).toMatchObject({
       langSmithTracing: false,
       langSmithApiKey: undefined,
-      langSmithProject: 'hcm-agentic-api',
+      langSmithProject: 'hcm-agentic-llmops',
     });
   });
 

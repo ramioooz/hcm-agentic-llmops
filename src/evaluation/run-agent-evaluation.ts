@@ -24,7 +24,7 @@ async function main(): Promise<void> {
     });
     await uploadAgentEvaluationReport({
       client,
-      projectName: process.env.LANGSMITH_PROJECT ?? 'hcm-agentic-api',
+      projectName: process.env.LANGSMITH_PROJECT ?? 'hcm-agentic-llmops',
       report,
       startTime,
       endTime,

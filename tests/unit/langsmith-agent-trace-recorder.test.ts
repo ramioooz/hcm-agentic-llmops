@@ -36,7 +36,7 @@ describe('LangSmithAgentTraceRecorder', () => {
           runs.push(run);
         },
       },
-      'hcm-agentic-api-test',
+      'hcm-agentic-llmops-test',
     );
 
     await recorder.record(safeTrace);
@@ -46,7 +46,7 @@ describe('LangSmithAgentTraceRecorder', () => {
       id: safeTrace.runId,
       name: 'hcm-onboarding-agent',
       run_type: 'chain',
-      project_name: 'hcm-agentic-api-test',
+      project_name: 'hcm-agentic-llmops-test',
       start_time: 988,
       end_time: 1_000,
       inputs: {

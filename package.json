@@ -1,5 +1,5 @@
 {
-  "name": "hcm-agentic-api",
+  "name": "hcm-agentic-llmops",
   "version": "0.1.0",
   "private": true,
   "description": "Secure, event-driven Human Capital Management agent API.",

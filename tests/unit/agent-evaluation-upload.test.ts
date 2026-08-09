@@ -27,7 +27,7 @@ describe('agent evaluation upload', () => {
           runs.push(run);
         },
       },
-      projectName: 'hcm-agentic-api-test',
+      projectName: 'hcm-agentic-llmops-test',
       report,
       startTime: 500,
       endTime: 560,
@@ -37,7 +37,7 @@ describe('agent evaluation upload', () => {
       {
         name: 'onboarding-agent-v1',
         run_type: 'chain',
-        project_name: 'hcm-agentic-api-test',
+        project_name: 'hcm-agentic-llmops-test',
         start_time: 500,
         end_time: 560,
         inputs: { suite: 'onboarding-agent-v1' },
