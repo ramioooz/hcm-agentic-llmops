@@ -11,6 +11,7 @@ import { loadEnvironment } from './config/load-environment';
 import { AgentController } from './controllers/agent.controller';
 import { HealthController } from './controllers/health.controller';
 import { todayAsDateOnly } from './helpers/onboarding-agent.helpers';
+import { createLangSmithAgentTraceRecorder } from './observability/langsmith-agent-trace-recorder';
 import { PinoApplicationLogger } from './observability/pino-application-logger';
 import { PrismaAgentRunRepository } from './repositories/agent-run.repository';
 import { PrismaEmployeeRepository } from './repositories/employee.repository';
@@ -40,6 +41,15 @@ async function startServer(): Promise<void> {
         ),
       ),
       checkpointer,
+      configuredModel: environment.openAiModel,
+      ...(environment.langSmithTracing
+        ? {
+            traceRecorder: createLangSmithAgentTraceRecorder({
+              apiKey: environment.langSmithApiKey as string,
+              projectName: environment.langSmithProject,
+            }),
+          }
+        : {}),
     });
     const healthController = new HealthController(async () => {
       await database.$queryRaw`SELECT 1`;

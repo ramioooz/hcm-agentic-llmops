@@ -8,6 +8,7 @@ import {
 } from '@langchain/langgraph';
 import { z } from 'zod';
 import { buildInvocationResult } from '../../helpers/onboarding-agent.helpers';
+import { HCM_INTENT_PROMPT_VERSION } from '../../prompts/normalize-hcm-intent.prompt';
 import { enforceIntentConsistency } from '../../security/intent-consistency';
 import { redactSensitiveData } from '../../security/pii-redaction';
 import { evaluateRequestSafety } from '../../security/request-safety';
@@ -23,6 +24,7 @@ import type { AgentInvocationRecord } from '../../types/agent-invocation-record'
 import type { AgentProgressEvent } from '../../types/agent-progress-event';
 import type { AgentRunRecorder } from '../../types/agent-run-recorder';
 import type { AgentRunStepRecord } from '../../types/agent-run-step-record';
+import type { AgentTraceRecorder } from '../../types/agent-trace-recorder';
 import type { Clock } from '../../types/clock';
 import type { EmployeeReader } from '../../types/employee-reader';
 import type { HcmIntent } from '../../types/hcm-intent';
@@ -40,10 +42,7 @@ export const OnboardingGraphState = new StateSchema({
   ownerBindingId: z.string().min(1),
   pendingIntent: z.literal('ONBOARDING_REVIEW').nullable().optional(),
   pendingThresholdDays: z.number().int().min(1).max(365).nullable().optional(),
-  pendingRequestedAction: z
-    .enum(['REVIEW_ONLY', 'NOTIFY_MANAGER'])
-    .nullable()
-    .optional(),
+  pendingRequestedAction: z.enum(['REVIEW_ONLY', 'NOTIFY_MANAGER']).nullable().optional(),
   pendingMissingFields: z.array(z.literal('employeeId')).optional(),
   route: new UntrackedValue(
     z.enum(['CONTINUE', 'RESPOND', 'CALCULATE', 'NOTIFY', 'SKIP_NOTIFICATION']),
@@ -79,6 +78,8 @@ export type OnboardingGraphDependencies = {
   notifications: ManagerNotificationSender;
   checkpointer: BaseCheckpointSaver;
   threadOwnership: ThreadOwnershipReader;
+  traceRecorder?: AgentTraceRecorder;
+  configuredModel?: string;
 };
 
 type EventSink = (event: AgentProgressEvent) => void;
@@ -657,6 +658,25 @@ export async function runOnboardingGraph(
   runId: string,
   emit: EventSink = () => undefined,
 ): Promise<OnboardingInvocationResult> {
+  const startedAt = Date.now();
+  let normalizedIntent: 'ONBOARDING_REVIEW' | 'UNSUPPORTED' | null = null;
+  const nodePath: string[] = [];
+  const toolNames: string[] = [];
+  let authorizationResult: 'AUTHORIZED' | 'DENIED' | 'NOT_EVALUATED' = 'NOT_EVALUATED';
+  const emitEvent: EventSink = (event) => {
+    if (event.event === 'intent') normalizedIntent = event.data.intent;
+    if (event.event === 'node') nodePath.push(event.data.node);
+    if (event.event === 'tool') {
+      toolNames.push(event.data.tool);
+      nodePath.push(event.data.tool);
+      if (event.data.outcomeCode === 'AUTHORIZATION_DENIED') {
+        authorizationResult = 'DENIED';
+      } else if (event.data.tool === 'employee_lookup' && event.data.status === 'completed') {
+        authorizationResult = 'AUTHORIZED';
+      }
+    }
+    emit(event);
+  };
   const safeInput = {
     ...input,
     actorEmployeeCode: input.actorEmployeeCode.trim().toUpperCase(),
@@ -670,7 +690,7 @@ export async function runOnboardingGraph(
     steps: [],
     securityEvents: [],
   };
-  emit({
+  emitEvent({
     event: 'run',
     data: {
       threadId: safeInput.threadId,
@@ -686,19 +706,50 @@ export async function runOnboardingGraph(
     ? await rejectThreadIdentityMismatch(dependencies, safeInput, runId, owner)
     : undefined;
   if (identityRejection) {
-    emit({
+    context.result = identityRejection;
+    emitEvent({
       event: 'response',
       data: { runId, status: 'completed', ...identityRejection },
     });
-    return identityRejection;
+  } else {
+    const graph = createOnboardingGraph(dependencies, context, emitEvent);
+    await graph.invoke(
+      {
+        ownerBindingId: owner?.bindingId ?? resolveSafeCorrelationId(undefined),
+      },
+      { configurable: { thread_id: safeInput.threadId } },
+    );
   }
-  const graph = createOnboardingGraph(dependencies, context, emit);
-  await graph.invoke(
-    {
-      ownerBindingId: owner?.bindingId ?? resolveSafeCorrelationId(undefined),
-    },
-    { configurable: { thread_id: safeInput.threadId } },
-  );
   if (!context.result) throw new Error('GRAPH_RESULT_MISSING');
+
+  if (dependencies.traceRecorder) {
+    const failureCode =
+      context.result.body.status === 'FAILED'
+        ? typeof context.result.body.code === 'string'
+          ? context.result.body.code
+          : 'INTERNAL_ERROR'
+        : null;
+
+    try {
+      await dependencies.traceRecorder.record({
+        runId,
+        correlationId: safeInput.correlationId,
+        promptVersion: HCM_INTENT_PROMPT_VERSION,
+        configuredModel: dependencies.configuredModel ?? 'unconfigured',
+        normalizedIntent,
+        nodePath,
+        toolNames,
+        authorizationResult,
+        retryCount: 0,
+        modelCallCount: nodePath.includes('intent_normalization') ? 1 : 0,
+        tokenUsage: null,
+        latencyMs: Math.max(0, Date.now() - startedAt),
+        costUsd: null,
+        failureCode,
+      });
+    } catch {
+      // Optional external tracing must never change application behavior.
+    }
+  }
   return context.result;
 }
