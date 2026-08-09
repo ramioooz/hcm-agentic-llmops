@@ -2,6 +2,14 @@
 
 The service is organized around business workflows and stable interfaces between layers.
 
+## Versioned knowledge retrieval
+
+The knowledge path is isolated behind ingestion, embedding, repository, and grounded-answer interfaces. The HTTP boundary authorizes uploads against the canonical employee role and accepts only PDF, TXT, or Markdown files up to 5 MiB. Extraction has page, character, and chunk ceilings; binary upload memory is cleared after processing and is never persisted.
+
+`knowledge_documents` owns the active index version and content hash. `knowledge_chunks` stores document/index version, embedding model, chunking version, page/chunk coordinates, extracted text, and a 1,536-dimensional vector. Reindexing writes a complete inactive version before a conditional update atomically activates it. Retrieval joins only the active version, optionally scopes to one document, and caps results at eight chunks.
+
+External processing is disabled unless `RAG_EXTERNAL_PROCESSING_ENABLED=true`. Enabling it sends extracted chunks to the configured OpenAI embedding model and selected evidence to the configured OpenAI answer model. Retrieved text is labeled untrusted evidence; it cannot grant permissions or issue tool instructions. Application code accepts only citations to retrieved chunk IDs and constructs the final source list. Document text is excluded from operational logs and LangSmith traces.
+
 ```mermaid
 flowchart LR
 HTTP["HTTP controllers"] --> APP["Application services"]

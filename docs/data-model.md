@@ -2,6 +2,13 @@
 
 This document explains why each table exists and how it fits into the application. Tables are added only when a released workflow needs them.
 
+## Knowledge retrieval tables
+
+- `knowledge_documents` stores metadata, the active content hash, and active index version.
+- `knowledge_chunks` stores side-by-side versions with embedding model, chunking version, page/chunk coordinates, extracted content, and a pgvector embedding.
+
+Only chunks whose `index_version` equals the document's `active_index_version` are queryable. A replacement version is written without deleting the current version, then activated with one conditional update.
+
 ## Sprint 1 model
 
 ```mermaid

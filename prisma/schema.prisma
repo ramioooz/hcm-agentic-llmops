@@ -157,3 +157,37 @@ model ProcessedEvent {
   @@index([correlationId])
   @@map("processed_events")
 }
+
+model KnowledgeDocument {
+  id                    String           @id
+  title                 String
+  originalFileName      String           @map("original_file_name")
+  mediaType             String           @map("media_type")
+  contentHash           String           @map("content_hash")
+  activeIndexVersion    Int              @default(0) @map("active_index_version")
+  createdByEmployeeCode String           @map("created_by_employee_code")
+  chunks                KnowledgeChunk[]
+  createdAt             DateTime         @default(now()) @map("created_at")
+  updatedAt             DateTime         @updatedAt @map("updated_at")
+
+  @@index([contentHash])
+  @@map("knowledge_documents")
+}
+
+model KnowledgeChunk {
+  id              String   @id
+  documentId      String   @map("document_id")
+  indexVersion    Int      @map("index_version")
+  embeddingModel  String   @map("embedding_model")
+  chunkingVersion String   @map("chunking_version")
+  chunkIndex      Int      @map("chunk_index")
+  pageNumber      Int?     @map("page_number")
+  content         String
+  embedding       Unsupported("vector(1536)")
+  document        KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@unique([documentId, indexVersion, chunkIndex])
+  @@index([documentId, indexVersion])
+  @@map("knowledge_chunks")
+}

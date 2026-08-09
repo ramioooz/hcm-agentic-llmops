@@ -1,5 +1,16 @@
 # Local usage guide
 
+## HR policy documents
+
+Set `OPENAI_EMBEDDING_MODEL` (default `text-embedding-3-small`). Knowledge endpoints return `RAG_EXTERNAL_PROCESSING_DISABLED` until an operator explicitly sets `RAG_EXTERNAL_PROCESSING_ENABLED=true`, acknowledging that extracted policy chunks will be sent to the configured OpenAI embedding and answer models.
+
+- `POST /api/v1/knowledge/documents` accepts multipart fields `file` and optional `title`; `X-Employee-Id` must resolve to HR.
+- `POST /api/v1/knowledge/documents/:documentId/versions` builds and activates a replacement version.
+- `POST /api/v1/knowledge/query` searches across active documents.
+- `POST /api/v1/knowledge/documents/:documentId/query` searches one active document.
+
+Query bodies use `{ "query": "...", "limit": 5 }`, where `limit` is 1 through 8. Answers include document/page/chunk sources, or return `INSUFFICIENT_EVIDENCE` with no sources. Use only the fictional fixture under `fixtures/` for repository examples.
+
 ## Start infrastructure
 
 ```bash

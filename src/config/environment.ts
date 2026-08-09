@@ -13,6 +13,11 @@ const environmentSchema = z
     AMQP_URL: z.string().url(),
     OPENAI_API_KEY: z.string().min(1),
     OPENAI_MODEL: z.literal('gpt-5.4-mini').default('gpt-5.4-mini'),
+    OPENAI_EMBEDDING_MODEL: z.string().min(1).default('text-embedding-3-small'),
+    RAG_EXTERNAL_PROCESSING_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
     WEBHOOK_API_KEY: z.string().min(32),
     SCHEDULER_ENABLED: z
       .enum(['true', 'false'])
@@ -58,6 +63,8 @@ type Environment = {
   amqpUrl: string;
   openAiApiKey: string;
   openAiModel: 'gpt-5.4-mini';
+  openAiEmbeddingModel: string;
+  ragExternalProcessingEnabled: boolean;
   webhookApiKey: string;
   schedulerEnabled: boolean;
   automationActorEmployeeCode: string;
@@ -98,6 +105,8 @@ export function parseEnvironment(input: Record<string, string | undefined>): Env
     amqpUrl: parsed.data.AMQP_URL,
     openAiApiKey: parsed.data.OPENAI_API_KEY,
     openAiModel: parsed.data.OPENAI_MODEL,
+    openAiEmbeddingModel: parsed.data.OPENAI_EMBEDDING_MODEL,
+    ragExternalProcessingEnabled: parsed.data.RAG_EXTERNAL_PROCESSING_ENABLED,
     webhookApiKey: parsed.data.WEBHOOK_API_KEY,
     schedulerEnabled: parsed.data.SCHEDULER_ENABLED,
     automationActorEmployeeCode: parsed.data.AUTOMATION_ACTOR_EMPLOYEE_CODE,
