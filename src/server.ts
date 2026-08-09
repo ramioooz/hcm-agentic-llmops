@@ -5,6 +5,10 @@ import { AmqplibConnector } from './adapters/amqplib-connector';
 import { DevelopmentManagerNotification } from './adapters/development-manager-notification';
 import { NodeCronScheduler } from './adapters/node-cron-scheduler';
 import {
+  OpenAiGroundedKnowledgeAnswers,
+  OpenAiKnowledgeEmbeddings,
+} from './adapters/openai-knowledge.adapter';
+import {
   buildOpenAiModelConfiguration,
   OpenAiHcmIntentNormalizer,
 } from './adapters/openai-hcm-intent-normalizer';
@@ -12,13 +16,17 @@ import { createApp } from './app';
 import { loadEnvironment } from './config/load-environment';
 import { AgentController } from './controllers/agent.controller';
 import { HealthController } from './controllers/health.controller';
+import { KnowledgeController } from './controllers/knowledge.controller';
 import { todayAsDateOnly } from './helpers/onboarding-agent.helpers';
 import { createLangSmithAgentTraceRecorder } from './observability/langsmith-agent-trace-recorder';
 import { PinoApplicationLogger } from './observability/pino-application-logger';
 import { PrismaAgentRunRepository } from './repositories/agent-run.repository';
 import { PrismaEmployeeRepository } from './repositories/employee.repository';
+import { PrismaKnowledgeRepository } from './repositories/knowledge.repository';
 import { PrismaLeaveRepository } from './repositories/leave.repository';
 import { PrismaProcessedEventRepository } from './repositories/processed-event.repository';
+import { KnowledgeIngestionService } from './services/knowledge-ingestion.service';
+import { KnowledgeQueryService } from './services/knowledge-query.service';
 import { OnboardingAgentService } from './services/onboarding-agent.service';
 import { OnboardingTriggerProcessor } from './services/onboarding-trigger-processor';
 import { createTriggerControllers } from './triggers/create-trigger-controllers';
@@ -37,6 +45,35 @@ async function startServer(): Promise<void> {
 
     const employees = new PrismaEmployeeRepository(database);
     const runRepository = new PrismaAgentRunRepository(database);
+    let knowledgeController = new KnowledgeController({
+      employees,
+      enabled: false,
+    });
+    if (environment.ragExternalProcessingEnabled) {
+      const knowledgeRepository = new PrismaKnowledgeRepository(database);
+      const knowledgeEmbeddings = new OpenAiKnowledgeEmbeddings({
+        apiKey: environment.openAiApiKey,
+        model: environment.openAiEmbeddingModel,
+      });
+      const knowledgeQueries = new KnowledgeQueryService({
+        repository: knowledgeRepository,
+        embeddings: knowledgeEmbeddings,
+        answers: new OpenAiGroundedKnowledgeAnswers({
+          apiKey: environment.openAiApiKey,
+          model: environment.openAiModel,
+        }),
+      });
+      knowledgeController = new KnowledgeController({
+        employees,
+        enabled: true,
+        queries: knowledgeQueries,
+        ingestion: new KnowledgeIngestionService({
+          repository: knowledgeRepository,
+          embeddings: knowledgeEmbeddings,
+          embeddingModel: environment.openAiEmbeddingModel,
+        }),
+      });
+    }
     const onboardingAgent = new OnboardingAgentService({
       employees,
       leaves: new PrismaLeaveRepository(database),
@@ -99,7 +136,12 @@ async function startServer(): Promise<void> {
       webhookApiKey: environment.webhookApiKey,
       publisher: broker,
     });
-    const app = createApp([healthController, agentController, ...triggerControllers]);
+    const app = createApp([
+      healthController,
+      agentController,
+      knowledgeController,
+      ...triggerControllers,
+    ]);
     const server = app.listen(environment.port, () => {
       process.stdout.write(`API listening on port ${environment.port}\n`);
     });
@@ -111,13 +153,11 @@ async function startServer(): Promise<void> {
       process.stdout.write(`Received ${signal}; shutting down\n`);
       schedule?.stop();
       server.close(() => {
-        void Promise.allSettled([
-          broker?.close(),
-          checkpointer.end(),
-          database.$disconnect(),
-        ]).then(() => {
-          process.exit(0);
-        });
+        void Promise.allSettled([broker?.close(), checkpointer.end(), database.$disconnect()]).then(
+          () => {
+            process.exit(0);
+          },
+        );
       });
     };
 

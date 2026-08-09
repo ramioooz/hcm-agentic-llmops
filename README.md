@@ -44,6 +44,7 @@ The current release contains the shared API and data foundation, onboarding revi
 | Optional agent tracing and evaluation      | Implemented | LangSmith receives allowlisted metadata only; Studio and evaluation run with deterministic fake dependencies       |
 | Leave workflow                             | Implemented | Parallel authorized policy/balance reads and deterministic proposal calculation; no request creation               |
 | Scheduled, webhook, and RabbitMQ workflows | Implemented | Shared typed onboarding commands, idempotency, API-key webhook, and disabled-by-default daily policy               |
+| Versioned HR policy retrieval              | Implemented | HR-only bounded indexing, active-version pgvector search, grounded answers, and page/chunk sources                 |
 | Integration and end-to-end tests           | Planned     | Added after the initial release                                                                                    |
 
 ## Architecture
@@ -151,6 +152,14 @@ The onboarding invocation persists this trace through a Prisma-backed recorder. 
 The HTTP controller also emits `agent.invoke.started`, `agent.invoke.rejected`, `agent.invoke.completed`, and `agent.invoke.failed` events. Rejections use warning-level logging except an unavailable agent configuration, which is logged as an error because it produces a server failure. Completed calls use info-level logging; handled server failures and unexpected exceptions use error-level logging.
 
 LangSmith tracing is disabled by default and remains separate from Pino operational logging and PostgreSQL durable audit. When enabled, the application creates one explicit invocation run containing safe UUIDs, the existing prompt version, configured model, normalized intent, node/tool paths, authorization outcome, bounded metrics, and stable failure codes. Raw queries, prompt text, employee values, tool payloads, arbitrary errors, stack traces, and secrets are omitted. Token usage and cost remain `null` when unavailable.
+
+## HR knowledge retrieval
+
+PostgreSQL 16 runs from the pinned `pgvector/pgvector:0.8.1-pg16` image while retaining the existing `hcm_postgres_data` volume. HR users can upload one PDF, TXT, or Markdown document up to 5 MiB. Extraction is bounded, the upload buffer is cleared after processing, and only extracted chunks plus embeddings are persisted.
+
+External RAG processing is disabled by default. Setting `RAG_EXTERNAL_PROCESSING_ENABLED=true` explicitly permits the configured OpenAI embedding and answer models to receive extracted policy text/chunks. Document text is never written to operational logs or LangSmith traces.
+
+Each document stores one active index version and content hash. Reindexing writes chunks under a new version beside the active version, then conditionally activates it. Queries join only the active version, retrieve at most eight chunks, treat every retrieved chunk as untrusted evidence, and return either a grounded answer with document/page/chunk sources or the stable `INSUFFICIENT_EVIDENCE` result. The included `fixtures/fictional-flexible-work-policy.md` contains demonstration data only.
 
 ## Data model
 
