@@ -168,6 +168,7 @@ The current foundation and onboarding workflow contain the directories below. Ob
 
 ```text
 src/
+├── adapters/ External provider implementations behind application interfaces
 ├── config/ Environment validation and application settings
 ├── controllers/ Express routes and HTTP request/response handling
 ├── contracts/ Request validation and result contracts
@@ -194,7 +195,7 @@ controller → service → workflow/repository
 
 Future schedule, webhook, and RabbitMQ adapters can call the same services without depending on Express.
 
-Shared onboarding definitions live under `src/types`, with one exported type per file. The OpenAI-backed intent normalizer is isolated behind a small dependency so workflows receive a schema-validated request. Date formatting and result-building functions live under `src/helpers`. This keeps the onboarding service focused on coordinating authorization, data access, and workflow execution.
+Shared onboarding definitions live under `src/types`, with one exported type per file. The onboarding service depends on the `HcmIntentNormalizer` interface, while the concrete OpenAI implementation lives under `src/adapters`. `server.ts` connects them at startup. Date formatting and result-building functions live under `src/helpers`. This keeps the onboarding service focused on coordinating authorization, data access, and workflow execution.
 
 ## Getting started
 

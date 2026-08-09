@@ -1,4 +1,3 @@
-import { ChatOpenAI } from '@langchain/openai';
 import { hcmIntentSchema } from '../contracts/hcm-intent.contract';
 import { buildHcmIntentNormalizationMessages } from '../prompts/normalize-hcm-intent.prompt';
 import type { HcmIntent } from '../types/hcm-intent';
@@ -21,13 +20,7 @@ export class OpenAiHcmIntentNormalizer implements HcmIntentNormalizer {
     StructuredOutputClient['withStructuredOutput']
   >;
 
-  public constructor(input: {
-    apiKey: string;
-    model: 'gpt-5.4-mini';
-    client?: StructuredOutputClient;
-  }) {
-    const client = input.client ?? new ChatOpenAI(buildOpenAiModelConfiguration(input));
-
+  public constructor(client: StructuredOutputClient) {
     this.structuredOutputModel = client.withStructuredOutput(hcmIntentSchema, {
       name: normalizationName,
       strict: true,

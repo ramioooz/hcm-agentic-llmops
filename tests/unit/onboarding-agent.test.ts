@@ -3,6 +3,7 @@ import type { AgentRunRecorder } from '../../src/types/agent-run-recorder';
 import type { EmployeeReader } from '../../src/types/employee-reader';
 import type { EmployeeRecord } from '../../src/types/employee-record';
 import type { HcmIntent } from '../../src/types/hcm-intent';
+import type { HcmIntentNormalizer } from '../../src/types/hcm-intent-normalizer';
 
 const employee: EmployeeRecord = {
   employeeCode: 'EMP-201',
@@ -29,17 +30,21 @@ function createService(
   const recorder: AgentRunRecorder = {
     recordInvocation: jest.fn().mockResolvedValue(undefined),
   };
-  const normalize = input.normalizerError
-    ? jest.fn().mockRejectedValue(input.normalizerError)
-    : jest.fn().mockResolvedValue(
-        input.normalizedIntent ?? {
-          intent: 'ONBOARDING_REVIEW' as const,
-          employeeCode: 'EMP-201',
-          thresholdDays: 30,
-          requestedAction: 'REVIEW_ONLY',
-          missingFields: [],
-        },
-      );
+  const normalize = jest.fn<Promise<HcmIntent>, [string]>();
+  if (input.normalizerError) {
+    normalize.mockRejectedValue(input.normalizerError);
+  } else {
+    normalize.mockResolvedValue(
+      input.normalizedIntent ?? {
+        intent: 'ONBOARDING_REVIEW',
+        employeeCode: 'EMP-201',
+        thresholdDays: 30,
+        requestedAction: 'REVIEW_ONLY',
+        missingFields: [],
+      },
+    );
+  }
+  const normalizer: HcmIntentNormalizer = { normalize };
 
   return {
     reader,
@@ -51,8 +56,8 @@ function createService(
         today: () => '2026-08-07',
       },
       recorder,
-      normalizer: { normalize },
-    } as never),
+      normalizer,
+    }),
   };
 }
 
@@ -130,6 +135,37 @@ describe('OnboardingAgentService', () => {
     expect(normalize).toHaveBeenCalledWith(
       "Could you see whether EMP-201's review milestone is approaching?",
     );
+  });
+
+  it('does not use an unrelated onboarding duration as the warning threshold', async () => {
+    const { service } = createService({
+      record: {
+        ...employee,
+        activeReviewPeriod: { endDate: '2026-10-06' },
+      },
+      normalizedIntent: {
+        intent: 'ONBOARDING_REVIEW',
+        employeeCode: 'EMP-201',
+        thresholdDays: 90,
+        requestedAction: 'REVIEW_ONLY',
+        missingFields: [],
+      },
+    });
+
+    const result = await service.invoke({
+      query: "Review EMP-201's 90-day probation.",
+      actorEmployeeCode: 'EMP-200',
+      actorRole: 'MANAGER',
+      correlationId: 'corr-threshold-provenance-001',
+    });
+
+    expect(result.body).toMatchObject({
+      status: 'COMPLETED',
+      data: {
+        daysRemaining: 60,
+        withinThreshold: false,
+      },
+    });
   });
 
   it('uses a normalized missing employee field rather than guessing an employee', async () => {

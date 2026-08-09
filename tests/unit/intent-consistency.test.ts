@@ -30,6 +30,42 @@ describe('enforceIntentConsistency', () => {
     });
   });
 
+  it('uses an explicitly stated threshold instead of a different normalized value', () => {
+    expect(
+      enforceIntentConsistency('Review EMP-201 within 14 days.', {
+        ...normalizedNotification,
+        thresholdDays: 365,
+      }).thresholdDays,
+    ).toBe(14);
+  });
+
+  it('uses the default threshold when the model invents one that was not stated', () => {
+    expect(
+      enforceIntentConsistency('Review EMP-201 onboarding status.', {
+        ...normalizedNotification,
+        thresholdDays: 365,
+      }).thresholdDays,
+    ).toBe(30);
+  });
+
+  it('does not treat an onboarding-period duration as the warning threshold', () => {
+    expect(
+      enforceIntentConsistency("Review EMP-201's 90-day probation.", {
+        ...normalizedNotification,
+        thresholdDays: 90,
+      }).thresholdDays,
+    ).toBe(30);
+  });
+
+  it('uses a qualified warning threshold while ignoring another day duration', () => {
+    expect(
+      enforceIntentConsistency("Review EMP-201's 90-day probation and warn within 14 days.", {
+        ...normalizedNotification,
+        thresholdDays: 90,
+      }).thresholdDays,
+    ).toBe(14);
+  });
+
   it.each([
     'Notify the manager about EMP-201.',
     'Please message her manager about EMP-201.',

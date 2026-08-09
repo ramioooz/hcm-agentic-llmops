@@ -3,7 +3,7 @@ import {
   buildHcmIntentNormalizationMessages,
   HCM_INTENT_PROMPT_VERSION,
 } from '../../src/prompts/normalize-hcm-intent.prompt';
-import { buildOpenAiModelConfiguration } from '../../src/services/openai-hcm-intent-normalizer.service';
+import { buildOpenAiModelConfiguration } from '../../src/adapters/openai-hcm-intent-normalizer';
 
 describe('HCM intent normalization configuration', () => {
   it('uses the versioned system prompt and forwards the exact query after focused examples', () => {
@@ -22,7 +22,7 @@ describe('HCM intent normalization configuration', () => {
       'ai',
       'human',
     ]);
-    expect(messages[0]?.content).toContain('Prompt version: hcm-intent-v1');
+    expect(messages[0]?.content).not.toContain('Prompt version:');
     expect(messages[0]?.content).toContain(
       'When no day threshold is stated, use 30 for ONBOARDING_REVIEW.',
     );

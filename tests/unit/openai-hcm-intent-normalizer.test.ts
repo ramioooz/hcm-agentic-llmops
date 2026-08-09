@@ -1,6 +1,6 @@
 import type { BaseMessage, BaseMessageLike } from '@langchain/core/messages';
 import { hcmIntentSchema } from '../../src/contracts/hcm-intent.contract';
-import { OpenAiHcmIntentNormalizer } from '../../src/services/openai-hcm-intent-normalizer.service';
+import { OpenAiHcmIntentNormalizer } from '../../src/adapters/openai-hcm-intent-normalizer';
 import type { StructuredOutputClient } from '../../src/types/structured-output-client';
 
 type ModelCapture = {
@@ -27,10 +27,8 @@ function fakeClient(output: unknown, capture: ModelCapture = {}): StructuredOutp
 describe('OpenAiHcmIntentNormalizer', () => {
   it('returns the structured onboarding intent from the model output', async () => {
     const capture: ModelCapture = {};
-    const normalizer = new OpenAiHcmIntentNormalizer({
-      apiKey: 'unit-test-key',
-      model: 'gpt-5.4-mini',
-      client: fakeClient(
+    const normalizer = new OpenAiHcmIntentNormalizer(
+      fakeClient(
         {
           intent: 'ONBOARDING_REVIEW',
           employeeCode: 'EMP-201',
@@ -40,7 +38,7 @@ describe('OpenAiHcmIntentNormalizer', () => {
         },
         capture,
       ),
-    });
+    );
 
     await expect(
       normalizer.normalize('Please notify the manager about EMP-201 in 14 days.'),
@@ -59,10 +57,8 @@ describe('OpenAiHcmIntentNormalizer', () => {
   });
 
   it('rejects a model response that contains fields outside the strict intent schema', async () => {
-    const normalizer = new OpenAiHcmIntentNormalizer({
-      apiKey: 'unit-test-key',
-      model: 'gpt-5.4-mini',
-      client: fakeClient({
+    const normalizer = new OpenAiHcmIntentNormalizer(
+      fakeClient({
         intent: 'ONBOARDING_REVIEW',
         employeeCode: 'EMP-201',
         thresholdDays: 30,
@@ -70,7 +66,7 @@ describe('OpenAiHcmIntentNormalizer', () => {
         missingFields: [],
         explanation: 'untrusted extra content',
       }),
-    });
+    );
 
     await expect(normalizer.normalize('Review EMP-201 onboarding status.')).rejects.toThrow();
   });
@@ -157,11 +153,7 @@ describe('OpenAiHcmIntentNormalizer', () => {
       },
     },
   ])('rejects $description', async ({ output }) => {
-    const normalizer = new OpenAiHcmIntentNormalizer({
-      apiKey: 'unit-test-key',
-      model: 'gpt-5.4-mini',
-      client: fakeClient(output),
-    });
+    const normalizer = new OpenAiHcmIntentNormalizer(fakeClient(output));
 
     await expect(normalizer.normalize('Normalize this request.')).rejects.toThrow();
   });

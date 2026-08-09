@@ -2,8 +2,7 @@ import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages
 
 export const HCM_INTENT_PROMPT_VERSION = 'hcm-intent-v1';
 
-const systemPrompt = `Prompt version: ${HCM_INTENT_PROMPT_VERSION}
-You normalize requests for a human-capital-management onboarding review service.
+const systemPrompt = `You normalize requests for a human-capital-management onboarding review service.
 Return only the structured fields requested by the response schema.
 Supported intent: ONBOARDING_REVIEW, which reviews an employee's active onboarding or probationary review period.
 All other requests are UNSUPPORTED.

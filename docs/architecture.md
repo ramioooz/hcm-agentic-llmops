@@ -54,7 +54,7 @@ flowchart LR
 
 The dependency direction is `controller → service → workflow/repository`. Scheduled jobs, webhook handlers, and RabbitMQ consumers will be separate trigger adapters that reuse the same services; they will not call HTTP controllers or duplicate workflow rules.
 
-Shared TypeScript definitions are kept in `src/types`, with one exported type per file so callers do not depend on the service implementation. The prompt, strict Zod contract, and OpenAI normalizer are isolated from the onboarding service through a typed normalizer interface. Date formatting and invocation-result construction live in `src/helpers/onboarding-agent.helpers.ts`. The application service therefore focuses on orchestration: invoking the normalizer after the request guard, retrieving data, enforcing authorization and state rules, calling the deterministic workflow, and returning its result.
+Shared TypeScript definitions are kept in `src/types`, with one exported type per file so callers do not depend on the service implementation. The onboarding service depends on a typed normalizer interface; the concrete OpenAI normalizer is an outbound adapter under `src/adapters`, and `server.ts` supplies it during composition. The versioned prompt and strict Zod contract remain separate from both classes. Date formatting and invocation-result construction live in `src/helpers/onboarding-agent.helpers.ts`. The application service therefore focuses on orchestration: invoking the normalizer after the request guard, retrieving data, enforcing authorization and state rules, calling the deterministic workflow, and returning its result.
 
 This gives the system one business path with several safe entry points:
 
