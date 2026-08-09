@@ -1,13 +1,17 @@
 import {
+  Command,
   END,
   START,
   StateGraph,
   StateSchema,
   UntrackedValue,
+  interrupt,
   type BaseCheckpointSaver,
 } from '@langchain/langgraph';
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { buildInvocationResult } from '../../helpers/onboarding-agent.helpers';
+import { generateLeaveRequestPdf } from '../../documents/leave-request-pdf';
 import { HCM_INTENT_PROMPT_VERSION } from '../../prompts/normalize-hcm-intent.prompt';
 import { enforceIntentConsistency } from '../../security/intent-consistency';
 import { redactSensitiveData } from '../../security/pii-redaction';
@@ -30,6 +34,7 @@ import type { EmployeeReader } from '../../types/employee-reader';
 import type { HcmIntent } from '../../types/hcm-intent';
 import type { HcmIntentNormalizer } from '../../types/hcm-intent-normalizer';
 import type { LeaveReader } from '../../types/leave-reader';
+import type { LeaveApprovalStore } from '../../types/leave-approval-store';
 import type { ManagerNotificationSender } from '../../types/manager-notification-sender';
 import type { OnboardingInvocationInput } from '../../types/onboarding-invocation-input';
 import type {
@@ -52,8 +57,26 @@ export const OnboardingGraphState = new StateSchema({
   pendingRequestedAction: z.enum(['REVIEW_ONLY', 'NOTIFY_MANAGER']).nullable().optional(),
   pendingMissingFields: z.array(z.literal('employeeId')).optional(),
   route: new UntrackedValue(
-    z.enum(['CONTINUE', 'RESPOND', 'CALCULATE', 'NOTIFY', 'SKIP_NOTIFICATION', 'LEAVE']),
+    z.enum([
+      'CONTINUE',
+      'RESPOND',
+      'CALCULATE',
+      'NOTIFY',
+      'SKIP_NOTIFICATION',
+      'LEAVE',
+      'APPROVAL',
+    ]),
   ),
+  pendingLeaveApproval: z
+    .object({
+      employeeId: z.string().min(1),
+      policyId: z.string().min(1),
+      startDate: z.string(),
+      endDate: z.string(),
+      requestedWorkingDays: z.number().int().min(1),
+    })
+    .nullable()
+    .optional(),
   lastNode: new UntrackedValue(z.string()),
   outcomeCode: new UntrackedValue(z.string()),
 });
@@ -88,6 +111,7 @@ export type OnboardingGraphDependencies = {
   traceRecorder?: AgentTraceRecorder;
   configuredModel?: string;
   leaves?: LeaveReader;
+  leaveApprovals?: LeaveApprovalStore;
 };
 
 type EventSink = (event: AgentProgressEvent) => void;
@@ -155,6 +179,8 @@ function toRunStatus(result: OnboardingInvocationResult): AgentInvocationRecord[
   if (
     result.body.status === 'UNSUPPORTED_REQUEST' ||
     result.body.status === 'NEED_MORE_INFORMATION' ||
+    result.body.status === 'AWAITING_APPROVAL' ||
+    result.body.status === 'REJECTED' ||
     result.body.code === 'UNSAFE_REQUEST_REJECTED'
   ) {
     return 'REJECTED';
@@ -597,7 +623,147 @@ export function createOnboardingGraph(
         worker.result.httpStatus >= 400 ? 'failed' : 'completed',
         outcomeCode,
       );
-      return { route: 'RESPOND' as const };
+      return worker.approval
+        ? {
+            route: 'APPROVAL' as const,
+            pendingLeaveApproval: worker.approval,
+          }
+        : { route: 'RESPOND' as const };
+    })
+    .addNode('leave_approval', async (state) => {
+      const pending = state.pendingLeaveApproval;
+      if (!pending || !dependencies.leaves || !dependencies.leaveApprovals) {
+        context.result = failureResult(
+          context,
+          runId,
+          500,
+          'INTERNAL_ERROR',
+          'The workflow could not be completed.',
+        );
+        return { route: 'RESPOND' as const, pendingLeaveApproval: null };
+      }
+      emit({
+        event: 'approval',
+        data: { runId, status: 'awaiting', outcomeCode: 'LEAVE_APPROVAL_REQUIRED' },
+      });
+      const decision = interrupt({
+        kind: 'LEAVE_APPROVAL',
+        startDate: pending.startDate,
+        endDate: pending.endDate,
+        requestedWorkingDays: pending.requestedWorkingDays,
+      });
+      if (decision !== 'APPROVE' && decision !== 'REJECT') {
+        throw new Error('INVALID_APPROVAL_DECISION');
+      }
+      if (decision === 'REJECT') {
+        context.steps.push({
+          stepName: 'leave_approval',
+          status: 'REJECTED',
+          outcomeCode: 'LEAVE_REQUEST_REJECTED',
+        });
+        context.result = buildInvocationResult(200, {
+          status: 'REJECTED',
+          code: 'LEAVE_REQUEST_REJECTED',
+          message: 'The leave request proposal was rejected; no request was created.',
+          threadId: context.input.threadId,
+          runId,
+          correlationId: context.input.correlationId,
+        });
+        emit({
+          event: 'approval',
+          data: { runId, status: 'rejected', outcomeCode: 'LEAVE_REQUEST_REJECTED' },
+        });
+        return { route: 'RESPOND' as const, pendingLeaveApproval: null };
+      }
+
+      const targetEmployeeCode = await dependencies.leaveApprovals.resolveEmployeeCodeById(
+        pending.employeeId,
+      );
+      if (!targetEmployeeCode) {
+        context.result = failureResult(
+          context,
+          runId,
+          404,
+          'EMPLOYEE_NOT_FOUND',
+          'The employee was not found.',
+        );
+        return { route: 'RESPOND' as const, pendingLeaveApproval: null };
+      }
+      const revalidated = await runLeaveWorkerGraph(
+        { employees: dependencies.employees, leaves: dependencies.leaves },
+        {
+          actorEmployeeCode: context.input.actorEmployeeCode,
+          targetEmployeeCode,
+          startDate: pending.startDate,
+          endDate: pending.endDate,
+          today: dependencies.clock.today(),
+          threadId: context.input.threadId,
+          runId,
+          correlationId: context.input.correlationId,
+        },
+        emit,
+      );
+      if (!revalidated.approval) {
+        context.result = buildInvocationResult(409, {
+          status: 'FAILED',
+          code: 'LEAVE_PROPOSAL_CHANGED',
+          message: 'The leave proposal is no longer eligible after revalidation.',
+          threadId: context.input.threadId,
+          runId,
+          correlationId: context.input.correlationId,
+        });
+        context.steps.push(...revalidated.steps);
+        return { route: 'RESPOND' as const, pendingLeaveApproval: null };
+      }
+      const leaveRequestId = `lr_${createHash('sha256')
+        .update(context.input.threadId)
+        .digest('hex')
+        .slice(0, 24)}`;
+      const documentPdf = generateLeaveRequestPdf({
+        leaveRequestId,
+        employeeCode: targetEmployeeCode,
+        leaveType: 'ANNUAL',
+        startDate: revalidated.approval.startDate,
+        endDate: revalidated.approval.endDate,
+        requestedWorkingDays: revalidated.approval.requestedWorkingDays,
+      });
+      const submitted = await dependencies.leaveApprovals.submitApproved({
+        id: leaveRequestId,
+        approvalThreadId: context.input.threadId,
+        employeeId: revalidated.approval.employeeId,
+        employeeCode: targetEmployeeCode,
+        policyId: revalidated.approval.policyId,
+        startDate: revalidated.approval.startDate,
+        endDate: revalidated.approval.endDate,
+        requestedWorkingDays: revalidated.approval.requestedWorkingDays,
+        documentPdf,
+      });
+      context.steps.push(...revalidated.steps, {
+        stepName: 'leave_approval',
+        status: 'COMPLETED',
+        outcomeCode: 'LEAVE_REQUEST_SUBMITTED',
+      });
+      context.result = buildInvocationResult(201, {
+        status: 'COMPLETED',
+        message: 'The approved leave request was submitted.',
+        threadId: context.input.threadId,
+        runId,
+        correlationId: context.input.correlationId,
+        data: {
+          leaveRequestId: submitted.id,
+          leaveRequestStatus: submitted.status,
+          documentUrl: `/api/v1/leave-requests/${submitted.id}/document`,
+        },
+      });
+      emit({
+        event: 'approval',
+        data: { runId, status: 'approved', outcomeCode: 'LEAVE_REQUEST_SUBMITTED' },
+      });
+      emit({
+        event: 'document',
+        data: { runId, status: 'generated', leaveRequestId: submitted.id },
+      });
+      return { route: 'RESPOND' as const, pendingLeaveApproval: null };
     })
     .addNode('employee_lookup', async () => {
       const employeeCode = context.intent?.employeeCode;
@@ -793,7 +959,10 @@ export function createOnboardingGraph(
       if (state.route === 'RESPOND') return 'response_audit';
       return state.route === 'LEAVE' ? 'leave_worker' : 'employee_lookup';
     })
-    .addEdge('leave_worker', 'response_audit')
+    .addConditionalEdges('leave_worker', (state) =>
+      state.route === 'APPROVAL' ? 'leave_approval' : 'response_audit',
+    )
+    .addEdge('leave_approval', 'response_audit')
     .addConditionalEdges('employee_lookup', (state) =>
       state.route === 'CALCULATE' ? 'onboarding_calculation' : 'response_audit',
     )
@@ -810,6 +979,7 @@ export async function runOnboardingGraph(
   input: OnboardingInvocationInput,
   runId: string,
   emit: EventSink = () => undefined,
+  resumeDecision?: 'APPROVE' | 'REJECT',
 ): Promise<OnboardingInvocationResult> {
   const startedAt = Date.now();
   let normalizedIntent: 'ONBOARDING_REVIEW' | 'LEAVE_REQUEST' | 'UNSUPPORTED' | null = null;
@@ -819,6 +989,8 @@ export async function runOnboardingGraph(
   const emitEvent: EventSink = (event) => {
     if (event.event === 'intent') normalizedIntent = event.data.intent;
     if (event.event === 'node') nodePath.push(event.data.node);
+    if (event.event === 'approval') nodePath.push(`approval_${event.data.status}`);
+    if (event.event === 'document') nodePath.push(`document_${event.data.status}`);
     if (event.event === 'tool') {
       toolNames.push(event.data.tool);
       nodePath.push(event.data.tool);
@@ -872,13 +1044,73 @@ export async function runOnboardingGraph(
       data: { runId, status: 'completed', ...identityRejection },
     });
   } else {
-    const graph = createOnboardingGraph(dependencies, context, emitEvent);
-    await graph.invoke(
-      {
-        ownerBindingId: owner?.bindingId ?? resolveSafeCorrelationId(undefined),
-      },
-      { configurable: { thread_id: safeInput.threadId } },
-    );
+    const existing =
+      resumeDecision && dependencies.leaveApprovals
+        ? await dependencies.leaveApprovals.findSubmittedByThreadId(safeInput.threadId)
+        : undefined;
+    if (existing) {
+      context.result =
+        resumeDecision === 'APPROVE'
+          ? buildInvocationResult(200, {
+              status: 'COMPLETED',
+              message: 'The approved leave request was already submitted.',
+              threadId: safeInput.threadId,
+              runId,
+              correlationId: safeInput.correlationId,
+              data: {
+                leaveRequestId: existing.id,
+                leaveRequestStatus: existing.status,
+                documentUrl: `/api/v1/leave-requests/${existing.id}/document`,
+              },
+            })
+          : failureResult(
+              context,
+              runId,
+              409,
+              'LEAVE_REQUEST_ALREADY_SUBMITTED',
+              'The leave request was already submitted.',
+            );
+      emitEvent({
+        event: 'approval',
+        data: {
+          runId,
+          status: resumeDecision === 'APPROVE' ? 'approved' : 'rejected',
+          outcomeCode: 'LEAVE_REQUEST_ALREADY_SUBMITTED',
+        },
+      });
+      emitEvent({
+        event: 'document',
+        data: { runId, status: 'available', leaveRequestId: existing.id },
+      });
+      await recordResult(dependencies, context, runId);
+      emitEvent({ event: 'response', data: { runId, status: 'completed', ...context.result } });
+    } else {
+      const graph = createOnboardingGraph(dependencies, context, emitEvent);
+      const output = await graph.invoke(
+        resumeDecision
+          ? new Command({ resume: resumeDecision })
+          : { ownerBindingId: owner?.bindingId ?? resolveSafeCorrelationId(undefined) },
+        { configurable: { thread_id: safeInput.threadId } },
+      );
+      const interrupts = (output as Record<string, unknown>).__interrupt__;
+      if (Array.isArray(interrupts) && interrupts.length > 0) {
+        context.steps.push({
+          stepName: 'leave_approval',
+          status: 'REJECTED',
+          outcomeCode: 'LEAVE_APPROVAL_REQUIRED',
+        });
+        context.result = buildInvocationResult(202, {
+          status: 'AWAITING_APPROVAL',
+          code: 'LEAVE_APPROVAL_REQUIRED',
+          message: 'Approve or reject the leave request proposal before creation.',
+          threadId: safeInput.threadId,
+          runId,
+          correlationId: safeInput.correlationId,
+        });
+        await recordResult(dependencies, context, runId);
+        emitEvent({ event: 'response', data: { runId, status: 'completed', ...context.result } });
+      }
+    }
   }
   if (!context.result) throw new Error('GRAPH_RESULT_MISSING');
 
@@ -913,4 +1145,32 @@ export async function runOnboardingGraph(
     }
   }
   return context.result;
+}
+
+export function resumeOnboardingGraph(
+  dependencies: OnboardingGraphDependencies,
+  input: {
+    actorEmployeeCode: string;
+    correlationId: string;
+    threadId: string;
+    runId: string;
+    decision: 'APPROVE' | 'REJECT';
+  },
+  emit: EventSink = () => undefined,
+): Promise<OnboardingInvocationResult> {
+  return runOnboardingGraph(
+    dependencies,
+    {
+      kind: 'USER_QUERY',
+      query: '',
+      actorEmployeeCode: input.actorEmployeeCode,
+      correlationId: input.correlationId,
+      threadId: input.threadId,
+      runId: input.runId,
+      triggerType: 'HTTP',
+    },
+    input.runId,
+    emit,
+    input.decision,
+  );
 }

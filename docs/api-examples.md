@@ -84,7 +84,22 @@ Content-Type: application/json
 }
 ```
 
-The response contains deterministic requested/notice/available working-day values, eligibility reasons, and `"requestCreated": false`. It is a proposal only; the workflow never inserts into `leave_requests`.
+An eligible proposal returns HTTP `202`, `AWAITING_APPROVAL`, and the durable `threadId`. Continue with the same employee identity:
+
+```http
+POST /api/v1/agent/resume
+X-Employee-Id: EMP-201
+Content-Type: application/json
+```
+
+```json
+{
+  "threadId": "8b8a6d62-bf1c-4abf-9968-84b8e23b58cb",
+  "decision": "APPROVE"
+}
+```
+
+`REJECT` creates no row. `APPROVE` revalidates the policy and balance, creates exactly one `SUBMITTED` request, and returns `/api/v1/leave-requests/{leaveRequestId}/document`. Repeating approval returns the same request without duplication. The authorized document response is a PDF with `Cache-Control: no-store`.
 
 ## Authenticated onboarding webhook
 

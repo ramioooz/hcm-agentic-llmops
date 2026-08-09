@@ -47,6 +47,7 @@ describe('leave agent', () => {
         markBalanceStarted?.();
         await balanceBlocked;
         return {
+          employeeId: 'internal-employee-201',
           employeeCode: 'EMP-201',
           policyCode: 'ANNUAL' as const,
           year: 2026,

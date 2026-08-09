@@ -42,7 +42,7 @@ The current release contains the shared API and data foundation, onboarding revi
 | Structured intent normalization            | Implemented | OpenAI structured output normalizes onboarding and leave intent; deterministic controls remain authoritative       |
 | Typed onboarding graph and tools           | Implemented | LangGraph coordinates guarded lookup, deterministic calculation, notification policy, audit, and safe SSE progress |
 | Optional agent tracing and evaluation      | Implemented | LangSmith receives allowlisted metadata only; Studio and evaluation run with deterministic fake dependencies       |
-| Leave workflow                             | Implemented | Parallel authorized policy/balance reads and deterministic proposal calculation; no request creation               |
+| Leave workflow                             | Implemented | Human approval interrupt, approval-time revalidation, idempotent submission, and stored PDF document                |
 | Scheduled, webhook, and RabbitMQ workflows | Implemented | Shared typed onboarding commands, idempotency, API-key webhook, and disabled-by-default daily policy               |
 | Versioned HR policy retrieval              | Implemented | HR-only bounded indexing, active-version pgvector search, grounded answers, and page/chunk sources                 |
 | Integration and end-to-end tests           | Planned     | Added after the initial release                                                                                    |
@@ -123,7 +123,7 @@ The workflow reads an employee and their active onboarding review period, calcul
 
 ### Leave requests
 
-The leave workflow retrieves the annual policy and balance in parallel through independently authorized tools, counts Monday–Friday working days, checks three working days of notice, the ten-day consecutive limit, and available balance, then returns a proposal. It never creates a `leave_requests` row. Employees and managers may inspect only their own leave; HR may inspect any employee. Managers receive no direct-report privilege for leave.
+The leave workflow retrieves policy and balance in parallel, calculates a proposal, then pauses with HTTP `202 AWAITING_APPROVAL`. `POST /api/v1/agent/resume` accepts `APPROVE` or `REJECT` for the same thread and PostgreSQL-derived identity. Approval revalidates policy and balance, creates one idempotent `SUBMITTED` request, and stores its deterministic PDF; rejection creates nothing. Employees and managers may act only for themselves, while HR may act for any employee.
 
 ## Security model
 
@@ -302,12 +302,12 @@ Current unit-test areas:
 - Trace recording with redacted run summaries, workflow steps, and authorization events.
 - Trigger validation, timing-safe webhook authentication, schedule policy, event idempotency, and RabbitMQ retry/dead-letter ordering with fakes.
 
-Leave-request creation and approval decisions remain future improvements. Integration and end-to-end tests are also future improvements.
+Manager/HR decision workflows beyond the initiating employee approval remain future improvements. Integration and end-to-end tests are also future improvements.
 
 ## Roadmap and improvement opportunities
 
 - Add production-grade authentication and identity mapping.
-- Add explicit leave-request creation and approval workflows.
+- Add downstream manager/HR leave decision workflows.
 - Add broader automated testing, including integration and end-to-end coverage.
 - Add durable distributed tracing and operational dashboards.
 - Add transactional event publishing and stronger retry handling.
