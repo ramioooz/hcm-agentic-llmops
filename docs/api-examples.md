@@ -24,7 +24,7 @@ curl http://localhost:3000/ready
 
 ## Agent invocation
 
-The onboarding workflow uses a single entry point:
+The onboarding and leave workflows use a single entry point:
 
 ```http
 POST /api/v1/agent/invoke
@@ -69,6 +69,22 @@ If the employee ID is missing, the endpoint returns `NEED_MORE_INFORMATION`. If 
 Set `Accept: text/event-stream` to receive `run`, `intent`, `node`, `tool`, and final `response` events from the same graph runner. The final event carries the same result body and HTTP-status field used by JSON, while progress events contain no raw query or employee data.
 
 For a Docker Compose API, replace port `3000` with `3300` in these examples.
+
+### Annual-leave proposal
+
+```http
+POST /api/v1/agent/invoke
+X-Employee-Id: EMP-201
+Content-Type: application/json
+```
+
+```json
+{
+  "query": "Request annual leave from 2026-08-14 through 2026-08-18"
+}
+```
+
+The response contains deterministic requested/notice/available working-day values, eligibility reasons, and `"requestCreated": false`. It is a proposal only; the workflow never inserts into `leave_requests`.
 
 ## Authenticated onboarding webhook
 

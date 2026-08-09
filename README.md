@@ -22,7 +22,7 @@ This repository builds that flow around two business areas:
 1. **Employee onboarding review** — review the end date and status of an employee's initial review period.
 2. **Leave requests** — check policy and balance before a leave request is created.
 
-The leave area is planned for Sprint 2. The current release contains the shared API and data foundation, the onboarding review workflow, and schedule, webhook, and RabbitMQ onboarding triggers.
+The current release contains the shared API and data foundation, onboarding review workflows and technical triggers, plus an annual-leave proposal workflow.
 
 ## Current implementation status
 
@@ -39,10 +39,10 @@ The leave area is planned for Sprint 2. The current release contains the shared 
 | Durable conversation state                 | Implemented | PostgreSQL LangGraph checkpoints resume missing-information requests for the same identity                         |
 | Employee onboarding review workflow        | Implemented | Deterministic review-period lookup and threshold evaluation                                                        |
 | Authorization and guardrails               | Implemented | One mock identity header; canonical roles and manager relationships are loaded from PostgreSQL at tool boundaries  |
-| Structured intent normalization            | Implemented | OpenAI structured output normalizes onboarding intent; deterministic controls remain authoritative                 |
+| Structured intent normalization            | Implemented | OpenAI structured output normalizes onboarding and leave intent; deterministic controls remain authoritative       |
 | Typed onboarding graph and tools           | Implemented | LangGraph coordinates guarded lookup, deterministic calculation, notification policy, audit, and safe SSE progress |
 | Optional agent tracing and evaluation      | Implemented | LangSmith receives allowlisted metadata only; Studio and evaluation run with deterministic fake dependencies       |
-| Leave workflow                             | Planned     | Sprint 2                                                                                                           |
+| Leave workflow                             | Implemented | Parallel authorized policy/balance reads and deterministic proposal calculation; no request creation               |
 | Scheduled, webhook, and RabbitMQ workflows | Implemented | Shared typed onboarding commands, idempotency, API-key webhook, and disabled-by-default daily policy               |
 | Integration and end-to-end tests           | Planned     | Added after the initial release                                                                                    |
 
@@ -122,7 +122,7 @@ The workflow reads an employee and their active onboarding review period, calcul
 
 ### Leave requests
 
-The planned leave workflow will retrieve the applicable leave policy and employee balance, validate the dates, and create a request only when the user is authorized and has explicitly requested creation.
+The leave workflow retrieves the annual policy and balance in parallel through independently authorized tools, counts Monday–Friday working days, checks three working days of notice, the ten-day consecutive limit, and available balance, then returns a proposal. It never creates a `leave_requests` row. Employees and managers may inspect only their own leave; HR may inspect any employee. Managers receive no direct-report privilege for leave.
 
 ## Security model
 
@@ -176,7 +176,7 @@ See [docs/architecture.md](docs/architecture.md) for the reasoning behind the la
 
 ## Repository structure
 
-The current foundation and onboarding workflow contain the directories below. Observability persistence, leave, tools for side effects, and technical triggers will be added as their stories are implemented.
+The current foundation contains onboarding and leave workflows alongside shared observability and technical-trigger infrastructure.
 
 ```text
 src/
@@ -193,6 +193,7 @@ src/
 ├── triggers/ Scheduler, webhook composition, and RabbitMQ transport adapters
 ├── types/ Shared TypeScript definitions, one exported type or interface per file
 ├── workflows/onboarding/ Deterministic onboarding review calculation
+├── workflows/leave/ Deterministic annual-leave proposal calculation
 ├── app.ts Express application factory
 └── server.ts Runtime startup and graceful shutdown
 
@@ -209,7 +210,7 @@ controller → service → workflow/repository
 
 Schedule, webhook, and RabbitMQ adapters call the same typed service without depending on the user-query controller. Technical commands carry deterministic onboarding fields directly and therefore do not fabricate natural language or call OpenAI.
 
-Shared onboarding definitions live under `src/types`, with one exported type per file. The onboarding service invokes the same typed LangGraph runner for JSON and SSE. The graph keeps deterministic routing and business policy in nodes and authorized tools; the model is called only through `HcmIntentNormalizer`. `server.ts` initializes the PostgreSQL LangGraph checkpointer before listening and closes it during shutdown alongside Prisma.
+Shared workflow definitions live under `src/types`, with one exported type per file. The application graph invokes the same typed runner for JSON and SSE. Its supervisor routes normalized onboarding intents to the onboarding worker and `LEAVE_REQUEST` to the leave worker; business policy remains deterministic and tools re-check authorization. `server.ts` initializes the PostgreSQL LangGraph checkpointer before listening and closes it during shutdown alongside Prisma.
 
 ## Getting started
 
@@ -292,12 +293,12 @@ Current unit-test areas:
 - Trace recording with redacted run summaries, workflow steps, and authorization events.
 - Trigger validation, timing-safe webhook authentication, schedule policy, event idempotency, and RabbitMQ retry/dead-letter ordering with fakes.
 
-Leave decisions and broader operational dashboards remain future improvements. Integration and end-to-end tests are also future improvements.
+Leave-request creation and approval decisions remain future improvements. Integration and end-to-end tests are also future improvements.
 
 ## Roadmap and improvement opportunities
 
 - Add production-grade authentication and identity mapping.
-- Add leave policies, balances, and requests.
+- Add explicit leave-request creation and approval workflows.
 - Add broader automated testing, including integration and end-to-end coverage.
 - Add durable distributed tracing and operational dashboards.
 - Add transactional event publishing and stronger retry handling.

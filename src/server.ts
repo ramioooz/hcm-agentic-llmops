@@ -17,6 +17,7 @@ import { createLangSmithAgentTraceRecorder } from './observability/langsmith-age
 import { PinoApplicationLogger } from './observability/pino-application-logger';
 import { PrismaAgentRunRepository } from './repositories/agent-run.repository';
 import { PrismaEmployeeRepository } from './repositories/employee.repository';
+import { PrismaLeaveRepository } from './repositories/leave.repository';
 import { PrismaProcessedEventRepository } from './repositories/processed-event.repository';
 import { OnboardingAgentService } from './services/onboarding-agent.service';
 import { OnboardingTriggerProcessor } from './services/onboarding-trigger-processor';
@@ -38,6 +39,7 @@ async function startServer(): Promise<void> {
     const runRepository = new PrismaAgentRunRepository(database);
     const onboardingAgent = new OnboardingAgentService({
       employees,
+      leaves: new PrismaLeaveRepository(database),
       clock: { today: todayAsDateOnly },
       recorder: runRepository,
       threadOwnership: runRepository,

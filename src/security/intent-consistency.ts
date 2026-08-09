@@ -58,6 +58,32 @@ export function enforceIntentConsistency(query: string, intent: HcmIntent): HcmI
     return intent;
   }
 
+  if (intent.intent === 'LEAVE_REQUEST') {
+    const explicitDates: string[] = query.match(/\b\d{4}-\d{2}-\d{2}\b/g) ?? [];
+    const employeeCode =
+      intent.employeeCode !== null && hasExplicitEmployeeCode(query, intent.employeeCode)
+        ? intent.employeeCode
+        : null;
+    const leaveStartDate =
+      intent.leaveStartDate !== null && explicitDates.includes(intent.leaveStartDate)
+        ? intent.leaveStartDate
+        : null;
+    const leaveEndDate =
+      intent.leaveEndDate !== null && explicitDates.includes(intent.leaveEndDate)
+        ? intent.leaveEndDate
+        : null;
+    return {
+      ...intent,
+      employeeCode,
+      leaveStartDate,
+      leaveEndDate,
+      missingFields: [
+        ...(leaveStartDate === null ? (['startDate'] as const) : []),
+        ...(leaveEndDate === null ? (['endDate'] as const) : []),
+      ],
+    };
+  }
+
   const employeeCode =
     intent.employeeCode !== null && hasExplicitEmployeeCode(query, intent.employeeCode)
       ? intent.employeeCode
