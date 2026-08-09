@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { ChatOpenAI } from '@langchain/openai';
+import { DevelopmentManagerNotification } from './adapters/development-manager-notification';
 import {
   buildOpenAiModelConfiguration,
   OpenAiHcmIntentNormalizer,
@@ -22,6 +23,7 @@ const onboardingAgent = new OnboardingAgentService({
     today: todayAsDateOnly,
   },
   recorder: new PrismaAgentRunRepository(database),
+  notifications: new DevelopmentManagerNotification(),
   normalizer: new OpenAiHcmIntentNormalizer(
     new ChatOpenAI(
       buildOpenAiModelConfiguration({

@@ -8,6 +8,7 @@ import type { HcmIntentNormalizer } from '../../src/types/hcm-intent-normalizer'
 const employee: EmployeeRecord = {
   employeeCode: 'EMP-201',
   fullName: 'Samira Noor',
+  accessRole: 'EMPLOYEE',
   status: 'ACTIVE',
   managerEmployeeCode: 'EMP-200',
   activeReviewPeriod: {
@@ -22,10 +23,28 @@ function createService(
     normalizerError?: Error;
   } = {},
 ) {
+  const manager: EmployeeRecord = {
+    employeeCode: 'EMP-200',
+    fullName: 'Omar Malik',
+    accessRole: 'MANAGER',
+    status: 'ACTIVE',
+    managerEmployeeCode: 'EMP-100',
+    activeReviewPeriod: null,
+  };
+  const unrelatedEmployee: EmployeeRecord = {
+    ...employee,
+    employeeCode: 'EMP-300',
+    fullName: 'Lina Faris',
+  };
   const reader: EmployeeReader = {
-    findByEmployeeCode: jest
-      .fn()
-      .mockResolvedValue(input.record === undefined ? employee : input.record),
+    findByEmployeeCode: jest.fn(async (employeeCode: string) => {
+      if (employeeCode === 'EMP-200') return manager;
+      if (employeeCode === 'EMP-300') return unrelatedEmployee;
+      if (employeeCode === employee.employeeCode) {
+        return input.record === undefined ? employee : input.record;
+      }
+      return null;
+    }),
   };
   const recorder: AgentRunRecorder = {
     recordInvocation: jest.fn().mockResolvedValue(undefined),
@@ -45,11 +64,13 @@ function createService(
     );
   }
   const normalizer: HcmIntentNormalizer = { normalize };
+  const send = jest.fn().mockResolvedValue({ notificationId: 'dev-note-001' });
 
   return {
     reader,
     recorder,
     normalize,
+    send,
     service: new OnboardingAgentService({
       employees: reader,
       clock: {
@@ -57,6 +78,7 @@ function createService(
       },
       recorder,
       normalizer,
+      notifications: { send },
     }),
   };
 }
@@ -68,7 +90,6 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: "Review EMP-201's onboarding status",
       actorEmployeeCode: 'EMP-200',
-      actorRole: 'MANAGER',
       correlationId: 'corr-test-001',
     });
 
@@ -121,7 +142,6 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: "Could you see whether EMP-201's review milestone is approaching?",
       actorEmployeeCode: 'EMP-200',
-      actorRole: 'MANAGER',
       correlationId: 'corr-normalized-001',
     });
 
@@ -155,7 +175,6 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: "Review EMP-201's 90-day probation.",
       actorEmployeeCode: 'EMP-200',
-      actorRole: 'MANAGER',
       correlationId: 'corr-threshold-provenance-001',
     });
 
@@ -182,7 +201,6 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: 'Can you take a look at this employee onboarding matter?',
       actorEmployeeCode: 'EMP-200',
-      actorRole: 'MANAGER',
       correlationId: 'corr-normalized-002',
     });
 
@@ -207,7 +225,6 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: 'Review EMP-202 onboarding status.',
       actorEmployeeCode: 'EMP-200',
-      actorRole: 'MANAGER',
       correlationId: 'corr-provenance-001',
     });
 
@@ -235,7 +252,6 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: 'Review EMP-201 onboarding status.',
       actorEmployeeCode: 'EMP-200',
-      actorRole: 'MANAGER',
       correlationId: 'corr-provenance-002',
     });
 
@@ -266,7 +282,6 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query,
       actorEmployeeCode: 'EMP-200',
-      actorRole: 'MANAGER',
       correlationId: 'corr-provenance-004',
     });
 
@@ -286,7 +301,6 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: 'Review emp-201 onboarding status.',
       actorEmployeeCode: 'EMP-200',
-      actorRole: 'MANAGER',
       correlationId: 'corr-provenance-003',
     });
 
@@ -302,7 +316,6 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: 'Please review EMP-201 onboarding status.',
       actorEmployeeCode: 'EMP-200',
-      actorRole: 'MANAGER',
       correlationId: 'corr-normalized-003',
     });
 
@@ -343,7 +356,6 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: 'Review the onboarding status',
       actorEmployeeCode: 'EMP-200',
-      actorRole: 'MANAGER',
       correlationId: 'corr-test-002',
     });
 
@@ -375,7 +387,6 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: 'Book a flight to London',
       actorEmployeeCode: 'EMP-200',
-      actorRole: 'MANAGER',
       correlationId: 'corr-test-003',
     });
 
@@ -394,7 +405,6 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query,
       actorEmployeeCode: 'EMP-200',
-      actorRole: 'MANAGER',
       correlationId: 'corr-test-guard-001',
     });
 
@@ -454,7 +464,6 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: `Review EMP-201 onboarding status and ${notificationPhrase}`,
       actorEmployeeCode: 'EMP-200',
-      actorRole: 'MANAGER',
       correlationId: 'corr-test-004',
     });
 
@@ -462,8 +471,7 @@ describe('OnboardingAgentService', () => {
       status: 'COMPLETED',
       data: {
         action: 'NOTIFY_MANAGER',
-        actionPerformed: false,
-        actionReason: 'NOTIFICATION_PROVIDER_NOT_CONFIGURED',
+        actionPerformed: true,
       },
     });
     const record = (recorder.recordInvocation as jest.Mock).mock.calls[0][0];
@@ -476,7 +484,6 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: 'Review EMP-201 onboarding status.',
       actorEmployeeCode: 'EMP-200',
-      actorRole: 'MANAGER',
       correlationId: 'corr-employee-not-found',
     });
 
@@ -498,7 +505,6 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: 'Review EMP-201 onboarding status',
       actorEmployeeCode: 'EMP-300',
-      actorRole: 'EMPLOYEE',
       correlationId: 'corr-test-005',
     });
 
@@ -534,7 +540,6 @@ describe('OnboardingAgentService', () => {
     const result = await service.invoke({
       query: "Review EMP-201's onboarding status",
       actorEmployeeCode: 'EMP-200',
-      actorRole: 'MANAGER',
       correlationId: 'corr-test-006',
     });
 
@@ -548,5 +553,140 @@ describe('OnboardingAgentService', () => {
         runId: expect.any(String),
       },
     });
+  });
+
+  it('resolves an unknown mock identity as authentication failure from repository data', async () => {
+    const { service } = createService();
+
+    const result = await service.invoke({
+      query: 'Review EMP-201 onboarding status',
+      actorEmployeeCode: 'EMP-999',
+      correlationId: 'corr-unknown-actor',
+    });
+
+    expect(result).toMatchObject({
+      httpStatus: 401,
+      body: { status: 'FAILED', code: 'AUTHENTICATION_REQUIRED' },
+    });
+  });
+
+  it('denies an employee actor from requesting a manager notification for themself', async () => {
+    const { service } = createService({
+      normalizedIntent: {
+        intent: 'ONBOARDING_REVIEW',
+        employeeCode: 'EMP-201',
+        thresholdDays: 30,
+        requestedAction: 'NOTIFY_MANAGER',
+        missingFields: [],
+      },
+    });
+
+    const result = await service.invoke({
+      query: 'Review EMP-201 onboarding status and notify the manager',
+      actorEmployeeCode: 'EMP-201',
+      correlationId: 'corr-employee-notify',
+    });
+
+    expect(result).toMatchObject({
+      httpStatus: 403,
+      body: { status: 'FAILED', code: 'AUTHORIZATION_DENIED' },
+    });
+  });
+
+  it('does not notify outside the explicit threshold', async () => {
+    const { service, send } = createService({
+      record: { ...employee, activeReviewPeriod: { endDate: '2026-09-21' } },
+      normalizedIntent: {
+        intent: 'ONBOARDING_REVIEW',
+        employeeCode: 'EMP-201',
+        thresholdDays: 30,
+        requestedAction: 'NOTIFY_MANAGER',
+        missingFields: [],
+      },
+    });
+
+    const result = await service.invoke({
+      query: 'Review EMP-201 onboarding status and notify the manager within 30 days',
+      actorEmployeeCode: 'EMP-200',
+      correlationId: 'corr-outside-threshold',
+    });
+
+    expect(result.body).toMatchObject({
+      status: 'COMPLETED',
+      data: {
+        withinThreshold: false,
+        action: 'NOTIFY_MANAGER',
+        actionPerformed: false,
+        actionReason: 'OUTSIDE_THRESHOLD',
+      },
+    });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('returns a stable internal error when the notification adapter fails', async () => {
+    const { service, send } = createService({
+      normalizedIntent: {
+        intent: 'ONBOARDING_REVIEW',
+        employeeCode: 'EMP-201',
+        thresholdDays: 30,
+        requestedAction: 'NOTIFY_MANAGER',
+        missingFields: [],
+      },
+    });
+    send.mockRejectedValueOnce(new Error('provider secret details'));
+
+    const result = await service.invoke({
+      query: 'Review EMP-201 onboarding status and notify the manager',
+      actorEmployeeCode: 'EMP-200',
+      correlationId: 'corr-notification-failure',
+    });
+
+    expect(result).toMatchObject({
+      httpStatus: 500,
+      body: { status: 'FAILED', code: 'INTERNAL_ERROR' },
+    });
+    expect(JSON.stringify(result)).not.toContain('provider secret details');
+  });
+
+  it('streams safe lifecycle progress and the same final semantics as JSON', async () => {
+    const jsonService = createService().service;
+    const streamService = createService().service;
+    const input = {
+      query: "Review EMP-201's onboarding status",
+      actorEmployeeCode: 'EMP-200',
+      correlationId: 'corr-stream-001',
+    };
+
+    const json = await jsonService.invoke(input);
+    const events = [];
+    for await (const event of streamService.stream(input)) events.push(event);
+    const response = events.find((event) => event.event === 'response');
+
+    expect(events.map((event) => event.event)).toEqual([
+      'run',
+      'node',
+      'intent',
+      'node',
+      'node',
+      'tool',
+      'tool',
+      'response',
+    ]);
+    expect(response).toMatchObject({
+      event: 'response',
+      data: {
+        httpStatus: json.httpStatus,
+        body: {
+          status: json.body.status,
+          message: json.body.message,
+          correlationId: json.body.correlationId,
+          data: json.body.data,
+        },
+      },
+    });
+    const progress = events.filter((event) => event.event !== 'response');
+    expect(JSON.stringify(progress)).not.toContain(input.query);
+    expect(JSON.stringify(progress)).not.toContain('EMP-201');
+    expect(JSON.stringify(progress)).not.toContain('Samira Noor');
   });
 });

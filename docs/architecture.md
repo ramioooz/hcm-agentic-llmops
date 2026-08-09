@@ -38,7 +38,7 @@ HTTP endpoints are grouped in class-based controllers under `src/controllers`. E
 
 `server.ts` is the composition root. It creates the PostgreSQL client, repository, application service, and controllers, then passes the controller collection to `app.ts`. Constructor injection makes dependencies visible and lets controller tests provide small fakes without starting PostgreSQL or an HTTP server.
 
-The onboarding service generates its own per-invocation run ID. Its business clock is supplied explicitly by the composition root, so production uses the system date while unit tests can use a fixed date without changing the service's production behavior.
+The onboarding service generates its own per-invocation run ID and invokes one typed LangGraph runner for both JSON and SSE. Its business clock is supplied explicitly by the composition root, so production uses the system date while unit tests can use a fixed date without changing production behavior. Raw queries and employee records stay in per-run execution context rather than checkpointable graph state. SSE progress exposes only safe lifecycle metadata; its final response event carries the same structured result semantics as JSON.
 
 `AgentController` receives a required `ApplicationLogger` dependency and reports invocation lifecycle events. The observability module owns the mapping from HTTP workflow results to completion, rejection, or failure log levels, keeping that operational policy out of the controller. The Pino adapter serializes those records as JSON and recursively redacts sensitive fields before writing. This preserves a link through `correlationId` and `runId` without placing the request query, employee identifiers, personal details, error messages, or stack traces in operational logs.
 
@@ -54,7 +54,7 @@ flowchart LR
 
 The dependency direction is `controller → service → workflow/repository`. Scheduled jobs, webhook handlers, and RabbitMQ consumers will be separate trigger adapters that reuse the same services; they will not call HTTP controllers or duplicate workflow rules.
 
-Shared TypeScript definitions are kept in `src/types`, with one exported type per file so callers do not depend on the service implementation. The onboarding service depends on a typed normalizer interface; the concrete OpenAI normalizer is an outbound adapter under `src/adapters`, and `server.ts` supplies it during composition. The versioned prompt and strict Zod contract remain separate from both classes. Date formatting and invocation-result construction live in `src/helpers/onboarding-agent.helpers.ts`. The application service therefore focuses on orchestration: invoking the normalizer after the request guard, retrieving data, enforcing authorization and state rules, calling the deterministic workflow, and returning its result.
+Shared TypeScript definitions are kept in `src/types`, with one exported type per file so callers do not depend on the service implementation. The onboarding graph depends on a typed normalizer interface; the concrete OpenAI normalizer is an outbound adapter under `src/adapters`, and `server.ts` supplies it during composition. The model only normalizes intent. Graph routing, authorization, review calculation, tool selection, and notification conditions are deterministic. Structured employee lookup, onboarding calculation, and manager notification tools re-check authorization using canonical roles and manager relationships loaded from PostgreSQL.
 
 This gives the system one business path with several safe entry points:
 
@@ -70,4 +70,4 @@ HTTP / schedule / webhook / RabbitMQ
 
 ## Current versus planned
 
-The current release implements the application startup, configuration validation, dependency-injected HTTP controllers, health checks, PostgreSQL schema, migrations, seed data, the onboarding invocation endpoint, deterministic onboarding review, transactional run/step/security-event recording, redacted Pino invocation logs, and focused unit tests. Leave workflows, side-effect tools, external log shipping, and technical trigger adapters are added in later stories.
+The current release implements the application startup, configuration validation, dependency-injected HTTP controllers, health checks, PostgreSQL schema, migrations, seed data, the typed onboarding graph and tools, JSON and SSE invocation, deterministic development notifications, transactional run/step/security-event recording, redacted Pino invocation logs, and focused unit tests. Leave workflows, external notification providers, external log shipping, and technical trigger adapters are added in later stories.

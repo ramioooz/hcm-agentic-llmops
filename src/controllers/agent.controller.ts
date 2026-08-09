@@ -2,9 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
 import { parseAgentInvokeRequest } from '../contracts/agent-invoke';
 import { logAgentInvocationResult } from '../observability/agent-invocation-logging';
-import type { AccessRole } from '../types/access-role';
 import type { AgentInvoker } from '../types/agent-invoker';
 import type { ApplicationLogger } from '../types/application-logger';
+import type { InvocationBody } from '../types/invocation-body';
 import type { HttpController } from './http-controller';
 
 export class AgentController implements HttpController {
@@ -12,7 +12,7 @@ export class AgentController implements HttpController {
   public readonly router = Router();
 
   public constructor(
-    private readonly dependencies: { agent?: AgentInvoker; logger: ApplicationLogger },
+    private readonly dependencies: { agent: AgentInvoker; logger: ApplicationLogger },
   ) {
     this.router.post('/invoke', this.handleInvoke);
   }
@@ -23,23 +23,6 @@ export class AgentController implements HttpController {
       event: 'agent.invoke.started',
       correlationId,
     });
-
-    if (!this.dependencies.agent) {
-      this.dependencies.logger.error({
-        event: 'agent.invoke.rejected',
-        correlationId,
-        status: 'FAILED',
-        code: 'AGENT_NOT_CONFIGURED',
-        httpStatus: 503,
-      });
-      response.status(503).json({
-        status: 'FAILED',
-        code: 'AGENT_NOT_CONFIGURED',
-        message: 'The agent service is not configured.',
-        correlationId,
-      });
-      return;
-    }
 
     let body: ReturnType<typeof parseAgentInvokeRequest>;
     try {
@@ -62,14 +45,8 @@ export class AgentController implements HttpController {
     }
 
     const actorEmployeeCode = request.header('X-Employee-Id')?.trim();
-    const actorRoleHeader = request.header('X-User-Role')?.trim().toUpperCase();
-    const validRoles: AccessRole[] = ['HR', 'MANAGER', 'EMPLOYEE'];
 
-    if (
-      !actorEmployeeCode ||
-      !actorRoleHeader ||
-      !validRoles.includes(actorRoleHeader as AccessRole)
-    ) {
+    if (!actorEmployeeCode || !/^EMP-\d+$/.test(actorEmployeeCode)) {
       this.dependencies.logger.warn({
         event: 'agent.invoke.rejected',
         correlationId,
@@ -80,19 +57,42 @@ export class AgentController implements HttpController {
       response.status(401).json({
         status: 'FAILED',
         code: 'AUTHENTICATION_REQUIRED',
-        message: 'Provide a valid X-Employee-Id and X-User-Role header.',
+        message: 'Provide a valid X-Employee-Id header.',
         correlationId,
       });
       return;
     }
 
     try {
-      const result = await this.dependencies.agent.invoke({
+      const input = {
         query: body.query,
         actorEmployeeCode,
-        actorRole: actorRoleHeader as AccessRole,
         correlationId,
-      });
+      };
+      if (request.header('Accept')?.toLowerCase().includes('text/event-stream')) {
+        response.status(200);
+        response.setHeader('Content-Type', 'text/event-stream');
+        response.setHeader('Cache-Control', 'no-cache, no-transform');
+        response.setHeader('Connection', 'keep-alive');
+        response.flushHeaders?.();
+        let finalResponse: { httpStatus: number; body: InvocationBody } | undefined;
+        for await (const event of this.dependencies.agent.stream(input)) {
+          response.write(`event: ${event.event}\ndata: ${JSON.stringify(event.data)}\n\n`);
+          if (event.event === 'response') finalResponse = event.data;
+        }
+        if (finalResponse) {
+          logAgentInvocationResult(
+            this.dependencies.logger,
+            finalResponse.httpStatus,
+            finalResponse.body,
+            correlationId,
+          );
+        }
+        response.end();
+        return;
+      }
+
+      const result = await this.dependencies.agent.invoke(input);
       logAgentInvocationResult(
         this.dependencies.logger,
         result.httpStatus,

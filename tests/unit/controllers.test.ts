@@ -8,6 +8,13 @@ import type { OnboardingInvocationResult } from '../../src/types/onboarding-invo
 
 type InvokeFunction = (input: OnboardingInvocationInput) => Promise<OnboardingInvocationResult>;
 
+function agentWith(invoke: InvokeFunction) {
+  return {
+    invoke,
+    async *stream(): AsyncIterable<never> {},
+  };
+}
+
 type CapturedResponse = {
   body: unknown;
   response: Response;
@@ -76,39 +83,6 @@ function captureResponse(): CapturedResponse {
 }
 
 describe('AgentController', () => {
-  test('returns 503 when the agent service is not configured', async () => {
-    const logs = captureLogger();
-    const controller = new AgentController({ logger: logs.logger });
-    const captured = captureResponse();
-
-    await controller.handleInvoke(
-      requestWith({
-        body: { query: 'Review onboarding for EMP-1001' },
-        headers: { 'X-Correlation-Id': 'correlation-503' },
-      }),
-      captured.response,
-    );
-
-    expect(captured.statusCode).toBe(503);
-    expect(captured.body).toEqual({
-      status: 'FAILED',
-      code: 'AGENT_NOT_CONFIGURED',
-      message: 'The agent service is not configured.',
-      correlationId: 'correlation-503',
-    });
-    expect(logs.info).toHaveBeenCalledWith({
-      event: 'agent.invoke.started',
-      correlationId: 'correlation-503',
-    });
-    expect(logs.error).toHaveBeenCalledWith({
-      event: 'agent.invoke.rejected',
-      correlationId: 'correlation-503',
-      status: 'FAILED',
-      code: 'AGENT_NOT_CONFIGURED',
-      httpStatus: 503,
-    });
-  });
-
   test('returns the agent service HTTP result for a valid request', async () => {
     const invoke = jest
       .fn<ReturnType<InvokeFunction>, Parameters<InvokeFunction>>()
@@ -122,7 +96,7 @@ describe('AgentController', () => {
         },
       });
     const logs = captureLogger();
-    const controller = new AgentController({ agent: { invoke }, logger: logs.logger });
+    const controller = new AgentController({ agent: agentWith(invoke), logger: logs.logger });
     const captured = captureResponse();
 
     await controller.handleInvoke(
@@ -131,7 +105,6 @@ describe('AgentController', () => {
         headers: {
           'X-Correlation-Id': 'correlation-123',
           'X-Employee-Id': 'EMP-9000',
-          'X-User-Role': 'HR',
         },
       }),
       captured.response,
@@ -147,7 +120,6 @@ describe('AgentController', () => {
     expect(invoke).toHaveBeenCalledWith({
       query: 'Review onboarding for EMP-1001',
       actorEmployeeCode: 'EMP-9000',
-      actorRole: 'HR',
       correlationId: 'correlation-123',
     });
     expect(logs.info).toHaveBeenNthCalledWith(1, {
@@ -163,10 +135,72 @@ describe('AgentController', () => {
     });
   });
 
+  test('writes safe SSE lifecycle events when requested', async () => {
+    const invoke = jest.fn<ReturnType<InvokeFunction>, Parameters<InvokeFunction>>();
+    const stream = jest.fn().mockImplementation(async function* () {
+      yield {
+        event: 'run' as const,
+        data: { runId: 'run-sse', correlationId: 'correlation-sse', status: 'started' as const },
+      };
+      yield {
+        event: 'response' as const,
+        data: {
+          runId: 'run-sse',
+          status: 'completed' as const,
+          httpStatus: 200,
+          body: {
+            status: 'COMPLETED',
+            message: 'Employee onboarding review completed.',
+            runId: 'run-sse',
+            correlationId: 'correlation-sse',
+          },
+        },
+      };
+    });
+    const chunks: string[] = [];
+    const headers: Record<string, string> = {};
+    const response = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+      setHeader: (name: string, value: string) => {
+        headers[name] = value;
+      },
+      flushHeaders: jest.fn(),
+      write: (chunk: string) => chunks.push(chunk),
+      end: jest.fn(),
+    } as unknown as Response;
+    const controller = new AgentController({
+      agent: { invoke, stream },
+      logger: captureLogger().logger,
+    });
+
+    await controller.handleInvoke(
+      requestWith({
+        body: { query: 'Review onboarding for EMP-201' },
+        headers: {
+          Accept: 'text/event-stream',
+          'X-Correlation-Id': 'correlation-sse',
+          'X-Employee-Id': 'EMP-200',
+        },
+      }),
+      response,
+    );
+
+    expect(headers['Content-Type']).toBe('text/event-stream');
+    expect(chunks.join('')).toContain('event: run\n');
+    expect(chunks.join('')).toContain('event: response\n');
+    expect(stream).toHaveBeenCalledWith({
+      query: 'Review onboarding for EMP-201',
+      actorEmployeeCode: 'EMP-200',
+      correlationId: 'correlation-sse',
+    });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
   test('returns 400 for an invalid body without invoking the agent service', async () => {
     const invoke = jest.fn<ReturnType<InvokeFunction>, Parameters<InvokeFunction>>();
     const logs = captureLogger();
-    const controller = new AgentController({ agent: { invoke }, logger: logs.logger });
+    const controller = new AgentController({ agent: agentWith(invoke), logger: logs.logger });
     const captured = captureResponse();
 
     await controller.handleInvoke(
@@ -174,7 +208,6 @@ describe('AgentController', () => {
         body: { query: '' },
         headers: {
           'X-Employee-Id': 'EMP-9000',
-          'X-User-Role': 'HR',
         },
       }),
       captured.response,
@@ -195,21 +228,14 @@ describe('AgentController', () => {
     });
   });
 
-  test.each([
-    { description: 'missing employee identity', headers: { 'X-User-Role': 'HR' } },
-    { description: 'missing role', headers: { 'X-Employee-Id': 'EMP-9000' } },
-    {
-      description: 'unsupported role',
-      headers: { 'X-Employee-Id': 'EMP-9000', 'X-User-Role': 'ADMIN' },
-    },
-  ])('returns 401 for $description', async ({ headers }) => {
+  test('returns 401 for missing employee identity', async () => {
     const invoke = jest.fn<ReturnType<InvokeFunction>, Parameters<InvokeFunction>>();
     const logs = captureLogger();
-    const controller = new AgentController({ agent: { invoke }, logger: logs.logger });
+    const controller = new AgentController({ agent: agentWith(invoke), logger: logs.logger });
     const captured = captureResponse();
 
     await controller.handleInvoke(
-      requestWith({ body: { query: 'Review EMP-1001 onboarding' }, headers }),
+      requestWith({ body: { query: 'Review EMP-1001 onboarding' }, headers: {} }),
       captured.response,
     );
 
@@ -228,12 +254,34 @@ describe('AgentController', () => {
     });
   });
 
+  test('returns 401 for a malformed employee identity', async () => {
+    const invoke = jest.fn<ReturnType<InvokeFunction>, Parameters<InvokeFunction>>();
+    const logs = captureLogger();
+    const controller = new AgentController({
+      agent: agentWith(invoke),
+      logger: logs.logger,
+    });
+    const captured = captureResponse();
+
+    await controller.handleInvoke(
+      requestWith({
+        body: { query: 'Review EMP-1001 onboarding' },
+        headers: { 'X-Employee-Id': 'not-an-employee-code' },
+      }),
+      captured.response,
+    );
+
+    expect(captured.statusCode).toBe(401);
+    expect(captured.body).toMatchObject({ code: 'AUTHENTICATION_REQUIRED' });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
   test('returns the structured 500 response when the service fails unexpectedly', async () => {
     const invoke = jest
       .fn<ReturnType<InvokeFunction>, Parameters<InvokeFunction>>()
       .mockRejectedValue(new Error('database down'));
     const logs = captureLogger();
-    const controller = new AgentController({ agent: { invoke }, logger: logs.logger });
+    const controller = new AgentController({ agent: agentWith(invoke), logger: logs.logger });
     const captured = captureResponse();
 
     await controller.handleInvoke(
@@ -242,7 +290,6 @@ describe('AgentController', () => {
         headers: {
           'X-Correlation-Id': 'correlation-500',
           'X-Employee-Id': 'EMP-9000',
-          'X-User-Role': 'HR',
         },
       }),
       captured.response,
@@ -278,7 +325,7 @@ describe('AgentController', () => {
         },
       });
     const logs = captureLogger();
-    const controller = new AgentController({ agent: { invoke }, logger: logs.logger });
+    const controller = new AgentController({ agent: agentWith(invoke), logger: logs.logger });
     const captured = captureResponse();
 
     await controller.handleInvoke(
@@ -287,7 +334,6 @@ describe('AgentController', () => {
         headers: {
           'X-Correlation-Id': 'correlation-403',
           'X-Employee-Id': 'EMP-9000',
-          'X-User-Role': 'HR',
         },
       }),
       captured.response,
@@ -318,7 +364,7 @@ describe('AgentController', () => {
         },
       });
     const logs = captureLogger();
-    const controller = new AgentController({ agent: { invoke }, logger: logs.logger });
+    const controller = new AgentController({ agent: agentWith(invoke), logger: logs.logger });
     const captured = captureResponse();
 
     await controller.handleInvoke(
@@ -327,7 +373,6 @@ describe('AgentController', () => {
         headers: {
           'X-Correlation-Id': 'correlation-service-500',
           'X-Employee-Id': 'EMP-9000',
-          'X-User-Role': 'HR',
         },
       }),
       captured.response,
@@ -357,7 +402,7 @@ describe('AgentController', () => {
         },
       });
     const logs = captureLogger();
-    const controller = new AgentController({ agent: { invoke }, logger: logs.logger });
+    const controller = new AgentController({ agent: agentWith(invoke), logger: logs.logger });
     const captured = captureResponse();
 
     await controller.handleInvoke(
@@ -366,7 +411,6 @@ describe('AgentController', () => {
         headers: {
           'X-Correlation-Id': 'correlation-more-information',
           'X-Employee-Id': 'EMP-9000',
-          'X-User-Role': 'HR',
         },
       }),
       captured.response,

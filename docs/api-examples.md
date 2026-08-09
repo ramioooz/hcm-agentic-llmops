@@ -30,7 +30,6 @@ The onboarding workflow uses a single entry point:
 POST /api/v1/agent/invoke
 X-Correlation-Id: corr-example-001
 X-Employee-Id: EMP-200
-X-User-Role: MANAGER
 Content-Type: application/json
 ```
 
@@ -60,6 +59,8 @@ Successful review response:
 }
 ```
 
-If the employee ID is missing, the endpoint returns `NEED_MORE_INFORMATION`. If the request is outside the onboarding capability, it returns `UNSUPPORTED_REQUEST`. An explicit notification request is preserved in the response, but no notification is claimed because the notification provider is not configured yet. Requests are normalized with a strict structured intent contract after deterministic request-safety checks; a normalization failure returns HTTP `503` with code `MODEL_UNAVAILABLE`.
+If the employee ID is missing, the endpoint returns `NEED_MORE_INFORMATION`. If the request is outside the onboarding capability, it returns `UNSUPPORTED_REQUEST`. An explicit notification request inside the requested threshold uses the development notification adapter when the database-derived role permits it: HR may notify for any employee, managers only for direct reports, and employees cannot notify. Requests are normalized with a strict structured intent contract after deterministic request-safety checks; a normalization failure returns HTTP `503` with code `MODEL_UNAVAILABLE`.
+
+Set `Accept: text/event-stream` to receive `run`, `intent`, `node`, `tool`, and final `response` events from the same graph runner. The final event carries the same result body and HTTP-status field used by JSON, while progress events contain no raw query or employee data.
 
 For a Docker Compose API, replace port `3000` with `3300` in these examples.

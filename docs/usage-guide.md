@@ -40,11 +40,18 @@ curl -X POST http://localhost:3000/api/v1/agent/invoke \
   -H 'Content-Type: application/json' \
   -H 'X-Correlation-Id: corr-local-001' \
   -H 'X-Employee-Id: EMP-200' \
-  -H 'X-User-Role: MANAGER' \
   -d '{"query":"Review EMP-201 onboarding status"}'
 ```
 
-Use `X-Employee-Id: EMP-100` and `X-User-Role: HR` to review any seeded employee. A manager can review a direct report, while an employee cannot review another employee.
+`X-Employee-Id` is the sole local mock identity header. The API loads its canonical role and manager relationships from PostgreSQL. Use `EMP-100` for HR access or `EMP-200` for manager access to the direct reports `EMP-201` and `EMP-202`.
+
+Request safe lifecycle streaming with the same body and identity by adding:
+
+```bash
+-H 'Accept: text/event-stream'
+```
+
+The SSE response emits `run`, `intent`, `node`, `tool`, and `response` events. Progress events exclude the raw query and employee data; the final `response` event contains the same structured result semantics as JSON.
 
 When the API runs inside Docker Compose, use port `3300` instead of `3000`.
 
