@@ -26,22 +26,23 @@ The second area and technical triggers are planned for Sprint 2. The current rel
 
 ## Current implementation status
 
-| Capability                                 | Status      | Notes                                                                                                               |
-| ------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------- |
-| Node.js and TypeScript service             | Implemented | Strict TypeScript build with dependency-injected Express controllers                                                |
-| PostgreSQL persistence                     | Implemented | Prisma schema, migration, and sample seed records                                                                   |
-| Run and security persistence               | Implemented | Transactional agent runs, workflow steps, and redacted security events                                              |
-| Structured invocation logging              | Implemented | Pino JSON events with correlation and run trace context, redacted at output                                         |
-| RabbitMQ development service               | Implemented | Docker Compose service; application event handling is planned for Sprint 2                                          |
-| Health and readiness endpoints             | Implemented | `/health` and `/ready`                                                                                              |
-| Focused unit tests                         | Implemented | Jest tests for controllers, configuration, onboarding, and PII redaction                                            |
-| Agent invocation endpoint                  | Implemented | `POST /api/v1/agent/invoke` with validation and correlation IDs                                                     |
-| Employee onboarding review workflow        | Implemented | Deterministic review-period lookup and threshold evaluation                                                         |
-| Authorization and guardrails               | In progress | Header identity, role checks, deterministic unsafe-request rejection, and safe unsupported/need-more-info responses |
-| Structured intent normalization            | Implemented | OpenAI structured output normalizes onboarding intent; deterministic controls remain authoritative                  |
-| Leave workflow                             | Planned     | Sprint 2                                                                                                            |
-| Scheduled, webhook, and RabbitMQ workflows | Planned     | Sprint 2                                                                                                            |
-| Integration and end-to-end tests           | Planned     | Added after the initial release                                                                                     |
+| Capability                                 | Status      | Notes                                                                                                              |
+| ------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------ |
+| Node.js and TypeScript service             | Implemented | Strict TypeScript build with dependency-injected Express controllers                                               |
+| PostgreSQL persistence                     | Implemented | Prisma schema, migration, and sample seed records                                                                  |
+| Run and security persistence               | Implemented | Transactional agent runs, workflow steps, and redacted security events                                             |
+| Structured invocation logging              | Implemented | Pino JSON events with correlation and run trace context, redacted at output                                        |
+| RabbitMQ development service               | Implemented | Docker Compose service; application event handling is planned for Sprint 2                                         |
+| Health and readiness endpoints             | Implemented | `/health` and `/ready`                                                                                             |
+| Focused unit tests                         | Implemented | Jest tests for controllers, configuration, onboarding, and PII redaction                                           |
+| Agent invocation endpoint                  | Implemented | `POST /api/v1/agent/invoke` with validation and correlation IDs                                                    |
+| Employee onboarding review workflow        | Implemented | Deterministic review-period lookup and threshold evaluation                                                        |
+| Authorization and guardrails               | Implemented | One mock identity header; canonical roles and manager relationships are loaded from PostgreSQL at tool boundaries  |
+| Structured intent normalization            | Implemented | OpenAI structured output normalizes onboarding intent; deterministic controls remain authoritative                 |
+| Typed onboarding graph and tools           | Implemented | LangGraph coordinates guarded lookup, deterministic calculation, notification policy, audit, and safe SSE progress |
+| Leave workflow                             | Planned     | Sprint 2                                                                                                           |
+| Scheduled, webhook, and RabbitMQ workflows | Planned     | Sprint 2                                                                                                           |
+| Integration and end-to-end tests           | Planned     | Added after the initial release                                                                                    |
 
 ## Architecture
 
@@ -141,7 +142,7 @@ The security design uses several independent controls:
 
 One scheduled operation may therefore have one correlation ID and several run IDs. The same run ID links the routing decision, tool calls, tool results, final response, and any security event.
 
-The onboarding invocation persists this trace through a Prisma-backed recorder. Run summaries, workflow inputs and outputs, and security-event details are redacted before they are written to PostgreSQL. A recorder failure returns the same structured internal-error response shape used by other unexpected workflow failures.
+The onboarding invocation persists this trace through a Prisma-backed recorder. Run summaries, workflow inputs and outputs, and security-event details are redacted before they are written to PostgreSQL. Raw queries and employee records are held outside checkpointable graph state. A recorder failure returns the same structured internal-error response shape used by other unexpected workflow failures.
 
 The HTTP controller also emits `agent.invoke.started`, `agent.invoke.rejected`, `agent.invoke.completed`, and `agent.invoke.failed` events. Rejections use warning-level logging except an unavailable agent configuration, which is logged as an error because it produces a server failure. Completed calls use info-level logging; handled server failures and unexpected exceptions use error-level logging.
 
@@ -176,7 +177,8 @@ src/
 ├── observability/ Invocation log mapping and Pino adapter for redacted operational logs
 ├── security/ Authorization checks and PII redaction
 ├── repositories/ PostgreSQL employee data access
-├── services/ Agent invocation and onboarding orchestration
+├── services/ JSON and streaming facades over the shared graph runner
+├── tools/ Typed, authorized employee, calculation, and notification operations
 ├── types/ Shared TypeScript definitions, one exported type or interface per file
 ├── workflows/onboarding/ Deterministic onboarding review calculation
 ├── app.ts Express application factory
@@ -195,7 +197,7 @@ controller → service → workflow/repository
 
 Future schedule, webhook, and RabbitMQ adapters can call the same services without depending on Express.
 
-Shared onboarding definitions live under `src/types`, with one exported type per file. The onboarding service depends on the `HcmIntentNormalizer` interface, while the concrete OpenAI implementation lives under `src/adapters`. `server.ts` connects them at startup. Date formatting and result-building functions live under `src/helpers`. This keeps the onboarding service focused on coordinating authorization, data access, and workflow execution.
+Shared onboarding definitions live under `src/types`, with one exported type per file. The onboarding service invokes the same typed LangGraph runner for JSON and SSE. The graph keeps deterministic routing and business policy in nodes and authorized tools; the model is called only through `HcmIntentNormalizer`. `server.ts` connects the concrete OpenAI normalizer, PostgreSQL repositories, run recorder, and development notification adapter at startup.
 
 ## Getting started
 

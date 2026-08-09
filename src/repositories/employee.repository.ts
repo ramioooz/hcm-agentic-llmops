@@ -25,6 +25,7 @@ export class PrismaEmployeeRepository implements EmployeeReader {
     return {
       employeeCode: employee.employeeCode,
       fullName: employee.fullName,
+      accessRole: employee.accessRole,
       status: employee.status,
       managerEmployeeCode: employee.manager?.employeeCode ?? null,
       activeReviewPeriod: employee.reviewPeriods[0]

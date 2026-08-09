@@ -2,9 +2,9 @@ name: Quality checks
 
 on:
   push:
-    branches: [main]
+    branches: [main, release]
   pull_request:
-    branches: [main]
+    branches: [main, release]
 
 permissions:
   contents: read
@@ -33,6 +33,9 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
 
       - name: Run focused unit tests
         run: npm test -- --runInBand
