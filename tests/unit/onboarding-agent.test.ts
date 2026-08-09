@@ -782,7 +782,7 @@ describe('OnboardingAgentService', () => {
     expect(traces).toHaveLength(1);
     expect(traces[0]).toMatchObject({
       correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
-      promptVersion: 'hcm-intent-v1',
+      promptVersion: 'hcm-intent-v2',
       configuredModel: 'gpt-5.4-mini',
       normalizedIntent: 'ONBOARDING_REVIEW',
       nodePath: [

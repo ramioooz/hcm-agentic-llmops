@@ -8,7 +8,7 @@ cp .env.example .env
 docker compose up -d postgres rabbitmq
 ```
 
-Set `OPENAI_API_KEY` and a random `WEBHOOK_API_KEY` of at least 32 characters in `.env` before starting the API. The onboarding user-query normalizer uses `OPENAI_MODEL=gpt-5.4-mini`. Technical trigger events carry typed fields and do not call OpenAI.
+Set `OPENAI_API_KEY` and a random `WEBHOOK_API_KEY` of at least 32 characters in `.env` before starting the API. The onboarding/leave user-query normalizer uses `OPENAI_MODEL=gpt-5.4-mini`. Technical trigger events carry typed onboarding fields and do not call OpenAI.
 
 ## Prepare the database
 
@@ -70,6 +70,17 @@ Request safe lifecycle streaming with the same body and identity by adding:
 ```
 
 The SSE response emits `run`, `intent`, `node`, `tool`, and `response` events. Progress events exclude the raw query and employee data; the final `response` event contains the same structured result semantics as JSON.
+
+## Try an annual-leave proposal
+
+```bash
+curl -X POST http://localhost:3000/api/v1/agent/invoke \
+  -H 'Content-Type: application/json' \
+  -H 'X-Employee-Id: EMP-201' \
+  -d '{"query":"Request annual leave from 2026-08-14 through 2026-08-18"}'
+```
+
+The result counts only Monday–Friday, checks the annual policy and seeded balance, and includes `requestCreated: false`. Employees and managers can request proposals only for themselves; `EMP-100` may request a proposal for another explicit employee code because HR has organization-wide leave read access. Managers do not inherit leave access to direct reports.
 
 When the API runs inside Docker Compose, use port `3300` instead of `3000`.
 

@@ -48,6 +48,13 @@ enum ProcessedEventStatus {
   FAILED
 }
 
+enum LeaveRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
 model Employee {
   id             String                   @id @default(cuid())
   employeeCode   String                   @unique @map("employee_code")
@@ -63,11 +70,65 @@ model Employee {
   reviewPeriods  OnboardingReviewPeriod[]
   agentRuns      AgentRun[]               @relation("ActorEmployee")
   securityEvents SecurityEvent[]
+  leaveBalances  LeaveBalance[]
+  leaveRequests  LeaveRequest[]
   createdAt      DateTime                 @default(now()) @map("created_at")
   updatedAt      DateTime                 @updatedAt @map("updated_at")
 
   @@index([managerId])
   @@map("employees")
+}
+
+model LeavePolicy {
+  id                            String         @id @default(cuid())
+  code                          String         @unique
+  name                          String
+  annualAllowanceDays           Int            @map("annual_allowance_days")
+  workingDays                   String         @map("working_days")
+  minimumNoticeWorkingDays      Int            @map("minimum_notice_working_days")
+  maximumConsecutiveWorkingDays Int            @map("maximum_consecutive_working_days")
+  excludesHolidays              Boolean        @default(true) @map("excludes_holidays")
+  balances                      LeaveBalance[]
+  requests                      LeaveRequest[]
+  createdAt                     DateTime       @default(now()) @map("created_at")
+  updatedAt                     DateTime       @updatedAt @map("updated_at")
+
+  @@map("leave_policies")
+}
+
+model LeaveBalance {
+  id            String      @id @default(cuid())
+  employeeId    String      @map("employee_id")
+  leavePolicyId String      @map("leave_policy_id")
+  year          Int
+  allocatedDays Int         @map("allocated_days")
+  usedDays      Int         @default(0) @map("used_days")
+  pendingDays   Int         @default(0) @map("pending_days")
+  employee      Employee    @relation(fields: [employeeId], references: [id])
+  leavePolicy   LeavePolicy @relation(fields: [leavePolicyId], references: [id])
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  @@unique([employeeId, leavePolicyId, year])
+  @@index([employeeId, year])
+  @@map("leave_balances")
+}
+
+model LeaveRequest {
+  id                   String             @id @default(cuid())
+  employeeId           String             @map("employee_id")
+  leavePolicyId        String             @map("leave_policy_id")
+  startDate            DateTime           @map("start_date") @db.Date
+  endDate              DateTime           @map("end_date") @db.Date
+  requestedWorkingDays Int                @map("requested_working_days")
+  status               LeaveRequestStatus @default(PENDING)
+  employee             Employee           @relation(fields: [employeeId], references: [id])
+  leavePolicy          LeavePolicy        @relation(fields: [leavePolicyId], references: [id])
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  @@index([employeeId, startDate, endDate])
+  @@map("leave_requests")
 }
 
 model OnboardingReviewPeriod {

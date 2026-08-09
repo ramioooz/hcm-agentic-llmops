@@ -17,7 +17,7 @@ export type AgentProgressEvent =
       data: {
         runId: string;
         status: 'normalized' | 'accepted';
-        intent: 'ONBOARDING_REVIEW' | 'UNSUPPORTED';
+        intent: 'ONBOARDING_REVIEW' | 'LEAVE_REQUEST' | 'UNSUPPORTED';
         requestedAction: 'REVIEW_ONLY' | 'NOTIFY_MANAGER' | null;
       };
     }
@@ -35,7 +35,12 @@ export type AgentProgressEvent =
       data: {
         runId: string;
         status: 'completed' | 'failed' | 'skipped';
-        tool: 'employee_lookup' | 'onboarding_calculation' | 'manager_notification';
+        tool:
+          | 'employee_lookup'
+          | 'onboarding_calculation'
+          | 'manager_notification'
+          | 'leave_policy_lookup'
+          | 'leave_balance_lookup';
         outcomeCode: string;
       };
     }

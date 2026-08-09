@@ -11,6 +11,10 @@ EMPLOYEES ||--o{ AGENT_RUNS : initiates
 AGENT_RUNS ||--o{ AGENT_RUN_STEPS : contains
 AGENT_RUNS ||--o{ SECURITY_EVENTS : relates
 EMPLOYEES ||--o{ SECURITY_EVENTS : causes
+EMPLOYEES ||--o{ LEAVE_BALANCES : owns
+EMPLOYEES ||--o{ LEAVE_REQUESTS : submits
+LEAVE_POLICIES ||--o{ LEAVE_BALANCES : governs
+LEAVE_POLICIES ||--o{ LEAVE_REQUESTS : governs
 PROCESSED_EVENTS {
   string event_id PK
   string payload_hash
@@ -27,7 +31,7 @@ PROCESSED_EVENTS {
 | `security_events`           | Rejected requests, authorization failures, and other security signals             | Security controls      | Actor and event metadata        |
 | `processed_events`          | Idempotency and delivery metadata for technical onboarding triggers               | Technical triggers     | Opaque event and trace metadata |
 
-## Sprint 2 additions
+## Leave-domain tables
 
 | Table            | Purpose                                                          | Used by        | Sensitive data                            |
 | ---------------- | ---------------------------------------------------------------- | -------------- | ----------------------------------------- |
@@ -46,6 +50,8 @@ The seed command creates fictional records:
 - `EMP-300`: completed onboarding review.
 
 The dates are calculated relative to the seed date so the examples remain useful after the repository is cloned.
+
+The seed also creates an `ANNUAL` policy with a 20-working-day allowance, Monday–Friday workweek, three working days of notice, ten consecutive working days maximum, and holiday exclusion. Fictional current-year balances are created for `EMP-200`, `EMP-201`, and `EMP-202`; no leave request is seeded or created by the agent.
 
 ### Seeded reporting story
 
@@ -69,7 +75,7 @@ The onboarding service writes run records through the Prisma-backed agent-run re
 
 `npm run db:migrate` runs Prisma's deployment command. It applies each migration that is not already recorded in PostgreSQL's `_prisma_migrations` table and does nothing when the database is current. It is safe to run repeatedly, but it does not undo or repair a changed migration.
 
-`npm run db:seed` is idempotent in its final result for the current Sprint 1 schema: it resets the seeded employee, onboarding, run, and security-event records and recreates the same fictional sample set relative to today's date. It is intentionally a development reset, so it must not be run against a database containing data that should be preserved.
+`npm run db:seed` is idempotent in its final result: it resets the seeded employee, onboarding, leave, run, and security-event records and recreates the same fictional sample set relative to today's date. It is intentionally a development reset, so it must not be run against a database containing data that should be preserved.
 
 ## Identifiers and traceability
 

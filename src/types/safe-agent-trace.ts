@@ -3,7 +3,7 @@ export type SafeAgentTrace = {
   correlationId: string;
   promptVersion: string;
   configuredModel: string;
-  normalizedIntent: 'ONBOARDING_REVIEW' | 'UNSUPPORTED' | null;
+  normalizedIntent: 'ONBOARDING_REVIEW' | 'LEAVE_REQUEST' | 'UNSUPPORTED' | null;
   nodePath: string[];
   toolNames: string[];
   authorizationResult: 'AUTHORIZED' | 'DENIED' | 'NOT_EVALUATED';

@@ -29,6 +29,7 @@ import type { Clock } from '../../types/clock';
 import type { EmployeeReader } from '../../types/employee-reader';
 import type { HcmIntent } from '../../types/hcm-intent';
 import type { HcmIntentNormalizer } from '../../types/hcm-intent-normalizer';
+import type { LeaveReader } from '../../types/leave-reader';
 import type { ManagerNotificationSender } from '../../types/manager-notification-sender';
 import type { OnboardingInvocationInput } from '../../types/onboarding-invocation-input';
 import type {
@@ -41,6 +42,8 @@ import type {
   CanonicalThreadOwner,
   ThreadOwnershipReader,
 } from '../../types/thread-ownership-reader';
+import { runLeaveWorkerGraph } from '../leave/leave.graph';
+import { routeHcmIntent } from '../supervisor/route-hcm-intent';
 
 export const OnboardingGraphState = new StateSchema({
   ownerBindingId: z.string().min(1),
@@ -49,7 +52,7 @@ export const OnboardingGraphState = new StateSchema({
   pendingRequestedAction: z.enum(['REVIEW_ONLY', 'NOTIFY_MANAGER']).nullable().optional(),
   pendingMissingFields: z.array(z.literal('employeeId')).optional(),
   route: new UntrackedValue(
-    z.enum(['CONTINUE', 'RESPOND', 'CALCULATE', 'NOTIFY', 'SKIP_NOTIFICATION']),
+    z.enum(['CONTINUE', 'RESPOND', 'CALCULATE', 'NOTIFY', 'SKIP_NOTIFICATION', 'LEAVE']),
   ),
   lastNode: new UntrackedValue(z.string()),
   outcomeCode: new UntrackedValue(z.string()),
@@ -84,6 +87,7 @@ export type OnboardingGraphDependencies = {
   threadOwnership: ThreadOwnershipReader;
   traceRecorder?: AgentTraceRecorder;
   configuredModel?: string;
+  leaves?: LeaveReader;
 };
 
 type EventSink = (event: AgentProgressEvent) => void;
@@ -171,13 +175,22 @@ async function recordResult(
     correlationId: context.input.correlationId,
     triggerType: context.input.triggerType ?? 'HTTP',
     actorEmployeeCode: context.input.actorEmployeeCode,
-    intent: intent?.intent === 'ONBOARDING_REVIEW' ? 'ONBOARDING_REVIEW' : undefined,
+    intent:
+      intent?.intent === 'ONBOARDING_REVIEW' || intent?.intent === 'LEAVE_REQUEST'
+        ? intent.intent
+        : undefined,
     requestSummary: intent
       ? redactSensitiveData({
           intent: intent.intent,
           employeeCode: intent.employeeCode,
           thresholdDays: intent.thresholdDays,
           requestedAction: intent.requestedAction,
+          ...(intent.intent === 'LEAVE_REQUEST'
+            ? {
+                leaveStartDate: intent.leaveStartDate,
+                leaveEndDate: intent.leaveEndDate,
+              }
+            : {}),
           missingFields: intent.missingFields,
         })
       : {},
@@ -224,12 +237,18 @@ function pendingIntentFromState(state: {
   pendingRequestedAction?: 'REVIEW_ONLY' | 'NOTIFY_MANAGER' | null;
   pendingMissingFields?: 'employeeId'[];
 }): HcmIntent | undefined {
-  if (state.pendingIntent !== 'ONBOARDING_REVIEW') return undefined;
+  if (
+    state.pendingIntent !== 'ONBOARDING_REVIEW' ||
+    state.pendingThresholdDays == null ||
+    state.pendingRequestedAction == null
+  ) {
+    return undefined;
+  }
   return {
     intent: 'ONBOARDING_REVIEW',
     employeeCode: null,
-    thresholdDays: state.pendingThresholdDays ?? null,
-    requestedAction: state.pendingRequestedAction ?? null,
+    thresholdDays: state.pendingThresholdDays,
+    requestedAction: state.pendingRequestedAction,
     missingFields: state.pendingMissingFields ?? [],
   };
 }
@@ -422,17 +441,21 @@ export function createOnboardingGraph(
         });
         context.steps.push({
           stepName: 'intent_normalization',
-          status: context.intent.intent === 'ONBOARDING_REVIEW' ? 'COMPLETED' : 'REJECTED',
+          status: context.intent.intent === 'UNSUPPORTED' ? 'REJECTED' : 'COMPLETED',
           outcomeCode:
-            context.intent.intent === 'ONBOARDING_REVIEW'
-              ? 'INTENT_NORMALIZED'
-              : 'UNSUPPORTED_REQUEST',
+            context.intent.intent === 'UNSUPPORTED' ? 'UNSUPPORTED_REQUEST' : 'INTENT_NORMALIZED',
           inputData: {
             intent: context.intent.intent,
             employeeCode: context.intent.employeeCode,
             thresholdDays: context.intent.thresholdDays,
             requestedAction: context.intent.requestedAction,
             missingFields: context.intent.missingFields,
+            ...(context.intent.intent === 'LEAVE_REQUEST'
+              ? {
+                  leaveStartDate: context.intent.leaveStartDate,
+                  leaveEndDate: context.intent.leaveEndDate,
+                }
+              : {}),
           },
         });
         nodeEvent(emit, runId, 'intent_normalization', 'completed', 'INTENT_NORMALIZED');
@@ -466,7 +489,8 @@ export function createOnboardingGraph(
     .addNode('routing', () => {
       const intent = context.intent;
       if (!intent) throw new Error('GRAPH_INTENT_MISSING');
-      if (intent.intent === 'UNSUPPORTED') {
+      const worker = routeHcmIntent(intent);
+      if (worker === 'UNSUPPORTED') {
         context.result = buildInvocationResult(200, {
           status: 'UNSUPPORTED_REQUEST',
           message: 'That request is outside the capabilities of this HCM agent.',
@@ -479,6 +503,30 @@ export function createOnboardingGraph(
           route: 'RESPOND' as const,
           lastNode: 'routing',
           outcomeCode: 'UNSUPPORTED_REQUEST',
+        };
+      }
+      if (worker === 'LEAVE' && intent.intent === 'LEAVE_REQUEST') {
+        if (!intent.leaveStartDate || !intent.leaveEndDate) {
+          context.result = buildInvocationResult(200, {
+            status: 'NEED_MORE_INFORMATION',
+            message: 'Please provide the leave start and end dates in YYYY-MM-DD format.',
+            missingFields: intent.missingFields,
+            runId,
+            threadId: context.input.threadId,
+            correlationId: context.input.correlationId,
+          });
+          nodeEvent(emit, runId, 'routing', 'rejected', 'LEAVE_DATES_REQUIRED');
+          return {
+            route: 'RESPOND' as const,
+            lastNode: 'routing',
+            outcomeCode: 'LEAVE_DATES_REQUIRED',
+          };
+        }
+        nodeEvent(emit, runId, 'routing', 'completed', 'LEAVE_REQUEST_ROUTED');
+        return {
+          route: 'LEAVE' as const,
+          lastNode: 'routing',
+          outcomeCode: 'LEAVE_REQUEST_ROUTED',
         };
       }
       if (!intent.employeeCode) {
@@ -503,6 +551,53 @@ export function createOnboardingGraph(
         lastNode: 'routing',
         outcomeCode: 'ONBOARDING_REVIEW_ROUTED',
       };
+    })
+    .addNode('leave_worker', async () => {
+      const intent = context.intent;
+      if (
+        intent?.intent !== 'LEAVE_REQUEST' ||
+        !intent.leaveStartDate ||
+        !intent.leaveEndDate ||
+        !dependencies.leaves
+      ) {
+        context.result = failureResult(
+          context,
+          runId,
+          500,
+          'INTERNAL_ERROR',
+          'The workflow could not be completed.',
+        );
+        return { route: 'RESPOND' as const };
+      }
+      const worker = await runLeaveWorkerGraph(
+        { employees: dependencies.employees, leaves: dependencies.leaves },
+        {
+          actorEmployeeCode: context.input.actorEmployeeCode,
+          targetEmployeeCode: intent.employeeCode ?? context.input.actorEmployeeCode,
+          startDate: intent.leaveStartDate,
+          endDate: intent.leaveEndDate,
+          today: dependencies.clock.today(),
+          threadId: context.input.threadId,
+          runId,
+          correlationId: context.input.correlationId,
+        },
+        emit,
+      );
+      context.result = worker.result;
+      context.steps.push(...worker.steps);
+      context.securityEvents.push(...worker.securityEvents);
+      const outcomeCode =
+        typeof worker.result.body.code === 'string'
+          ? worker.result.body.code
+          : 'LEAVE_PROPOSAL_READY';
+      nodeEvent(
+        emit,
+        runId,
+        'leave_worker',
+        worker.result.httpStatus >= 400 ? 'failed' : 'completed',
+        outcomeCode,
+      );
+      return { route: 'RESPOND' as const };
     })
     .addNode('employee_lookup', async () => {
       const employeeCode = context.intent?.employeeCode;
@@ -694,9 +789,11 @@ export function createOnboardingGraph(
     .addConditionalEdges('intent_normalization', (state) =>
       state.route === 'RESPOND' ? 'response_audit' : 'routing',
     )
-    .addConditionalEdges('routing', (state) =>
-      state.route === 'RESPOND' ? 'response_audit' : 'employee_lookup',
-    )
+    .addConditionalEdges('routing', (state) => {
+      if (state.route === 'RESPOND') return 'response_audit';
+      return state.route === 'LEAVE' ? 'leave_worker' : 'employee_lookup';
+    })
+    .addEdge('leave_worker', 'response_audit')
     .addConditionalEdges('employee_lookup', (state) =>
       state.route === 'CALCULATE' ? 'onboarding_calculation' : 'response_audit',
     )
@@ -715,7 +812,7 @@ export async function runOnboardingGraph(
   emit: EventSink = () => undefined,
 ): Promise<OnboardingInvocationResult> {
   const startedAt = Date.now();
-  let normalizedIntent: 'ONBOARDING_REVIEW' | 'UNSUPPORTED' | null = null;
+  let normalizedIntent: 'ONBOARDING_REVIEW' | 'LEAVE_REQUEST' | 'UNSUPPORTED' | null = null;
   const nodePath: string[] = [];
   const toolNames: string[] = [];
   let authorizationResult: 'AUTHORIZED' | 'DENIED' | 'NOT_EVALUATED' = 'NOT_EVALUATED';
@@ -727,7 +824,12 @@ export async function runOnboardingGraph(
       nodePath.push(event.data.tool);
       if (event.data.outcomeCode === 'AUTHORIZATION_DENIED') {
         authorizationResult = 'DENIED';
-      } else if (event.data.tool === 'employee_lookup' && event.data.status === 'completed') {
+      } else if (
+        (event.data.tool === 'employee_lookup' ||
+          event.data.tool === 'leave_policy_lookup' ||
+          event.data.tool === 'leave_balance_lookup') &&
+        event.data.status === 'completed'
+      ) {
         authorizationResult = 'AUTHORIZED';
       }
     }
