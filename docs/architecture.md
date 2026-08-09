@@ -52,7 +52,7 @@ flowchart LR
     CONTROLLERS --> APP["app.ts controller mounting"]
 ```
 
-The dependency direction is `controller → service → workflow/repository`. Scheduled jobs, webhook handlers, and RabbitMQ consumers will be separate trigger adapters that reuse the same services; they will not call HTTP controllers or duplicate workflow rules.
+The dependency direction is `controller/trigger → service → workflow/repository`. Scheduled jobs, webhook handlers, and RabbitMQ consumers are separate trigger adapters that reuse the same typed onboarding command entry; they do not call the user-query controller or duplicate workflow rules.
 
 Shared TypeScript definitions are kept in `src/types`, with one exported type per file so callers do not depend on the service implementation. The onboarding graph depends on a typed normalizer interface; the concrete OpenAI normalizer is an outbound adapter under `src/adapters`, and `server.ts` supplies it during composition. The model only normalizes intent. Graph routing, authorization, review calculation, tool selection, and notification conditions are deterministic. Structured employee lookup, onboarding calculation, and manager notification tools re-check authorization using canonical roles and manager relationships loaded from PostgreSQL.
 
@@ -68,6 +68,16 @@ HTTP / schedule / webhook / RabbitMQ
           repository → PostgreSQL
 ```
 
+## Technical trigger delivery
+
+User requests enter the graph as typed `USER_QUERY` commands and retain the deterministic request guard plus OpenAI-backed intent normalization. Schedule, webhook, and RabbitMQ inputs enter as typed `ONBOARDING_REVIEW` commands, so they do not fabricate English or call OpenAI. The graph still performs canonical PostgreSQL identity/role lookup, authorization, deterministic review calculation, notification policy, and audit recording.
+
+Webhook events use a strict versioned Zod contract and a bearer key. Both the presented and configured keys are hashed with SHA-256 before fixed-length `timingSafeEqual` comparison; neither the key nor raw body is logged or persisted. The development publisher route is composed only when `NODE_ENV=development`.
+
+RabbitMQ uses durable topic and dead-letter exchanges, durable queues, publisher confirms, manual acknowledgements, and bounded prefetch/retries. A delivery is acknowledged only after successful idempotent processing or after a retry/dead-letter publish is confirmed. Shutdown stops the scheduler and HTTP listener, cancels the consumer, then closes the channel, connection, and PostgreSQL client.
+
+`processed_events` atomically claims event IDs and stores only delivery metadata and a SHA-256 payload hash. A completed duplicate skips the graph and all side effects; reusing an ID with different content is a stable conflict.
+
 ## Current versus planned
 
-The current release implements the application startup, configuration validation, dependency-injected HTTP controllers, health checks, PostgreSQL schema, migrations, seed data, the typed onboarding graph and tools, JSON and SSE invocation, deterministic development notifications, transactional run/step/security-event recording, redacted Pino invocation logs, and focused unit tests. Leave workflows, external notification providers, external log shipping, and technical trigger adapters are added in later stories.
+The current release implements the application startup, configuration validation, dependency-injected HTTP controllers, health checks, PostgreSQL schema, migrations, seed data, the typed onboarding graph and tools, JSON and SSE invocation, deterministic development notifications, transactional run/step/security-event recording, redacted Pino invocation logs, schedule/webhook/RabbitMQ onboarding triggers, and focused unit tests. Leave workflows, external notification providers, and external log shipping are added in later stories.

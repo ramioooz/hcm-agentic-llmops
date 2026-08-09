@@ -20,6 +20,10 @@ import type { HcmIntent } from '../../types/hcm-intent';
 import type { HcmIntentNormalizer } from '../../types/hcm-intent-normalizer';
 import type { ManagerNotificationSender } from '../../types/manager-notification-sender';
 import type { OnboardingInvocationInput } from '../../types/onboarding-invocation-input';
+import type {
+  TechnicalOnboardingCommand,
+  UserOnboardingCommand,
+} from '../../types/onboarding-invocation-input';
 import type { OnboardingInvocationResult } from '../../types/onboarding-invocation-result';
 import type { SecurityEventRecord } from '../../types/security-event-record';
 
@@ -59,6 +63,14 @@ export type OnboardingGraphDependencies = {
 };
 
 type EventSink = (event: AgentProgressEvent) => void;
+
+function isTechnicalCommand(input: OnboardingInvocationInput): input is TechnicalOnboardingCommand {
+  return input.kind === 'ONBOARDING_REVIEW';
+}
+
+function isUserCommand(input: OnboardingInvocationInput): input is UserOnboardingCommand {
+  return !isTechnicalCommand(input);
+}
 
 function safeErrorCode(error: unknown): string {
   const code = error instanceof Error ? error.message : '';
@@ -131,7 +143,8 @@ async function recordResult(
   await dependencies.recorder.recordInvocation({
     runId,
     correlationId: context.input.correlationId,
-    triggerType: 'HTTP',
+    threadId: context.input.threadId,
+    triggerType: context.input.triggerType ?? 'HTTP',
     actorEmployeeCode: context.input.actorEmployeeCode,
     intent: intent?.intent === 'ONBOARDING_REVIEW' ? 'ONBOARDING_REVIEW' : undefined,
     requestSummary: intent
@@ -168,6 +181,14 @@ export function createOnboardingGraph(
 
   return new StateGraph(OnboardingGraphState)
     .addNode('request_guard', ({ runId }) => {
+      if (isTechnicalCommand(context.input)) {
+        nodeEvent(emit, runId, 'request_guard', 'completed', 'TYPED_COMMAND_ACCEPTED');
+        return {
+          route: 'CONTINUE' as const,
+          lastNode: 'request_guard',
+          outcomeCode: 'TYPED_COMMAND_ACCEPTED',
+        };
+      }
       const safety = evaluateRequestSafety(context.input.query);
       if (!safety.isSafe) {
         const outcomeCode = 'UNSAFE_REQUEST_REJECTED';
@@ -200,7 +221,43 @@ export function createOnboardingGraph(
       };
     })
     .addNode('intent_normalization', async ({ runId }) => {
+      if (isTechnicalCommand(context.input)) {
+        context.intent = {
+          intent: 'ONBOARDING_REVIEW',
+          employeeCode: context.input.targetEmployeeCode,
+          thresholdDays: context.input.thresholdDays,
+          requestedAction:
+            context.input.notificationPolicy === 'NONE' ? 'REVIEW_ONLY' : 'NOTIFY_MANAGER',
+          missingFields: [],
+        };
+        emit({
+          event: 'intent',
+          data: {
+            runId,
+            status: 'accepted',
+            intent: 'ONBOARDING_REVIEW',
+            requestedAction: context.intent.requestedAction,
+          },
+        });
+        context.steps.push({
+          stepName: 'command_intake',
+          status: 'COMPLETED',
+          outcomeCode: 'TYPED_COMMAND_ACCEPTED',
+          inputData: {
+            intent: context.intent.intent,
+            thresholdDays: context.intent.thresholdDays,
+            requestedAction: context.intent.requestedAction,
+          },
+        });
+        nodeEvent(emit, runId, 'intent_normalization', 'completed', 'TYPED_COMMAND_ACCEPTED');
+        return {
+          route: 'CONTINUE' as const,
+          lastNode: 'intent_normalization',
+          outcomeCode: 'TYPED_COMMAND_ACCEPTED',
+        };
+      }
       try {
+        if (!isUserCommand(context.input)) throw new Error('GRAPH_COMMAND_INVALID');
         context.intent = enforceIntentConsistency(
           context.input.query,
           await dependencies.normalizer.normalize(context.input.query),
@@ -516,7 +573,14 @@ export async function runOnboardingGraph(
   };
   emit({
     event: 'run',
-    data: { runId, correlationId: safeInput.correlationId, status: 'started' },
+    data: {
+      runId,
+      correlationId: safeInput.correlationId,
+      status: 'started',
+      triggerType: safeInput.triggerType ?? 'HTTP',
+      ...(safeInput.threadId ? { threadId: safeInput.threadId } : {}),
+      ...(isTechnicalCommand(safeInput) ? { eventId: safeInput.eventId } : {}),
+    },
   });
   const graph = createOnboardingGraph(dependencies, context, emit);
   await graph.invoke({ runId, route: 'CONTINUE', lastNode: 'start', outcomeCode: 'RUN_STARTED' });

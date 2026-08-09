@@ -11,6 +11,11 @@ EMPLOYEES ||--o{ AGENT_RUNS : initiates
 AGENT_RUNS ||--o{ AGENT_RUN_STEPS : contains
 AGENT_RUNS ||--o{ SECURITY_EVENTS : relates
 EMPLOYEES ||--o{ SECURITY_EVENTS : causes
+PROCESSED_EVENTS {
+  string event_id PK
+  string payload_hash
+  string status
+}
 ```
 
 | Table                       | Purpose                                                                           | Used by                | Sensitive data                  |
@@ -20,15 +25,15 @@ EMPLOYEES ||--o{ SECURITY_EVENTS : causes
 | `agent_runs`                | One record for each workflow execution, including run and correlation identifiers | All agent workflows    | Actor and redacted summaries    |
 | `agent_run_steps`           | Routing decisions, tool calls, outcomes, and errors inside one run                | All agent workflows    | Redacted inputs and outputs     |
 | `security_events`           | Rejected requests, authorization failures, and other security signals             | Security controls      | Actor and event metadata        |
+| `processed_events`          | Idempotency and delivery metadata for technical onboarding triggers               | Technical triggers     | Opaque event and trace metadata |
 
 ## Sprint 2 additions
 
-| Table              | Purpose                                                          | Used by            | Sensitive data                            |
-| ------------------ | ---------------------------------------------------------------- | ------------------ | ----------------------------------------- |
-| `leave_policies`   | Rules for supported leave types                                  | Leave workflow     | Policy details, usually not personal      |
-| `leave_balances`   | Allocated, used, pending, and available leave per employee       | Leave workflow     | Employee relationship and balances        |
-| `leave_requests`   | Requested dates, leave type, requested days, and decision status | Leave workflow     | Employee relationship and request details |
-| `processed_events` | Event IDs already handled so retries do not repeat side effects  | RabbitMQ consumers | Event identifiers and status              |
+| Table            | Purpose                                                          | Used by        | Sensitive data                            |
+| ---------------- | ---------------------------------------------------------------- | -------------- | ----------------------------------------- |
+| `leave_policies` | Rules for supported leave types                                  | Leave workflow | Policy details, usually not personal      |
+| `leave_balances` | Allocated, used, pending, and available leave per employee       | Leave workflow | Employee relationship and balances        |
+| `leave_requests` | Requested dates, leave type, requested days, and decision status | Leave workflow | Employee relationship and request details |
 
 ## Seed records
 
@@ -58,7 +63,7 @@ Nadia Rahman (EMP-100, HR partner)
 
 The table story follows the business lifecycle: `employees` identifies people and reporting relationships; `onboarding_review_periods` records the business period being evaluated; `agent_runs` records one workflow attempt; `agent_run_steps` records the decisions and tool operations inside that attempt; and `security_events` records rejected or suspicious activity related to it. No separate `users` table is needed in this release because development actors are represented by employee records and production authentication is a planned boundary.
 
-The onboarding service writes these operational records through the Prisma-backed agent-run repository in one transaction. The run stores the final status and redacted summaries, the step rows store the key decisions, and authorization failures create linked security-event rows. Database failures are mapped to the existing structured internal-error response and do not expose database details to the caller.
+The onboarding service writes run records through the Prisma-backed agent-run repository in one transaction. The run stores the final status and redacted summaries, the step rows store the key decisions, and authorization failures create linked security-event rows. Technical triggers use `processed_events` to claim an event atomically, suppress completed duplicates, allow failed delivery retries, and link the final run/thread IDs. It stores only event ID, type, SHA-256 payload hash, status, attempt, correlation, timestamps, optional trace IDs, and a stable error code—never the raw event payload. Database failures are mapped to stable errors and do not expose database details to the caller.
 
 ### Migration and seed behavior
 
@@ -72,5 +77,6 @@ The onboarding service writes these operational records through the Prisma-backe
 - `runId` identifies one workflow attempt.
 - `correlationId` connects related work across HTTP, workflows, and events.
 - `threadId` is optional and reserved for future multi-turn conversations.
+- `eventId` identifies one versioned technical event; reusing it with a different payload hash is rejected.
 
 Raw prompts and unredacted tool payloads are not stored in operational records.

@@ -66,9 +66,11 @@ export class AgentController implements HttpController {
     }
 
     const input = {
+      kind: 'USER_QUERY' as const,
       query: body.query,
       actorEmployeeCode,
       correlationId,
+      triggerType: 'HTTP' as const,
     };
     if (request.header('Accept')?.toLowerCase().includes('text/event-stream')) {
       await this.writeEventStream(input, response);

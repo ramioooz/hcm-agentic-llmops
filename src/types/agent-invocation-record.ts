@@ -4,6 +4,7 @@ import type { SecurityEventRecord } from './security-event-record';
 export type AgentInvocationRecord = {
   runId: string;
   correlationId: string;
+  threadId?: string;
   triggerType: string;
   actorEmployeeCode?: string;
   intent?: string;

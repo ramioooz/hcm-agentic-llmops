@@ -119,9 +119,11 @@ describe('AgentController', () => {
       correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
     expect(invoke).toHaveBeenCalledWith({
+      kind: 'USER_QUERY',
       query: 'Review onboarding for EMP-1001',
       actorEmployeeCode: 'EMP-9000',
       correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
+      triggerType: 'HTTP',
     });
     expect(logs.info).toHaveBeenNthCalledWith(1, {
       event: 'agent.invoke.started',
@@ -237,9 +239,11 @@ describe('AgentController', () => {
     expect(chunks.join('')).toContain('event: run\n');
     expect(chunks.join('')).toContain('event: response\n');
     expect(stream).toHaveBeenCalledWith({
+      kind: 'USER_QUERY',
       query: 'Review onboarding for EMP-201',
       actorEmployeeCode: 'EMP-200',
       correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
+      triggerType: 'HTTP',
     });
     expect(invoke).not.toHaveBeenCalled();
   });

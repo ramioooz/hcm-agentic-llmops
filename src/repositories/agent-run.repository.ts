@@ -25,6 +25,7 @@ export class PrismaAgentRunRepository implements AgentRunRecorder {
         data: {
           runId: record.runId,
           correlationId: record.correlationId,
+          threadId: record.threadId,
           triggerType: record.triggerType,
           actorEmployeeCode,
           intent: record.intent,
