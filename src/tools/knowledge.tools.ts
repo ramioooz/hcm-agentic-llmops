@@ -2,7 +2,7 @@ import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import type { KnowledgeQueryService } from '../services/knowledge-query.service';
 
-export function createSearchKnowledgeDocumentsTool(queries: KnowledgeQueryService) {
+export function createSearchKnowledgeDocumentsTool(queries: Pick<KnowledgeQueryService, 'query'>) {
   return tool(async ({ query, documentId, limit }) => queries.query({ query, documentId, limit }), {
     name: 'search_knowledge_documents',
     description:

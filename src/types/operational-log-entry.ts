@@ -3,7 +3,11 @@ export type OperationalLogEntry = {
     | 'agent.invoke.started'
     | 'agent.invoke.rejected'
     | 'agent.invoke.completed'
-    | 'agent.invoke.failed';
+    | 'agent.invoke.failed'
+    | 'mcp.request.started'
+    | 'mcp.request.rejected'
+    | 'mcp.request.completed'
+    | 'mcp.request.failed';
   correlationId: string;
   runId?: string;
   status?: string;

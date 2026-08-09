@@ -17,6 +17,7 @@ import { loadEnvironment } from './config/load-environment';
 import { AgentController } from './controllers/agent.controller';
 import { HealthController } from './controllers/health.controller';
 import { KnowledgeController } from './controllers/knowledge.controller';
+import { McpController } from './controllers/mcp.controller';
 import { todayAsDateOnly } from './helpers/onboarding-agent.helpers';
 import { createLangSmithAgentTraceRecorder } from './observability/langsmith-agent-trace-recorder';
 import { PinoApplicationLogger } from './observability/pino-application-logger';
@@ -45,6 +46,7 @@ async function startServer(): Promise<void> {
 
     const employees = new PrismaEmployeeRepository(database);
     const runRepository = new PrismaAgentRunRepository(database);
+    let knowledgeQueries: KnowledgeQueryService | undefined;
     let knowledgeController = new KnowledgeController({
       employees,
       enabled: false,
@@ -55,7 +57,7 @@ async function startServer(): Promise<void> {
         apiKey: environment.openAiApiKey,
         model: environment.openAiEmbeddingModel,
       });
-      const knowledgeQueries = new KnowledgeQueryService({
+      knowledgeQueries = new KnowledgeQueryService({
         repository: knowledgeRepository,
         embeddings: knowledgeEmbeddings,
         answers: new OpenAiGroundedKnowledgeAnswers({
@@ -126,9 +128,16 @@ async function startServer(): Promise<void> {
     const healthController = new HealthController(async () => {
       await database.$queryRaw`SELECT 1`;
     });
+    const logger = new PinoApplicationLogger();
     const agentController = new AgentController({
       agent: onboardingAgent,
-      logger: new PinoApplicationLogger(),
+      logger,
+    });
+    const mcpController = new McpController({
+      employees,
+      clock: { today: todayAsDateOnly },
+      knowledgeQueries,
+      logger,
     });
     const triggerControllers = createTriggerControllers({
       nodeEnv: environment.nodeEnv,
@@ -140,6 +149,7 @@ async function startServer(): Promise<void> {
       healthController,
       agentController,
       knowledgeController,
+      mcpController,
       ...triggerControllers,
     ]);
     const server = app.listen(environment.port, () => {
