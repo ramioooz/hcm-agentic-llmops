@@ -31,14 +31,17 @@ describe('enforceIntentConsistency', () => {
   });
 
   it.each([
-    'Review EMP-201 and notify the manager.',
-    'Review EMP-201 and NOTIFY HIS MANAGER.',
-    'Review EMP-201 and notify her manager.',
-    'Review EMP-201 and notify their manager.',
-    'Review EMP-201 and message the manager.',
-    'Review EMP-201 and tell the manager.',
+    'Notify the manager about EMP-201.',
+    'Please message her manager about EMP-201.',
+    'Review EMP-201 and notify his manager.',
+    'Review EMP-201 then tell their manager.',
     'Review EMP-201 and send a message to the manager.',
-    'Review EMP-201 and send a notification to the manager.',
+    'Can you notify the manager about EMP-201?',
+    'COULD YOU MESSAGE HER MANAGER about EMP-201?',
+    'Would you tell their manager about EMP-201?',
+    'Will you send a notification to his manager about EMP-201?',
+    'I want you to notify the manager about EMP-201.',
+    'I need you to send a message to her manager about EMP-201.',
   ])('retains notification for explicit wording: %s', (query) => {
     expect(enforceIntentConsistency(query, normalizedNotification).requestedAction).toBe(
       'NOTIFY_MANAGER',
@@ -46,6 +49,10 @@ describe('enforceIntentConsistency', () => {
   });
 
   it.each([
+    'Should I notify the manager about EMP-201?',
+    'Tell me whether I should notify the manager about EMP-201.',
+    'Do I need to notify the manager about EMP-201?',
+    'Must I notify the manager about EMP-201?',
     'Is a manager notification required for EMP-201?',
     'Does the manager get a notification for EMP-201?',
     'Tell me whether the manager receives a notification for EMP-201.',

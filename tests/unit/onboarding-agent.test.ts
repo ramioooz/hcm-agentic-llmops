@@ -213,7 +213,10 @@ describe('OnboardingAgentService', () => {
     expect(result.body.data).not.toHaveProperty('actionReason');
   });
 
-  it('does not treat an informational notification question as permission', async () => {
+  it.each([
+    'Should I notify the manager about EMP-201?',
+    'Tell me whether I should notify the manager about EMP-201.',
+  ])('does not treat informational wording as permission: %s', async (query) => {
     const { service } = createService({
       normalizedIntent: {
         intent: 'ONBOARDING_REVIEW',
@@ -225,7 +228,7 @@ describe('OnboardingAgentService', () => {
     });
 
     const result = await service.invoke({
-      query: 'Is a manager notification required for EMP-201?',
+      query,
       actorEmployeeCode: 'EMP-200',
       actorRole: 'MANAGER',
       correlationId: 'corr-provenance-004',

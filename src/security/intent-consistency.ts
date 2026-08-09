@@ -1,8 +1,20 @@
 import type { HcmIntent } from '../types/hcm-intent';
 
 const employeeCodePattern = /\bEMP-\d+\b/gi;
-const affirmativeManagerActionPattern =
-  /\b(?:(?:notify|message|tell)\s+(?:(?:the|my|their|his|her)\s+)?manager|send\s+(?:a\s+)?(?:message|notification)\s+to\s+(?:(?:the|my|their|his|her)\s+)?manager)\b/i;
+const managerRecipient = String.raw`(?:(?:the|my|their|his|her)\s+)?manager`;
+const managerAction = String.raw`(?:(?:notify|message|tell)\s+${managerRecipient}|send\s+(?:a\s+)?(?:message|notification)\s+to\s+${managerRecipient})`;
+const imperativeManagerActionPattern = new RegExp(
+  String.raw`(?:^|[.!?]\s*|\b(?:and|then)\s+)(?:please\s+)?${managerAction}\b`,
+  'i',
+);
+const systemRequestPattern = new RegExp(
+  String.raw`\b(?:can|could|would|will)\s+you\s+(?:please\s+)?${managerAction}\b`,
+  'i',
+);
+const explicitDelegationPattern = new RegExp(
+  String.raw`\bi\s+(?:want|need)\s+you\s+to\s+(?:please\s+)?${managerAction}\b`,
+  'i',
+);
 const negatedNotificationPattern =
   /\b(?:do\s+not|don't|never|without|no)\s+(?:\w+\s+){0,3}(?:notify|notification|message|send|tell)\b/i;
 
@@ -16,7 +28,11 @@ function hasExplicitNotificationRequest(query: string): boolean {
     return false;
   }
 
-  return affirmativeManagerActionPattern.test(query);
+  return (
+    imperativeManagerActionPattern.test(query) ||
+    systemRequestPattern.test(query) ||
+    explicitDelegationPattern.test(query)
+  );
 }
 
 export function enforceIntentConsistency(query: string, intent: HcmIntent): HcmIntent {
