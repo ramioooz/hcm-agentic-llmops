@@ -3,7 +3,7 @@ import type { InvocationBody } from './invocation-body';
 export type AgentProgressEvent =
   | {
       event: 'run';
-      data: { runId: string; correlationId: string; status: 'started' };
+      data: { threadId: string; runId: string; correlationId: string; status: 'started' };
     }
   | {
       event: 'intent';

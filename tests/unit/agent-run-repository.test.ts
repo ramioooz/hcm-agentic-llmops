@@ -1,7 +1,54 @@
 import type { PrismaClient } from '@prisma/client';
 import { PrismaAgentRunRepository } from '../../src/repositories/agent-run.repository';
+import type { AgentInvocationRecord } from '../../src/types/agent-invocation-record';
 
 describe('PrismaAgentRunRepository', () => {
+  it('resolves a canonical employee code with an opaque internal owner binding', async () => {
+    const database = {
+      employee: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'cm-owner-internal-200',
+          employeeCode: 'EMP-200',
+        }),
+      },
+    } as unknown as PrismaClient;
+    const repository = new PrismaAgentRunRepository(database) as PrismaAgentRunRepository & {
+      resolveCanonicalOwner(employeeCode: string): Promise<{
+        employeeCode: string;
+        bindingId: string;
+      } | null>;
+    };
+
+    await expect(repository.resolveCanonicalOwner('EMP-200')).resolves.toEqual({
+      employeeCode: 'EMP-200',
+      bindingId: 'cm-owner-internal-200',
+    });
+    expect(database.employee.findUnique).toHaveBeenCalledWith({
+      where: { employeeCode: 'EMP-200' },
+      select: { id: true, employeeCode: true },
+    });
+  });
+
+  it('reads the earliest verified audit owner for a thread', async () => {
+    const database = {
+      agentRun: {
+        findFirst: jest.fn().mockResolvedValue({ actorEmployeeCode: 'EMP-200' }),
+      },
+    } as unknown as PrismaClient;
+    const repository = new PrismaAgentRunRepository(database) as PrismaAgentRunRepository & {
+      findOwnerEmployeeCodeByThreadId(threadId: string): Promise<string | undefined>;
+    };
+
+    await expect(repository.findOwnerEmployeeCodeByThreadId('thread-001')).resolves.toBe(
+      'EMP-200',
+    );
+    expect(database.agentRun.findFirst).toHaveBeenCalledWith({
+      where: { threadId: 'thread-001', actorEmployeeCode: { not: null } },
+      orderBy: { startedAt: 'asc' },
+      select: { actorEmployeeCode: true },
+    });
+  });
+
   it('persists one run with redacted summaries, steps, and security events', async () => {
     const transaction = {
       agentRun: {
@@ -24,8 +71,9 @@ describe('PrismaAgentRunRepository', () => {
     } as unknown as PrismaClient;
     const repository = new PrismaAgentRunRepository(database);
 
-    await repository.recordInvocation({
+    const record: AgentInvocationRecord & { threadId: string } = {
       runId: 'run-test-001',
+      threadId: 'thread-test-001',
       correlationId: 'corr-test-001',
       triggerType: 'HTTP',
       actorEmployeeCode: 'EMP-200',
@@ -48,13 +96,16 @@ describe('PrismaAgentRunRepository', () => {
           details: { targetEmployeeCode: 'EMP-201' },
         },
       ],
-    });
+    };
+
+    await repository.recordInvocation(record);
 
     expect(database.$transaction).toHaveBeenCalledTimes(1);
     expect(transaction.agentRun.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           runId: 'run-test-001',
+          threadId: 'thread-test-001',
           status: 'SUCCEEDED',
           requestSummary: expect.not.stringContaining('EMP-201'),
         }),
@@ -102,6 +153,7 @@ describe('PrismaAgentRunRepository', () => {
 
     await repository.recordInvocation({
       runId: 'run-test-002',
+      threadId: 'thread-test-002',
       correlationId: 'corr-test-002',
       triggerType: 'HTTP',
       actorEmployeeCode: 'EMP-999',

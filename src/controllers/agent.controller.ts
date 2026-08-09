@@ -3,6 +3,7 @@ import { Router, type Request, type Response } from 'express';
 import { parseAgentInvokeRequest } from '../contracts/agent-invoke';
 import { logAgentInvocationResult } from '../observability/agent-invocation-logging';
 import { resolveSafeCorrelationId } from '../security/correlation-id';
+import { InvalidThreadIdError, resolveThreadId } from '../security/thread-id';
 import type { AgentInvoker } from '../types/agent-invoker';
 import type { ApplicationLogger } from '../types/application-logger';
 import type { InvocationBody } from '../types/invocation-body';
@@ -20,11 +21,60 @@ export class AgentController implements HttpController {
   }
 
   public readonly handleInvoke = async (request: Request, response: Response): Promise<void> => {
-    const correlationId = resolveSafeCorrelationId(request.header('X-Correlation-Id'));
+    const suppliedCorrelationId = request.header('X-Correlation-Id');
+
+    let threadId: string;
+    try {
+      threadId = resolveThreadId(request.header('X-Thread-Id'));
+    } catch (error) {
+      const correlationId = resolveSafeCorrelationId(suppliedCorrelationId);
+      const runId = resolveSafeCorrelationId(undefined, [correlationId]);
+      const message =
+        error instanceof InvalidThreadIdError ? error.message : 'X-Thread-Id must be a UUID v4.';
+      this.dependencies.logger.warn({
+        event: 'agent.invoke.rejected',
+        correlationId,
+        status: 'FAILED',
+        code: 'INVALID_THREAD_ID',
+        httpStatus: 400,
+      });
+      response.status(400).json({
+        status: 'FAILED',
+        code: 'INVALID_THREAD_ID',
+        message,
+        runId,
+        correlationId,
+      });
+      return;
+    }
+    const correlationId = resolveSafeCorrelationId(suppliedCorrelationId, [threadId]);
+    const runId = resolveSafeCorrelationId(undefined, [threadId, correlationId]);
     this.dependencies.logger.info({
       event: 'agent.invoke.started',
       correlationId,
     });
+    response.setHeader('X-Thread-Id', threadId);
+
+    const actorEmployeeCode = request.header('X-Employee-Id')?.trim();
+
+    if (!actorEmployeeCode || !/^EMP-\d+$/.test(actorEmployeeCode)) {
+      this.dependencies.logger.warn({
+        event: 'agent.invoke.rejected',
+        correlationId,
+        status: 'FAILED',
+        code: 'AUTHENTICATION_REQUIRED',
+        httpStatus: 401,
+      });
+      response.status(401).json({
+        status: 'FAILED',
+        code: 'AUTHENTICATION_REQUIRED',
+        message: 'Provide a valid X-Employee-Id header.',
+        threadId,
+        runId,
+        correlationId,
+      });
+      return;
+    }
 
     let body: ReturnType<typeof parseAgentInvokeRequest>;
     try {
@@ -41,25 +91,8 @@ export class AgentController implements HttpController {
         status: 'FAILED',
         code: 'VALIDATION_ERROR',
         message: error instanceof Error ? error.message : 'Invalid request body.',
-        correlationId,
-      });
-      return;
-    }
-
-    const actorEmployeeCode = request.header('X-Employee-Id')?.trim();
-
-    if (!actorEmployeeCode || !/^EMP-\d+$/.test(actorEmployeeCode)) {
-      this.dependencies.logger.warn({
-        event: 'agent.invoke.rejected',
-        correlationId,
-        status: 'FAILED',
-        code: 'AUTHENTICATION_REQUIRED',
-        httpStatus: 401,
-      });
-      response.status(401).json({
-        status: 'FAILED',
-        code: 'AUTHENTICATION_REQUIRED',
-        message: 'Provide a valid X-Employee-Id header.',
+        threadId,
+        runId,
         correlationId,
       });
       return;
@@ -68,6 +101,8 @@ export class AgentController implements HttpController {
     const input = {
       query: body.query,
       actorEmployeeCode,
+      threadId,
+      runId,
       correlationId,
     };
     if (request.header('Accept')?.toLowerCase().includes('text/event-stream')) {
@@ -96,6 +131,8 @@ export class AgentController implements HttpController {
         status: 'FAILED',
         code: 'INTERNAL_ERROR',
         message: 'The workflow could not be completed.',
+        threadId,
+        runId,
         correlationId,
       });
     }
@@ -110,7 +147,7 @@ export class AgentController implements HttpController {
     response.setHeader('Cache-Control', 'no-cache, no-transform');
     response.setHeader('Connection', 'keep-alive');
     response.flushHeaders?.();
-    let runId: string = randomUUID();
+    let runId: string = input.runId ?? randomUUID();
 
     try {
       let finalResponse: { httpStatus: number; body: InvocationBody } | undefined;
@@ -132,6 +169,7 @@ export class AgentController implements HttpController {
         status: 'FAILED',
         code: 'INTERNAL_ERROR',
         message: 'The workflow could not be completed.',
+        threadId: input.threadId as string,
         runId,
         correlationId: input.correlationId,
       };

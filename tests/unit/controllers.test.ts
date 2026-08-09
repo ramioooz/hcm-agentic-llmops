@@ -18,6 +18,7 @@ function agentWith(invoke: InvokeFunction) {
 
 type CapturedResponse = {
   body: unknown;
+  headers: Record<string, string>;
   response: Response;
   statusCode: number;
 };
@@ -59,6 +60,7 @@ function requestWith(input: {
 function captureResponse(): CapturedResponse {
   const captured = {
     body: undefined as unknown,
+    headers: {} as Record<string, string>,
     statusCode: 0,
   };
   const response = {
@@ -70,11 +72,18 @@ function captureResponse(): CapturedResponse {
       captured.body = body;
       return response;
     },
+    setHeader: (name: string, value: string) => {
+      captured.headers[name] = value;
+      return response;
+    },
   } as Response;
 
   return {
     get body() {
       return captured.body;
+    },
+    get headers() {
+      return captured.headers;
     },
     response,
     get statusCode() {
@@ -84,6 +93,154 @@ function captureResponse(): CapturedResponse {
 }
 
 describe('AgentController', () => {
+  test('rejects a malformed supplied thread ID without replacing it', async () => {
+    const invoke = jest.fn<ReturnType<InvokeFunction>, Parameters<InvokeFunction>>();
+    const controller = new AgentController({
+      agent: agentWith(invoke),
+      logger: captureLogger().logger,
+    });
+    const captured = captureResponse();
+
+    await controller.handleInvoke(
+      requestWith({
+        body: { query: 'Review onboarding for EMP-201' },
+        headers: {
+          'X-Employee-Id': 'EMP-200',
+          'X-Thread-Id': 'not-a-thread-id',
+        },
+      }),
+      captured.response,
+    );
+
+    expect(captured.statusCode).toBe(400);
+    expect(captured.body).toMatchObject({
+      status: 'FAILED',
+      code: 'INVALID_THREAD_ID',
+      message: 'X-Thread-Id must be a UUID v4.',
+    });
+    expect(captured.headers).not.toHaveProperty('X-Thread-Id');
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  test('generates a UUID v4 thread ID, passes distinct IDs, and echoes the thread header', async () => {
+    const invoke = jest.fn(async (input: OnboardingInvocationInput) => ({
+      httpStatus: 200,
+      body: {
+        status: 'NEED_MORE_INFORMATION',
+        message: 'Please provide the employee ID.',
+        threadId: (input as OnboardingInvocationInput & { threadId: string }).threadId,
+        runId: (input as OnboardingInvocationInput & { runId: string }).runId,
+        correlationId: input.correlationId,
+      },
+    }));
+    const controller = new AgentController({
+      agent: agentWith(invoke),
+      logger: captureLogger().logger,
+    });
+    const captured = captureResponse();
+
+    await controller.handleInvoke(
+      requestWith({
+        body: { query: 'Review onboarding status' },
+        headers: { 'X-Employee-Id': 'EMP-200' },
+      }),
+      captured.response,
+    );
+
+    const input = invoke.mock.calls[0]?.[0];
+    const identifiers = input as
+      (OnboardingInvocationInput & { threadId: string; runId: string }) | undefined;
+    expect(identifiers?.threadId).toMatch(UUID_PATTERN);
+    expect(identifiers?.runId).toMatch(UUID_PATTERN);
+    expect(input?.correlationId).toMatch(UUID_PATTERN);
+    expect(
+      new Set([identifiers?.threadId, identifiers?.runId, identifiers?.correlationId]).size,
+    ).toBe(3);
+    expect(captured.headers['X-Thread-Id']).toBe(identifiers?.threadId);
+    expect(captured.body).toMatchObject({
+      threadId: identifiers?.threadId,
+      runId: identifiers?.runId,
+      correlationId: identifiers?.correlationId,
+    });
+  });
+
+  test('preserves a supplied JSON thread ID and regenerates a colliding correlation ID', async () => {
+    const suppliedId = '8b8a6d62-bf1c-4abf-9968-84b8e23b58cb';
+    const invoke = jest.fn(async (input: OnboardingInvocationInput) => ({
+      httpStatus: 200,
+      body: {
+        status: 'NEED_MORE_INFORMATION',
+        message: 'Please provide the employee ID.',
+        threadId: input.threadId as string,
+        runId: input.runId as string,
+        correlationId: input.correlationId,
+      },
+    }));
+    const controller = new AgentController({
+      agent: agentWith(invoke),
+      logger: captureLogger().logger,
+    });
+    const captured = captureResponse();
+
+    await controller.handleInvoke(
+      requestWith({
+        body: { query: 'Review onboarding status' },
+        headers: {
+          'X-Employee-Id': 'EMP-200',
+          'X-Thread-Id': suppliedId,
+          'X-Correlation-Id': suppliedId,
+        },
+      }),
+      captured.response,
+    );
+
+    const input = invoke.mock.calls[0]?.[0];
+    expect(input?.threadId).toBe(suppliedId);
+    expect(input?.correlationId).toMatch(UUID_PATTERN);
+    expect(input?.correlationId).not.toBe(suppliedId);
+    expect(captured.headers['X-Thread-Id']).toBe(suppliedId);
+    expect(captured.body).toMatchObject({
+      threadId: suppliedId,
+      correlationId: input?.correlationId,
+    });
+  });
+
+  test('passes distinct supplied thread and correlation IDs into the shared SSE service input', async () => {
+    const suppliedId = '8b8a6d62-bf1c-4abf-9968-84b8e23b58cb';
+    const invoke = jest.fn<ReturnType<InvokeFunction>, Parameters<InvokeFunction>>();
+    const stream = jest.fn().mockImplementation(async function* () {});
+    const response = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+      setHeader: jest.fn(),
+      flushHeaders: jest.fn(),
+      write: jest.fn(),
+      end: jest.fn(),
+    } as unknown as Response;
+    const controller = new AgentController({
+      agent: { invoke, stream },
+      logger: captureLogger().logger,
+    });
+
+    await controller.handleInvoke(
+      requestWith({
+        body: { query: 'Review onboarding status' },
+        headers: {
+          Accept: 'text/event-stream',
+          'X-Employee-Id': 'EMP-200',
+          'X-Thread-Id': suppliedId,
+          'X-Correlation-Id': suppliedId,
+        },
+      }),
+      response,
+    );
+
+    const input = stream.mock.calls[0]?.[0] as OnboardingInvocationInput | undefined;
+    expect(input?.threadId).toBe(suppliedId);
+    expect(input?.correlationId).toMatch(UUID_PATTERN);
+    expect(input?.correlationId).not.toBe(suppliedId);
+  });
+
   test('returns the agent service HTTP result for a valid request', async () => {
     const invoke = jest
       .fn<ReturnType<InvokeFunction>, Parameters<InvokeFunction>>()
@@ -92,6 +249,7 @@ describe('AgentController', () => {
         body: {
           status: 'COMPLETED',
           message: 'Employee onboarding review completed.',
+          threadId: '8b8a6d62-bf1c-4abf-9968-84b8e23b58cb',
           runId: 'run-123',
           correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
         },
@@ -106,6 +264,7 @@ describe('AgentController', () => {
         headers: {
           'X-Correlation-Id': '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
           'X-Employee-Id': 'EMP-9000',
+          'X-Thread-Id': '8b8a6d62-bf1c-4abf-9968-84b8e23b58cb',
         },
       }),
       captured.response,
@@ -115,12 +274,16 @@ describe('AgentController', () => {
     expect(captured.body).toEqual({
       status: 'COMPLETED',
       message: 'Employee onboarding review completed.',
+      threadId: '8b8a6d62-bf1c-4abf-9968-84b8e23b58cb',
       runId: 'run-123',
       correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
+    expect(captured.headers['X-Thread-Id']).toBe('8b8a6d62-bf1c-4abf-9968-84b8e23b58cb');
     expect(invoke).toHaveBeenCalledWith({
       query: 'Review onboarding for EMP-1001',
       actorEmployeeCode: 'EMP-9000',
+      threadId: '8b8a6d62-bf1c-4abf-9968-84b8e23b58cb',
+      runId: expect.any(String),
       correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
     expect(logs.info).toHaveBeenNthCalledWith(1, {
@@ -143,6 +306,7 @@ describe('AgentController', () => {
       body: {
         status: 'COMPLETED',
         message: 'Employee onboarding review completed.',
+        threadId: (input as OnboardingInvocationInput & { threadId: string }).threadId,
         runId: 'run-safe-correlation',
         correlationId: input.correlationId,
       },
@@ -198,6 +362,7 @@ describe('AgentController', () => {
           body: {
             status: 'COMPLETED',
             message: 'Employee onboarding review completed.',
+            threadId: '8b8a6d62-bf1c-4abf-9968-84b8e23b58cb',
             runId: 'run-sse',
             correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
           },
@@ -236,11 +401,15 @@ describe('AgentController', () => {
     expect(headers['Content-Type']).toBe('text/event-stream');
     expect(chunks.join('')).toContain('event: run\n');
     expect(chunks.join('')).toContain('event: response\n');
-    expect(stream).toHaveBeenCalledWith({
-      query: 'Review onboarding for EMP-201',
-      actorEmployeeCode: 'EMP-200',
-      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
-    });
+    expect(stream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: 'Review onboarding for EMP-201',
+        actorEmployeeCode: 'EMP-200',
+        threadId: expect.stringMatching(UUID_PATTERN),
+        runId: expect.stringMatching(UUID_PATTERN),
+        correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
+      }),
+    );
     expect(invoke).not.toHaveBeenCalled();
   });
 
@@ -296,6 +465,7 @@ describe('AgentController', () => {
         status: 'FAILED',
         code: 'INTERNAL_ERROR',
         message: 'The workflow could not be completed.',
+        threadId: expect.stringMatching(UUID_PATTERN),
         runId: '6a650be1-90c6-49fb-966f-4608b10060ac',
         correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
       },
@@ -415,6 +585,8 @@ describe('AgentController', () => {
       status: 'FAILED',
       code: 'INTERNAL_ERROR',
       message: 'The workflow could not be completed.',
+      threadId: expect.stringMatching(UUID_PATTERN),
+      runId: expect.stringMatching(UUID_PATTERN),
       correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
     });
     expect(logs.error).toHaveBeenCalledWith({
@@ -435,6 +607,7 @@ describe('AgentController', () => {
           status: 'FAILED',
           code: 'AUTHORIZATION_DENIED',
           message: 'You are not authorized to perform this operation.',
+          threadId: '8b8a6d62-bf1c-4abf-9968-84b8e23b58cb',
           runId: 'run-403',
           correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
         },
@@ -474,6 +647,7 @@ describe('AgentController', () => {
           status: 'FAILED',
           code: 'INTERNAL_ERROR',
           message: 'The workflow could not be completed.',
+          threadId: '8b8a6d62-bf1c-4abf-9968-84b8e23b58cb',
           runId: 'run-service-500',
           correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
         },
@@ -512,6 +686,7 @@ describe('AgentController', () => {
         body: {
           status: 'NEED_MORE_INFORMATION',
           message: 'Please provide the employee ID.',
+          threadId: '8b8a6d62-bf1c-4abf-9968-84b8e23b58cb',
           runId: 'run-more-information',
           correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
         },

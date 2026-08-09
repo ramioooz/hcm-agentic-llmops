@@ -25,6 +25,7 @@ describe('logAgentInvocationResult', () => {
       {
         status: 'COMPLETED',
         message: 'Employee onboarding review completed.',
+        threadId: 'thread-200',
         runId: 'run-200',
         correlationId: 'corr-200',
       },
@@ -50,6 +51,7 @@ describe('logAgentInvocationResult', () => {
         status: 'FAILED',
         code: 'AUTHORIZATION_DENIED',
         message: 'You are not authorized to perform this operation.',
+        threadId: 'thread-403',
         runId: 'run-403',
         correlationId: 'corr-403',
       },
@@ -76,6 +78,7 @@ describe('logAgentInvocationResult', () => {
         status: 'FAILED',
         code: 'INTERNAL_ERROR',
         message: 'The workflow could not be completed.',
+        threadId: 'thread-500',
         runId: 'run-500',
         correlationId: 'corr-500',
       },

@@ -69,8 +69,10 @@ The onboarding service writes these operational records through the Prisma-backe
 ## Identifiers and traceability
 
 - `employeeCode` is the human-readable employee reference used in examples.
-- `runId` identifies one workflow attempt.
-- `correlationId` connects related work across HTTP, workflows, and events.
-- `threadId` is optional and reserved for future multi-turn conversations.
+- `threadId` identifies one durable multi-turn conversation and is recorded on every agent run.
+- `runId` identifies one workflow attempt; a resumed thread receives a new run ID.
+- `correlationId` connects one request across HTTP, workflows, audit records, and downstream work.
+
+LangGraph's `PostgresSaver` owns its technical checkpoint tables and applies its own idempotent setup migrations during application startup. The domain model deliberately has no `agent_threads` table: checkpointed owner metadata binds the thread identity, while `agent_runs`, `agent_run_steps`, and `security_events` remain the audit trail and carry `threadId` through their parent run.
 
 Raw prompts and unredacted tool payloads are not stored in operational records.
