@@ -45,6 +45,7 @@ Successful review response:
 {
   "status": "COMPLETED",
   "message": "Employee onboarding review completed.",
+  "threadId": "8b8a6d62-bf1c-4abf-9968-84b8e23b58cb",
   "runId": "7ea4e83c-64e6-4f61-a0a0-17c1df4bf5af",
   "correlationId": "4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0",
   "data": {
@@ -58,6 +59,10 @@ Successful review response:
   }
 }
 ```
+
+The response also contains `X-Thread-Id: 8b8a6d62-bf1c-4abf-9968-84b8e23b58cb`. Omit that request header to start a thread, then send the returned UUID v4 on the next request to continue it. For example, a first request with `{"query":"Review the onboarding status"}` returns `NEED_MORE_INFORMATION`; a second request with `X-Thread-Id` set to the returned value and `{"query":"EMP-201"}` completes the review. The same `X-Employee-Id` must own both requests. A malformed thread header returns HTTP `400` with `INVALID_THREAD_ID`, and a different employee identity returns HTTP `403` with `THREAD_IDENTITY_MISMATCH`.
+
+Every accepted request has separate identifiers: `threadId` remains stable across the conversation, `runId` changes for each attempt, and `correlationId` traces one request. This separation also appears in JSON and final SSE response bodies.
 
 If the employee ID is missing, the endpoint returns `NEED_MORE_INFORMATION`. If the request is outside the onboarding capability, it returns `UNSUPPORTED_REQUEST`. An explicit notification request inside the requested threshold uses the development notification adapter when the database-derived role permits it: HR may notify for any employee, managers only for direct reports, and employees cannot notify. Requests are normalized with a strict structured intent contract after deterministic request-safety checks; a normalization failure returns HTTP `503` with code `MODEL_UNAVAILABLE`.
 

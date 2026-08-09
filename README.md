@@ -35,7 +35,8 @@ The second area and technical triggers are planned for Sprint 2. The current rel
 | RabbitMQ development service               | Implemented | Docker Compose service; application event handling is planned for Sprint 2                                         |
 | Health and readiness endpoints             | Implemented | `/health` and `/ready`                                                                                             |
 | Focused unit tests                         | Implemented | Jest tests for controllers, configuration, onboarding, and PII redaction                                           |
-| Agent invocation endpoint                  | Implemented | `POST /api/v1/agent/invoke` with validation and correlation IDs                                                    |
+| Agent invocation endpoint                  | Implemented | `POST /api/v1/agent/invoke` with distinct thread, run, and correlation IDs                                         |
+| Durable conversation state                 | Implemented | PostgreSQL LangGraph checkpoints resume missing-information requests for the same identity                         |
 | Employee onboarding review workflow        | Implemented | Deterministic review-period lookup and threshold evaluation                                                        |
 | Authorization and guardrails               | Implemented | One mock identity header; canonical roles and manager relationships are loaded from PostgreSQL at tool boundaries  |
 | Structured intent normalization            | Implemented | OpenAI structured output normalizes onboarding intent; deterministic controls remain authoritative                 |
@@ -136,9 +137,11 @@ The security design uses several independent controls:
 
 ## Run traceability
 
-- `correlationId` follows one logical operation across HTTP, workflows, queues, retries, and downstream services.
-- `runId` identifies one workflow execution attempt.
-- `threadId` is optional and can group multiple runs in a future multi-turn conversation.
+- `threadId` is a UUID v4 that identifies one durable conversation across requests. Supply it with `X-Thread-Id` to resume a conversation; otherwise the API creates one and returns it in both the response header and body.
+- `runId` is a new UUID v4 for each workflow execution attempt, including each request in the same thread.
+- `correlationId` follows one request across HTTP, workflow, audit, and downstream work. A caller can supply a UUID v4 with `X-Correlation-Id`; otherwise the API creates one.
+
+Threads are bound to the canonical `X-Employee-Id` stored in protected checkpoint state. A different identity cannot resume the thread. Checkpoints retain only normalized continuation intent, missing fields, and owner metadata; raw queries, employee records, names, email addresses, secrets, and final employee data remain transient.
 
 One scheduled operation may therefore have one correlation ID and several run IDs. The same run ID links the routing decision, tool calls, tool results, final response, and any security event.
 
@@ -197,7 +200,7 @@ controller → service → workflow/repository
 
 Future schedule, webhook, and RabbitMQ adapters can call the same services without depending on Express.
 
-Shared onboarding definitions live under `src/types`, with one exported type per file. The onboarding service invokes the same typed LangGraph runner for JSON and SSE. The graph keeps deterministic routing and business policy in nodes and authorized tools; the model is called only through `HcmIntentNormalizer`. `server.ts` connects the concrete OpenAI normalizer, PostgreSQL repositories, run recorder, and development notification adapter at startup.
+Shared onboarding definitions live under `src/types`, with one exported type per file. The onboarding service invokes the same typed LangGraph runner for JSON and SSE. The graph keeps deterministic routing and business policy in nodes and authorized tools; the model is called only through `HcmIntentNormalizer`. `server.ts` initializes the PostgreSQL LangGraph checkpointer before listening and closes it during shutdown alongside Prisma.
 
 ## Getting started
 

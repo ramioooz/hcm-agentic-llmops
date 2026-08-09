@@ -24,6 +24,7 @@ export class PrismaAgentRunRepository implements AgentRunRecorder {
       const agentRun = await transaction.agentRun.create({
         data: {
           runId: record.runId,
+          threadId: record.threadId,
           correlationId: record.correlationId,
           triggerType: record.triggerType,
           actorEmployeeCode,

@@ -1,9 +1,19 @@
-import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
+import {
+  END,
+  START,
+  StateGraph,
+  StateSchema,
+  UntrackedValue,
+  type BaseCheckpointSaver,
+} from '@langchain/langgraph';
+import { z } from 'zod';
+import { hcmIntentSchema } from '../../contracts/hcm-intent.contract';
 import { buildInvocationResult } from '../../helpers/onboarding-agent.helpers';
 import { enforceIntentConsistency } from '../../security/intent-consistency';
 import { redactSensitiveData } from '../../security/pii-redaction';
 import { evaluateRequestSafety } from '../../security/request-safety';
 import { resolveSafeCorrelationId } from '../../security/correlation-id';
+import { resolveThreadId } from '../../security/thread-id';
 import {
   createEmployeeLookupTool,
   createManagerNotificationTool,
@@ -23,13 +33,15 @@ import type { OnboardingInvocationInput } from '../../types/onboarding-invocatio
 import type { OnboardingInvocationResult } from '../../types/onboarding-invocation-result';
 import type { SecurityEventRecord } from '../../types/security-event-record';
 
-type GraphRoute = 'CONTINUE' | 'RESPOND' | 'CALCULATE' | 'NOTIFY' | 'SKIP_NOTIFICATION';
-
-export const OnboardingGraphState = Annotation.Root({
-  runId: Annotation<string>(),
-  route: Annotation<GraphRoute>(),
-  lastNode: Annotation<string>(),
-  outcomeCode: Annotation<string>(),
+export const OnboardingGraphState = new StateSchema({
+  ownerEmployeeCode: z.string().regex(/^EMP-\d+$/),
+  normalizedIntent: hcmIntentSchema.optional(),
+  runId: new UntrackedValue(z.string()),
+  route: new UntrackedValue(
+    z.enum(['CONTINUE', 'RESPOND', 'CALCULATE', 'NOTIFY', 'SKIP_NOTIFICATION']),
+  ),
+  lastNode: new UntrackedValue(z.string()),
+  outcomeCode: new UntrackedValue(z.string()),
 });
 
 type ReviewResult = {
@@ -39,7 +51,7 @@ type ReviewResult = {
 };
 
 type ExecutionContext = {
-  input: OnboardingInvocationInput;
+  input: OnboardingInvocationInput & { threadId: string };
   intent?: HcmIntent;
   lookup?: AuthorizedEmployeeLookup;
   review?: ReviewResult;
@@ -56,6 +68,7 @@ export type OnboardingGraphDependencies = {
   recorder: AgentRunRecorder;
   normalizer: HcmIntentNormalizer;
   notifications: ManagerNotificationSender;
+  checkpointer: BaseCheckpointSaver;
 };
 
 type EventSink = (event: AgentProgressEvent) => void;
@@ -104,6 +117,7 @@ function failureResult(
     status: 'FAILED',
     code,
     message,
+    threadId: context.input.threadId,
     runId,
     correlationId: context.input.correlationId,
   });
@@ -130,6 +144,7 @@ async function recordResult(
   const intent = context.intent;
   await dependencies.recorder.recordInvocation({
     runId,
+    threadId: context.input.threadId,
     correlationId: context.input.correlationId,
     triggerType: 'HTTP',
     actorEmployeeCode: context.input.actorEmployeeCode,
@@ -155,6 +170,71 @@ async function recordResult(
       details: event.details ? redactSensitiveData(event.details) : undefined,
     })),
   });
+}
+
+function continueNormalizedIntent(
+  query: string,
+  current: HcmIntent,
+  previous: HcmIntent | undefined,
+): HcmIntent {
+  if (
+    previous?.intent !== 'ONBOARDING_REVIEW' ||
+    previous.employeeCode !== null ||
+    current.intent !== 'UNSUPPORTED'
+  ) {
+    return current;
+  }
+
+  const employeeCode = query.trim().toUpperCase();
+  if (!/^EMP-\d+$/.test(employeeCode)) return current;
+
+  return {
+    ...previous,
+    employeeCode,
+    missingFields: [],
+  };
+}
+
+async function rejectThreadIdentityMismatch(
+  dependencies: OnboardingGraphDependencies,
+  input: OnboardingInvocationInput & { threadId: string },
+  runId: string,
+): Promise<OnboardingInvocationResult | undefined> {
+  const checkpoint = await dependencies.checkpointer.getTuple({
+    configurable: { thread_id: input.threadId },
+  });
+  const ownerEmployeeCode = checkpoint?.checkpoint.channel_values.ownerEmployeeCode;
+  if (ownerEmployeeCode === undefined || ownerEmployeeCode === input.actorEmployeeCode) {
+    return undefined;
+  }
+
+  const result = buildInvocationResult(403, {
+    status: 'FAILED',
+    code: 'THREAD_IDENTITY_MISMATCH',
+    message: 'This conversation belongs to a different employee identity.',
+    threadId: input.threadId,
+    runId,
+    correlationId: input.correlationId,
+  });
+  await dependencies.recorder.recordInvocation({
+    threadId: input.threadId,
+    runId,
+    correlationId: input.correlationId,
+    triggerType: 'HTTP',
+    actorEmployeeCode: input.actorEmployeeCode,
+    status: 'REJECTED',
+    requestSummary: {},
+    resultSummary: { status: result.body.status, code: result.body.code },
+    steps: [
+      {
+        stepName: 'thread_identity_check',
+        status: 'REJECTED',
+        outcomeCode: 'THREAD_IDENTITY_MISMATCH',
+      },
+    ],
+    securityEvents: [{ eventType: 'AUTHORIZATION_DENIED', severity: 'HIGH' }],
+  });
+  return result;
 }
 
 export function createOnboardingGraph(
@@ -199,11 +279,15 @@ export function createOnboardingGraph(
         outcomeCode: 'REQUEST_ACCEPTED',
       };
     })
-    .addNode('intent_normalization', async ({ runId }) => {
+    .addNode('intent_normalization', async ({ runId, normalizedIntent }) => {
       try {
-        context.intent = enforceIntentConsistency(
+        context.intent = continueNormalizedIntent(
           context.input.query,
-          await dependencies.normalizer.normalize(context.input.query),
+          enforceIntentConsistency(
+            context.input.query,
+            await dependencies.normalizer.normalize(context.input.query),
+          ),
+          normalizedIntent,
         );
         emit({
           event: 'intent',
@@ -234,6 +318,7 @@ export function createOnboardingGraph(
           route: 'CONTINUE' as const,
           lastNode: 'intent_normalization',
           outcomeCode: 'INTENT_NORMALIZED',
+          normalizedIntent: context.intent,
         };
       } catch {
         context.steps.push({
@@ -264,6 +349,7 @@ export function createOnboardingGraph(
           status: 'UNSUPPORTED_REQUEST',
           message: 'That request is outside the capabilities of this HCM agent.',
           runId,
+          threadId: context.input.threadId,
           correlationId: context.input.correlationId,
         });
         nodeEvent(emit, runId, 'routing', 'rejected', 'UNSUPPORTED_REQUEST');
@@ -279,6 +365,7 @@ export function createOnboardingGraph(
           message: 'Please provide the employee ID.',
           missingFields: ['employeeId'],
           runId,
+          threadId: context.input.threadId,
           correlationId: context.input.correlationId,
         });
         nodeEvent(emit, runId, 'routing', 'rejected', 'EMPLOYEE_ID_REQUIRED');
@@ -443,6 +530,7 @@ export function createOnboardingGraph(
           status: 'COMPLETED',
           message: 'Employee onboarding review completed.',
           runId,
+          threadId: context.input.threadId,
           correlationId: context.input.correlationId,
           data: {
             employeeCode: employee.employeeCode,
@@ -495,7 +583,7 @@ export function createOnboardingGraph(
     )
     .addEdge('manager_notification', 'response_audit')
     .addEdge('response_audit', END)
-    .compile();
+    .compile({ checkpointer: dependencies.checkpointer });
 }
 
 export async function runOnboardingGraph(
@@ -506,8 +594,10 @@ export async function runOnboardingGraph(
 ): Promise<OnboardingInvocationResult> {
   const safeInput = {
     ...input,
+    actorEmployeeCode: input.actorEmployeeCode.trim().toUpperCase(),
     correlationId: resolveSafeCorrelationId(input.correlationId),
-  };
+    threadId: resolveThreadId(input.threadId),
+  } satisfies OnboardingInvocationInput & { threadId: string };
   const context: ExecutionContext = {
     input: safeInput,
     actionPerformed: false,
@@ -516,10 +606,32 @@ export async function runOnboardingGraph(
   };
   emit({
     event: 'run',
-    data: { runId, correlationId: safeInput.correlationId, status: 'started' },
+    data: {
+      threadId: safeInput.threadId,
+      runId,
+      correlationId: safeInput.correlationId,
+      status: 'started',
+    },
   });
+  const identityRejection = await rejectThreadIdentityMismatch(dependencies, safeInput, runId);
+  if (identityRejection) {
+    emit({
+      event: 'response',
+      data: { runId, status: 'completed', ...identityRejection },
+    });
+    return identityRejection;
+  }
   const graph = createOnboardingGraph(dependencies, context, emit);
-  await graph.invoke({ runId, route: 'CONTINUE', lastNode: 'start', outcomeCode: 'RUN_STARTED' });
+  await graph.invoke(
+    {
+      ownerEmployeeCode: safeInput.actorEmployeeCode,
+      runId,
+      route: 'CONTINUE',
+      lastNode: 'start',
+      outcomeCode: 'RUN_STARTED',
+    },
+    { configurable: { thread_id: safeInput.threadId } },
+  );
   if (!context.result) throw new Error('GRAPH_RESULT_MISSING');
   return context.result;
 }

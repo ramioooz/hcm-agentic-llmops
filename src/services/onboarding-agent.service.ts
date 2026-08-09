@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { MemorySaver, type BaseCheckpointSaver } from '@langchain/langgraph';
 import { resolveSafeCorrelationId } from '../security/correlation-id';
+import { resolveThreadId } from '../security/thread-id';
 import type { AgentInvoker } from '../types/agent-invoker';
 import type { AgentProgressEvent } from '../types/agent-progress-event';
 import type { OnboardingInvocationInput } from '../types/onboarding-invocation-input';
@@ -10,14 +12,22 @@ import {
 } from '../workflows/onboarding/onboarding.graph';
 
 export class OnboardingAgentService implements AgentInvoker {
-  public constructor(private readonly dependencies: OnboardingGraphDependencies) {}
+  private readonly dependencies: OnboardingGraphDependencies;
+
+  public constructor(
+    dependencies: Omit<OnboardingGraphDependencies, 'checkpointer'> & {
+      checkpointer?: BaseCheckpointSaver;
+    },
+  ) {
+    this.dependencies = {
+      ...dependencies,
+      checkpointer: dependencies.checkpointer ?? new MemorySaver(),
+    };
+  }
 
   public invoke(input: OnboardingInvocationInput): Promise<OnboardingInvocationResult> {
-    return runOnboardingGraph(
-      this.dependencies,
-      { ...input, correlationId: resolveSafeCorrelationId(input.correlationId) },
-      randomUUID(),
-    );
+    const identifiers = this.resolveIdentifiers(input);
+    return runOnboardingGraph(this.dependencies, { ...input, ...identifiers }, identifiers.runId);
   }
 
   public async *stream(input: OnboardingInvocationInput): AsyncIterable<AgentProgressEvent> {
@@ -25,10 +35,11 @@ export class OnboardingAgentService implements AgentInvoker {
     let wake: (() => void) | undefined;
     let complete = false;
     let failure: unknown;
+    const identifiers = this.resolveIdentifiers(input);
     const execution = runOnboardingGraph(
       this.dependencies,
-      { ...input, correlationId: resolveSafeCorrelationId(input.correlationId) },
-      randomUUID(),
+      { ...input, ...identifiers },
+      identifiers.runId,
       (event) => {
         events.push(event);
         wake?.();
@@ -55,5 +66,17 @@ export class OnboardingAgentService implements AgentInvoker {
     }
     await execution;
     if (failure) throw failure;
+  }
+
+  private resolveIdentifiers(input: OnboardingInvocationInput): {
+    correlationId: string;
+    runId: string;
+    threadId: string;
+  } {
+    return {
+      correlationId: resolveSafeCorrelationId(input.correlationId),
+      runId: input.runId ?? randomUUID(),
+      threadId: resolveThreadId(input.threadId),
+    };
   }
 }

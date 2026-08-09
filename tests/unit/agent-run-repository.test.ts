@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import { PrismaAgentRunRepository } from '../../src/repositories/agent-run.repository';
+import type { AgentInvocationRecord } from '../../src/types/agent-invocation-record';
 
 describe('PrismaAgentRunRepository', () => {
   it('persists one run with redacted summaries, steps, and security events', async () => {
@@ -24,8 +25,9 @@ describe('PrismaAgentRunRepository', () => {
     } as unknown as PrismaClient;
     const repository = new PrismaAgentRunRepository(database);
 
-    await repository.recordInvocation({
+    const record: AgentInvocationRecord & { threadId: string } = {
       runId: 'run-test-001',
+      threadId: 'thread-test-001',
       correlationId: 'corr-test-001',
       triggerType: 'HTTP',
       actorEmployeeCode: 'EMP-200',
@@ -48,13 +50,16 @@ describe('PrismaAgentRunRepository', () => {
           details: { targetEmployeeCode: 'EMP-201' },
         },
       ],
-    });
+    };
+
+    await repository.recordInvocation(record);
 
     expect(database.$transaction).toHaveBeenCalledTimes(1);
     expect(transaction.agentRun.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           runId: 'run-test-001',
+          threadId: 'thread-test-001',
           status: 'SUCCEEDED',
           requestSummary: expect.not.stringContaining('EMP-201'),
         }),
@@ -102,6 +107,7 @@ describe('PrismaAgentRunRepository', () => {
 
     await repository.recordInvocation({
       runId: 'run-test-002',
+      threadId: 'thread-test-002',
       correlationId: 'corr-test-002',
       triggerType: 'HTTP',
       actorEmployeeCode: 'EMP-999',

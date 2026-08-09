@@ -47,6 +47,20 @@ curl -X POST http://localhost:3000/api/v1/agent/invoke \
 
 `X-Correlation-Id` is optional and accepts only a UUID v4. Missing or invalid values are replaced with a generated UUID before logging or workflow execution.
 
+`X-Thread-Id` is also optional, but a supplied value must be a UUID v4. Omit it on the first request and copy the returned `X-Thread-Id` response header into later requests to continue the conversation. Unlike a malformed correlation ID, a malformed thread ID is rejected with `INVALID_THREAD_ID` so the API never silently changes conversation identity. A thread can be resumed only with the same `X-Employee-Id`.
+
+To try continuation, first send `{"query":"Review the onboarding status"}` and save the response thread ID. Then reuse it:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/agent/invoke \
+  -H 'Content-Type: application/json' \
+  -H 'X-Employee-Id: EMP-200' \
+  -H 'X-Thread-Id: 8b8a6d62-bf1c-4abf-9968-84b8e23b58cb' \
+  -d '{"query":"EMP-201"}'
+```
+
+Use the actual UUID returned by the first response. PostgreSQL checkpoints preserve the missing-information intent across an application restart; each request still receives a new `runId` and `correlationId`.
+
 Request safe lifecycle streaming with the same body and identity by adding:
 
 ```bash
