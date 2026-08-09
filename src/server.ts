@@ -1,4 +1,9 @@
 import { PrismaClient } from '@prisma/client';
+import { ChatOpenAI } from '@langchain/openai';
+import {
+  buildOpenAiModelConfiguration,
+  OpenAiHcmIntentNormalizer,
+} from './adapters/openai-hcm-intent-normalizer';
 import { createApp } from './app';
 import { loadEnvironment } from './config/load-environment';
 import { AgentController } from './controllers/agent.controller';
@@ -17,6 +22,14 @@ const onboardingAgent = new OnboardingAgentService({
     today: todayAsDateOnly,
   },
   recorder: new PrismaAgentRunRepository(database),
+  normalizer: new OpenAiHcmIntentNormalizer(
+    new ChatOpenAI(
+      buildOpenAiModelConfiguration({
+        apiKey: environment.openAiApiKey,
+        model: environment.openAiModel,
+      }),
+    ),
+  ),
 });
 const healthController = new HealthController(async () => {
   await database.$queryRaw`SELECT 1`;

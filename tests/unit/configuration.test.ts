@@ -8,12 +8,15 @@ describe('parseEnvironment', () => {
         PORT: '3010',
         DATABASE_URL: 'postgresql://app:secret@localhost:5432/hcm',
         AMQP_URL: 'amqp://localhost:5672',
+        OPENAI_API_KEY: 'unit-test-key',
       }),
     ).toEqual({
       nodeEnv: 'test',
       port: 3010,
       databaseUrl: 'postgresql://app:secret@localhost:5432/hcm',
       amqpUrl: 'amqp://localhost:5672',
+      openAiApiKey: 'unit-test-key',
+      openAiModel: 'gpt-5.4-mini',
     });
   });
 
@@ -24,6 +27,7 @@ describe('parseEnvironment', () => {
         PORT: 'not-a-port',
         DATABASE_URL: 'postgresql://app:secret@localhost:5432/hcm',
         AMQP_URL: 'amqp://localhost:5672',
+        OPENAI_API_KEY: 'unit-test-key',
       }),
     ).toThrow('PORT must be a valid port number');
   });
@@ -35,6 +39,7 @@ describe('parseEnvironment', () => {
         PORT: port,
         DATABASE_URL: 'postgresql://app:secret@localhost:5432/hcm',
         AMQP_URL: 'amqp://localhost:5672',
+        OPENAI_API_KEY: 'unit-test-key',
       }),
     ).toThrow('PORT must be a valid port number');
   });

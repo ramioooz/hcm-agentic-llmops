@@ -60,6 +60,6 @@ Successful review response:
 }
 ```
 
-If the employee ID is missing, the endpoint returns `NEED_MORE_INFORMATION`. If the request is outside the onboarding capability, it returns `UNSUPPORTED_REQUEST`. An explicit notification request is preserved in the response, but no notification is claimed because the notification provider is not configured yet.
+If the employee ID is missing, the endpoint returns `NEED_MORE_INFORMATION`. If the request is outside the onboarding capability, it returns `UNSUPPORTED_REQUEST`. An explicit notification request is preserved in the response, but no notification is claimed because the notification provider is not configured yet. Requests are normalized with a strict structured intent contract after deterministic request-safety checks; a normalization failure returns HTTP `503` with code `MODEL_UNAVAILABLE`.
 
 For a Docker Compose API, replace port `3000` with `3300` in these examples.

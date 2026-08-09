@@ -9,6 +9,8 @@ const environmentSchema = z.object({
     .refine((port) => port >= 1 && port <= 65_535, 'PORT must be a valid port number'),
   DATABASE_URL: z.string().url(),
   AMQP_URL: z.string().url(),
+  OPENAI_API_KEY: z.string().min(1),
+  OPENAI_MODEL: z.literal('gpt-5.4-mini').default('gpt-5.4-mini'),
 });
 
 type Environment = {
@@ -16,6 +18,8 @@ type Environment = {
   port: number;
   databaseUrl: string;
   amqpUrl: string;
+  openAiApiKey: string;
+  openAiModel: 'gpt-5.4-mini';
 };
 
 export function parseEnvironment(input: Record<string, string | undefined>): Environment {
@@ -37,5 +41,7 @@ export function parseEnvironment(input: Record<string, string | undefined>): Env
     port: parsed.data.PORT,
     databaseUrl: parsed.data.DATABASE_URL,
     amqpUrl: parsed.data.AMQP_URL,
+    openAiApiKey: parsed.data.OPENAI_API_KEY,
+    openAiModel: parsed.data.OPENAI_MODEL,
   };
 }

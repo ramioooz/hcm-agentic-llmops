@@ -40,6 +40,8 @@ services:
       PORT: 3000
       DATABASE_URL: postgresql://hcm:hcm_dev_password@postgres:5432/hcm?schema=public
       AMQP_URL: amqp://guest:guest@rabbitmq:5672
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.4-mini}
     ports:
       - '${API_PORT:-3300}:3000'
     command: ['sh', '-c', 'npm run db:migrate && npm start']
