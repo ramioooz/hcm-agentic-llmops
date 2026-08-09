@@ -32,30 +32,31 @@ describe('enforceIntentConsistency', () => {
 
   it.each([
     'Review EMP-201 and notify the manager.',
-    'Review EMP-201 and create a manager notification.',
-    'Review EMP-201 and send a reminder to the manager.',
+    'Review EMP-201 and NOTIFY HIS MANAGER.',
+    'Review EMP-201 and notify her manager.',
+    'Review EMP-201 and notify their manager.',
+    'Review EMP-201 and message the manager.',
     'Review EMP-201 and tell the manager.',
+    'Review EMP-201 and send a message to the manager.',
+    'Review EMP-201 and send a notification to the manager.',
   ])('retains notification for explicit wording: %s', (query) => {
     expect(enforceIntentConsistency(query, normalizedNotification).requestedAction).toBe(
       'NOTIFY_MANAGER',
     );
   });
 
-  it('does not treat negated notification language as an explicit request', () => {
-    expect(
-      enforceIntentConsistency(
-        'Review EMP-201 onboarding but do not notify the manager.',
-        normalizedNotification,
-      ).requestedAction,
-    ).toBe('REVIEW_ONLY');
-  });
-
-  it('does not treat a request for information about a manager as a notification request', () => {
-    expect(
-      enforceIntentConsistency(
-        "Tell me whether EMP-201's manager has reviewed the onboarding status.",
-        normalizedNotification,
-      ).requestedAction,
-    ).toBe('REVIEW_ONLY');
+  it.each([
+    'Is a manager notification required for EMP-201?',
+    'Does the manager get a notification for EMP-201?',
+    'Tell me whether the manager receives a notification for EMP-201.',
+    'Do not notify the manager about EMP-201.',
+    'Do not message the manager about EMP-201.',
+    'Review the notification policy for EMP-201.',
+    'Review EMP-201 and notify me.',
+    'Review EMP-201 and create a notification.',
+  ])('downgrades informational, negated, or recipient-free wording: %s', (query) => {
+    expect(enforceIntentConsistency(query, normalizedNotification).requestedAction).toBe(
+      'REVIEW_ONLY',
+    );
   });
 });

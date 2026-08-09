@@ -1,11 +1,10 @@
 import type { HcmIntent } from '../types/hcm-intent';
 
 const employeeCodePattern = /\bEMP-\d+\b/gi;
-const notificationTermPattern = /\b(?:notify|notification)\b/i;
-const directManagerMessagePattern =
-  /\b(?:tell\s+(?:the\s+|my\s+|their\s+|his\s+|her\s+)?manager|send\s+(?:the\s+|my\s+|their\s+|his\s+|her\s+)?manager|send\b[^.!?\n]{0,60}\bto\s+(?:the\s+|my\s+|their\s+|his\s+|her\s+)?manager)\b/i;
+const affirmativeManagerActionPattern =
+  /\b(?:(?:notify|message|tell)\s+(?:(?:the|my|their|his|her)\s+)?manager|send\s+(?:a\s+)?(?:message|notification)\s+to\s+(?:(?:the|my|their|his|her)\s+)?manager)\b/i;
 const negatedNotificationPattern =
-  /\b(?:do\s+not|don't|never|without|no)\s+(?:\w+\s+){0,3}(?:notify|notification|send|tell)\b/i;
+  /\b(?:do\s+not|don't|never|without|no)\s+(?:\w+\s+){0,3}(?:notify|notification|message|send|tell)\b/i;
 
 function hasExplicitEmployeeCode(query: string, employeeCode: string): boolean {
   const explicitCodes = query.match(employeeCodePattern) ?? [];
@@ -17,7 +16,7 @@ function hasExplicitNotificationRequest(query: string): boolean {
     return false;
   }
 
-  return notificationTermPattern.test(query) || directManagerMessagePattern.test(query);
+  return affirmativeManagerActionPattern.test(query);
 }
 
 export function enforceIntentConsistency(query: string, intent: HcmIntent): HcmIntent {

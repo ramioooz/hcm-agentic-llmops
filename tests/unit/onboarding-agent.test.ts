@@ -213,6 +213,34 @@ describe('OnboardingAgentService', () => {
     expect(result.body.data).not.toHaveProperty('actionReason');
   });
 
+  it('does not treat an informational notification question as permission', async () => {
+    const { service } = createService({
+      normalizedIntent: {
+        intent: 'ONBOARDING_REVIEW',
+        employeeCode: 'EMP-201',
+        thresholdDays: 30,
+        requestedAction: 'NOTIFY_MANAGER',
+        missingFields: [],
+      },
+    });
+
+    const result = await service.invoke({
+      query: 'Is a manager notification required for EMP-201?',
+      actorEmployeeCode: 'EMP-200',
+      actorRole: 'MANAGER',
+      correlationId: 'corr-provenance-004',
+    });
+
+    expect(result.body).toMatchObject({
+      status: 'COMPLETED',
+      data: {
+        action: 'REVIEW_ONLY',
+        actionPerformed: false,
+      },
+    });
+    expect(result.body.data).not.toHaveProperty('actionReason');
+  });
+
   it('matches an explicitly supplied employee code case-insensitively', async () => {
     const { service, reader } = createService();
 
@@ -370,9 +398,9 @@ describe('OnboardingAgentService', () => {
 
   it.each([
     'notify the manager',
-    'send a reminder to the manager',
+    'send a message to the manager',
     'tell the manager',
-    'request a manager notification',
+    'message the manager',
   ])('preserves explicit notification intent for "%s"', async (notificationPhrase) => {
     const { service, recorder } = createService({
       normalizedIntent: {
