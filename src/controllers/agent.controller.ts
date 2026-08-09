@@ -21,17 +21,14 @@ export class AgentController implements HttpController {
   }
 
   public readonly handleInvoke = async (request: Request, response: Response): Promise<void> => {
-    const correlationId = resolveSafeCorrelationId(request.header('X-Correlation-Id'));
-    const runId = randomUUID();
-    this.dependencies.logger.info({
-      event: 'agent.invoke.started',
-      correlationId,
-    });
+    const suppliedCorrelationId = request.header('X-Correlation-Id');
 
     let threadId: string;
     try {
       threadId = resolveThreadId(request.header('X-Thread-Id'));
     } catch (error) {
+      const correlationId = resolveSafeCorrelationId(suppliedCorrelationId);
+      const runId = resolveSafeCorrelationId(undefined, [correlationId]);
       const message =
         error instanceof InvalidThreadIdError ? error.message : 'X-Thread-Id must be a UUID v4.';
       this.dependencies.logger.warn({
@@ -50,6 +47,12 @@ export class AgentController implements HttpController {
       });
       return;
     }
+    const correlationId = resolveSafeCorrelationId(suppliedCorrelationId, [threadId]);
+    const runId = resolveSafeCorrelationId(undefined, [threadId, correlationId]);
+    this.dependencies.logger.info({
+      event: 'agent.invoke.started',
+      correlationId,
+    });
     response.setHeader('X-Thread-Id', threadId);
 
     const actorEmployeeCode = request.header('X-Employee-Id')?.trim();

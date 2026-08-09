@@ -3,6 +3,52 @@ import { PrismaAgentRunRepository } from '../../src/repositories/agent-run.repos
 import type { AgentInvocationRecord } from '../../src/types/agent-invocation-record';
 
 describe('PrismaAgentRunRepository', () => {
+  it('resolves a canonical employee code with an opaque internal owner binding', async () => {
+    const database = {
+      employee: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'cm-owner-internal-200',
+          employeeCode: 'EMP-200',
+        }),
+      },
+    } as unknown as PrismaClient;
+    const repository = new PrismaAgentRunRepository(database) as PrismaAgentRunRepository & {
+      resolveCanonicalOwner(employeeCode: string): Promise<{
+        employeeCode: string;
+        bindingId: string;
+      } | null>;
+    };
+
+    await expect(repository.resolveCanonicalOwner('EMP-200')).resolves.toEqual({
+      employeeCode: 'EMP-200',
+      bindingId: 'cm-owner-internal-200',
+    });
+    expect(database.employee.findUnique).toHaveBeenCalledWith({
+      where: { employeeCode: 'EMP-200' },
+      select: { id: true, employeeCode: true },
+    });
+  });
+
+  it('reads the earliest verified audit owner for a thread', async () => {
+    const database = {
+      agentRun: {
+        findFirst: jest.fn().mockResolvedValue({ actorEmployeeCode: 'EMP-200' }),
+      },
+    } as unknown as PrismaClient;
+    const repository = new PrismaAgentRunRepository(database) as PrismaAgentRunRepository & {
+      findOwnerEmployeeCodeByThreadId(threadId: string): Promise<string | undefined>;
+    };
+
+    await expect(repository.findOwnerEmployeeCodeByThreadId('thread-001')).resolves.toBe(
+      'EMP-200',
+    );
+    expect(database.agentRun.findFirst).toHaveBeenCalledWith({
+      where: { threadId: 'thread-001', actorEmployeeCode: { not: null } },
+      orderBy: { startedAt: 'asc' },
+      select: { actorEmployeeCode: true },
+    });
+  });
+
   it('persists one run with redacted summaries, steps, and security events', async () => {
     const transaction = {
       agentRun: {

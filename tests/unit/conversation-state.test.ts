@@ -18,6 +18,15 @@ const manager: EmployeeRecord = {
   activeReviewPeriod: null,
 };
 
+const hr: EmployeeRecord = {
+  employeeCode: 'EMP-100',
+  fullName: 'Nadia Rahman',
+  accessRole: 'HR',
+  status: 'ACTIVE',
+  managerEmployeeCode: null,
+  activeReviewPeriod: null,
+};
+
 const employee: EmployeeRecord = {
   employeeCode: 'EMP-201',
   fullName: 'Samira Noor',
@@ -27,7 +36,11 @@ const employee: EmployeeRecord = {
   activeReviewPeriod: { endDate: '2026-08-21' },
 };
 
-function createConversationService(checkpointer: MemorySaver) {
+function createConversationService(
+  checkpointer: MemorySaver,
+  options: { auditOwners?: Map<string, string> } = {},
+) {
+  const auditOwners = options.auditOwners ?? new Map<string, string>();
   const normalize = jest.fn<Promise<HcmIntent>, [string]>(async (query) => {
     if (query === 'Review the onboarding status') {
       return {
@@ -49,13 +62,34 @@ function createConversationService(checkpointer: MemorySaver) {
   });
   const employees: EmployeeReader = {
     findByEmployeeCode: jest.fn(async (employeeCode: string) => {
+      if (employeeCode === hr.employeeCode) return hr;
       if (employeeCode === manager.employeeCode) return manager;
       if (employeeCode === employee.employeeCode) return employee;
       return null;
     }),
   };
   const recorder: AgentRunRecorder = {
-    recordInvocation: jest.fn().mockResolvedValue(undefined),
+    recordInvocation: jest.fn(async (record) => {
+      if (record.actorEmployeeCode && !auditOwners.has(record.threadId)) {
+        auditOwners.set(record.threadId, record.actorEmployeeCode);
+      }
+    }),
+  };
+  const threadOwnership = {
+    findOwnerEmployeeCodeByThreadId: jest.fn(async (candidateThreadId: string) =>
+      auditOwners.get(candidateThreadId),
+    ),
+    resolveCanonicalOwner: jest.fn(async (employeeCode: string) => {
+      const canonical = [hr, manager, employee].find(
+        (candidate) => candidate.employeeCode === employeeCode,
+      );
+      return canonical
+        ? {
+            employeeCode: canonical.employeeCode,
+            bindingId: `internal-owner-${canonical.employeeCode.slice('EMP-'.length)}`,
+          }
+        : null;
+    }),
   };
   const dependencies = {
     employees,
@@ -66,12 +100,14 @@ function createConversationService(checkpointer: MemorySaver) {
       send: jest.fn().mockResolvedValue({ notificationId: 'unused' }),
     },
     checkpointer,
+    threadOwnership,
   };
 
   return {
     employees,
     normalize,
     recorder,
+    threadOwnership,
     service: new OnboardingAgentService(dependencies),
   };
 }
@@ -109,13 +145,14 @@ describe('durable conversation state', () => {
     expect(first.body.runId).not.toBe(second.body.runId);
   });
 
-  it('denies a different employee identity before resuming protected state', async () => {
-    const { service, normalize, employees, recorder } = createConversationService(
-      new MemorySaver(),
-    );
-    await service.invoke(invocation('Review the onboarding status', firstRunId));
-    normalize.mockClear();
-    (employees.findByEmployeeCode as jest.Mock).mockClear();
+  it('denies a known audit-owner mismatch before loading protected checkpoint state', async () => {
+    const checkpointer = new MemorySaver();
+    const checkpointRead = jest
+      .spyOn(checkpointer, 'getTuple')
+      .mockRejectedValue(new Error('PROTECTED_CHECKPOINT_SHOULD_NOT_LOAD'));
+    const { service, normalize, employees, recorder } = createConversationService(checkpointer, {
+      auditOwners: new Map([[threadId, 'EMP-200']]),
+    });
 
     const result = await service.invoke(invocation('EMP-201', secondRunId, 'EMP-100'));
 
@@ -132,6 +169,7 @@ describe('durable conversation state', () => {
     });
     expect(normalize).not.toHaveBeenCalled();
     expect(employees.findByEmployeeCode).not.toHaveBeenCalled();
+    expect(checkpointRead).not.toHaveBeenCalled();
     expect(recorder.recordInvocation).toHaveBeenLastCalledWith(
       expect.objectContaining({
         threadId,
@@ -154,26 +192,65 @@ describe('durable conversation state', () => {
     const rawQuery = 'Review the onboarding status';
 
     await service.invoke(invocation(rawQuery, firstRunId));
-    const missingCheckpoint = await checkpointer.getTuple({
-      configurable: { thread_id: threadId },
-    });
-    const missingSerialized = JSON.stringify(missingCheckpoint?.checkpoint.channel_values);
-    expect(missingSerialized).toContain('employeeId');
-    expect(missingSerialized).not.toContain(rawQuery);
-    expect(missingSerialized).not.toContain(firstRunId);
-
     await service.invoke(invocation('EMP-201', secondRunId));
 
-    const checkpoint = await checkpointer.getTuple({ configurable: { thread_id: threadId } });
-    const serialized = JSON.stringify(checkpoint?.checkpoint.channel_values);
-    expect(serialized).toContain('ownerEmployeeCode');
-    expect(serialized).toContain('EMP-200');
-    expect(serialized).toContain('ONBOARDING_REVIEW');
+    const historicalCheckpoints = [];
+    for await (const checkpoint of checkpointer.list({
+      configurable: { thread_id: threadId },
+    })) {
+      historicalCheckpoints.push(checkpoint.checkpoint.channel_values);
+    }
+    const serialized = JSON.stringify(historicalCheckpoints);
+    expect(serialized).toContain('ownerBindingId');
+    expect(serialized).toContain('internal-owner-200');
+    expect(serialized).toContain('pendingIntent');
+    expect(serialized).toContain('employeeId');
+    expect(serialized).not.toMatch(/EMP-\d+/);
     expect(serialized).not.toContain(rawQuery);
     expect(serialized).not.toContain('Samira Noor');
     expect(serialized).not.toContain('samira@example.com');
     expect(serialized).not.toContain(secondRunId);
     expect(serialized).not.toContain('lastNode');
     expect(serialized).not.toContain('outcomeCode');
+  });
+
+  it('serializes concurrent first claims so the completed audit owner decides the second request', async () => {
+    const checkpointer = new MemorySaver();
+    const originalGetTuple = checkpointer.getTuple.bind(checkpointer);
+    let releaseFirstRead: (() => void) | undefined;
+    let markFirstReadStarted: (() => void) | undefined;
+    const firstReadStarted = new Promise<void>((resolve) => {
+      markFirstReadStarted = resolve;
+    });
+    const holdFirstRead = new Promise<void>((resolve) => {
+      releaseFirstRead = resolve;
+    });
+    const checkpointRead = jest
+      .spyOn(checkpointer, 'getTuple')
+      .mockImplementation(async (config) => {
+        if (checkpointRead.mock.calls.length === 1) {
+          markFirstReadStarted?.();
+          await holdFirstRead;
+        }
+        return originalGetTuple(config);
+      });
+    const { service, normalize } = createConversationService(checkpointer);
+
+    const firstRequest = service.invoke(
+      invocation('Review the onboarding status', firstRunId, 'EMP-200'),
+    );
+    await firstReadStarted;
+    const secondRequest = service.invoke(invocation('EMP-201', secondRunId, 'EMP-100'));
+
+    expect(checkpointRead).toHaveBeenCalledTimes(1);
+    releaseFirstRead?.();
+    const [first, second] = await Promise.all([firstRequest, secondRequest]);
+
+    expect(first.body.status).toBe('NEED_MORE_INFORMATION');
+    expect(second.body).toMatchObject({
+      status: 'FAILED',
+      code: 'THREAD_IDENTITY_MISMATCH',
+    });
+    expect(normalize).toHaveBeenCalledTimes(1);
   });
 });

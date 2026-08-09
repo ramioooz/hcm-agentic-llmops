@@ -164,6 +164,83 @@ describe('AgentController', () => {
     });
   });
 
+  test('preserves a supplied JSON thread ID and regenerates a colliding correlation ID', async () => {
+    const suppliedId = '8b8a6d62-bf1c-4abf-9968-84b8e23b58cb';
+    const invoke = jest.fn(async (input: OnboardingInvocationInput) => ({
+      httpStatus: 200,
+      body: {
+        status: 'NEED_MORE_INFORMATION',
+        message: 'Please provide the employee ID.',
+        threadId: input.threadId as string,
+        runId: input.runId as string,
+        correlationId: input.correlationId,
+      },
+    }));
+    const controller = new AgentController({
+      agent: agentWith(invoke),
+      logger: captureLogger().logger,
+    });
+    const captured = captureResponse();
+
+    await controller.handleInvoke(
+      requestWith({
+        body: { query: 'Review onboarding status' },
+        headers: {
+          'X-Employee-Id': 'EMP-200',
+          'X-Thread-Id': suppliedId,
+          'X-Correlation-Id': suppliedId,
+        },
+      }),
+      captured.response,
+    );
+
+    const input = invoke.mock.calls[0]?.[0];
+    expect(input?.threadId).toBe(suppliedId);
+    expect(input?.correlationId).toMatch(UUID_PATTERN);
+    expect(input?.correlationId).not.toBe(suppliedId);
+    expect(captured.headers['X-Thread-Id']).toBe(suppliedId);
+    expect(captured.body).toMatchObject({
+      threadId: suppliedId,
+      correlationId: input?.correlationId,
+    });
+  });
+
+  test('passes distinct supplied thread and correlation IDs into the shared SSE service input', async () => {
+    const suppliedId = '8b8a6d62-bf1c-4abf-9968-84b8e23b58cb';
+    const invoke = jest.fn<ReturnType<InvokeFunction>, Parameters<InvokeFunction>>();
+    const stream = jest.fn().mockImplementation(async function* () {});
+    const response = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+      setHeader: jest.fn(),
+      flushHeaders: jest.fn(),
+      write: jest.fn(),
+      end: jest.fn(),
+    } as unknown as Response;
+    const controller = new AgentController({
+      agent: { invoke, stream },
+      logger: captureLogger().logger,
+    });
+
+    await controller.handleInvoke(
+      requestWith({
+        body: { query: 'Review onboarding status' },
+        headers: {
+          Accept: 'text/event-stream',
+          'X-Employee-Id': 'EMP-200',
+          'X-Thread-Id': suppliedId,
+          'X-Correlation-Id': suppliedId,
+        },
+      }),
+      response,
+    );
+
+    const input = stream.mock.calls[0]?.[0] as OnboardingInvocationInput | undefined;
+    expect(input?.threadId).toBe(suppliedId);
+    expect(input?.correlationId).toMatch(UUID_PATTERN);
+    expect(input?.correlationId).not.toBe(suppliedId);
+  });
+
   test('returns the agent service HTTP result for a valid request', async () => {
     const invoke = jest
       .fn<ReturnType<InvokeFunction>, Parameters<InvokeFunction>>()

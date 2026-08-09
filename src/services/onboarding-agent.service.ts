@@ -6,28 +6,72 @@ import type { AgentInvoker } from '../types/agent-invoker';
 import type { AgentProgressEvent } from '../types/agent-progress-event';
 import type { OnboardingInvocationInput } from '../types/onboarding-invocation-input';
 import type { OnboardingInvocationResult } from '../types/onboarding-invocation-result';
+import type { ThreadOwnershipReader } from '../types/thread-ownership-reader';
 import {
   runOnboardingGraph,
   type OnboardingGraphDependencies,
 } from '../workflows/onboarding/onboarding.graph';
 
+class ThreadExecutionLock {
+  private readonly tails = new Map<string, Promise<void>>();
+
+  public async run<T>(threadId: string, work: () => Promise<T>): Promise<T> {
+    const predecessor = this.tails.get(threadId) ?? Promise.resolve();
+    let release: (() => void) | undefined;
+    const current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const tail = predecessor.then(() => current);
+    this.tails.set(threadId, tail);
+    await predecessor;
+    try {
+      return await work();
+    } finally {
+      release?.();
+      if (this.tails.get(threadId) === tail) this.tails.delete(threadId);
+    }
+  }
+}
+
+function createProcessLocalThreadOwnership(): ThreadOwnershipReader {
+  const bindings = new Map<string, string>();
+  return {
+    resolveCanonicalOwner: async (employeeCode) => {
+      const canonical = employeeCode.trim().toUpperCase();
+      if (!/^EMP-\d+$/.test(canonical)) return null;
+      let bindingId = bindings.get(canonical);
+      if (!bindingId) {
+        bindingId = randomUUID();
+        bindings.set(canonical, bindingId);
+      }
+      return { employeeCode: canonical, bindingId };
+    },
+    findOwnerEmployeeCodeByThreadId: async () => undefined,
+  };
+}
+
 export class OnboardingAgentService implements AgentInvoker {
   private readonly dependencies: OnboardingGraphDependencies;
+  private readonly executionLock = new ThreadExecutionLock();
 
   public constructor(
-    dependencies: Omit<OnboardingGraphDependencies, 'checkpointer'> & {
+    dependencies: Omit<OnboardingGraphDependencies, 'checkpointer' | 'threadOwnership'> & {
       checkpointer?: BaseCheckpointSaver;
+      threadOwnership?: ThreadOwnershipReader;
     },
   ) {
     this.dependencies = {
       ...dependencies,
       checkpointer: dependencies.checkpointer ?? new MemorySaver(),
+      threadOwnership: dependencies.threadOwnership ?? createProcessLocalThreadOwnership(),
     };
   }
 
   public invoke(input: OnboardingInvocationInput): Promise<OnboardingInvocationResult> {
     const identifiers = this.resolveIdentifiers(input);
-    return runOnboardingGraph(this.dependencies, { ...input, ...identifiers }, identifiers.runId);
+    return this.executionLock.run(identifiers.threadId, () =>
+      runOnboardingGraph(this.dependencies, { ...input, ...identifiers }, identifiers.runId),
+    );
   }
 
   public async *stream(input: OnboardingInvocationInput): AsyncIterable<AgentProgressEvent> {
@@ -36,15 +80,17 @@ export class OnboardingAgentService implements AgentInvoker {
     let complete = false;
     let failure: unknown;
     const identifiers = this.resolveIdentifiers(input);
-    const execution = runOnboardingGraph(
-      this.dependencies,
-      { ...input, ...identifiers },
-      identifiers.runId,
-      (event) => {
-        events.push(event);
-        wake?.();
-        wake = undefined;
-      },
+    const execution = this.executionLock.run(identifiers.threadId, () =>
+      runOnboardingGraph(
+        this.dependencies,
+        { ...input, ...identifiers },
+        identifiers.runId,
+        (event) => {
+          events.push(event);
+          wake?.();
+          wake = undefined;
+        },
+      ),
     )
       .catch((error: unknown) => {
         failure = error;
@@ -73,10 +119,12 @@ export class OnboardingAgentService implements AgentInvoker {
     runId: string;
     threadId: string;
   } {
+    const threadId = resolveThreadId(input.threadId);
+    const correlationId = resolveSafeCorrelationId(input.correlationId, [threadId]);
     return {
-      correlationId: resolveSafeCorrelationId(input.correlationId),
-      runId: input.runId ?? randomUUID(),
-      threadId: resolveThreadId(input.threadId),
+      correlationId,
+      runId: resolveSafeCorrelationId(input.runId, [threadId, correlationId]),
+      threadId,
     };
   }
 }

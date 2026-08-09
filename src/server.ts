@@ -24,10 +24,12 @@ async function startServer(): Promise<void> {
   try {
     await checkpointer.setup();
 
+    const runRepository = new PrismaAgentRunRepository(database);
     const onboardingAgent = new OnboardingAgentService({
       employees: new PrismaEmployeeRepository(database),
       clock: { today: todayAsDateOnly },
-      recorder: new PrismaAgentRunRepository(database),
+      recorder: runRepository,
+      threadOwnership: runRepository,
       notifications: new DevelopmentManagerNotification(),
       normalizer: new OpenAiHcmIntentNormalizer(
         new ChatOpenAI(

@@ -2,13 +2,31 @@ import type { PrismaClient } from '@prisma/client';
 import { redactSensitiveData } from '../security/pii-redaction';
 import type { AgentInvocationRecord } from '../types/agent-invocation-record';
 import type { AgentRunRecorder } from '../types/agent-run-recorder';
+import type { ThreadOwnershipReader } from '../types/thread-ownership-reader';
 
 function encodeRedacted(value: Record<string, unknown> | undefined): string | undefined {
   return value ? JSON.stringify(redactSensitiveData(value)) : undefined;
 }
 
-export class PrismaAgentRunRepository implements AgentRunRecorder {
+export class PrismaAgentRunRepository implements AgentRunRecorder, ThreadOwnershipReader {
   public constructor(private readonly database: PrismaClient) {}
+
+  public async resolveCanonicalOwner(employeeCode: string) {
+    const employee = await this.database.employee.findUnique({
+      where: { employeeCode },
+      select: { id: true, employeeCode: true },
+    });
+    return employee ? { employeeCode: employee.employeeCode, bindingId: employee.id } : null;
+  }
+
+  public async findOwnerEmployeeCodeByThreadId(threadId: string): Promise<string | undefined> {
+    const run = await this.database.agentRun.findFirst({
+      where: { threadId, actorEmployeeCode: { not: null } },
+      orderBy: { startedAt: 'asc' },
+      select: { actorEmployeeCode: true },
+    });
+    return run?.actorEmployeeCode ?? undefined;
+  }
 
   public async recordInvocation(record: AgentInvocationRecord): Promise<void> {
     await this.database.$transaction(async (transaction) => {
