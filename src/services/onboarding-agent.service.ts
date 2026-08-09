@@ -82,18 +82,19 @@ export class OnboardingAgentService implements AgentInvoker {
     let complete = false;
     let failure: unknown;
     const identifiers = this.resolveIdentifiers(input);
-    const execution = this.executionLock.run(identifiers.threadId, () =>
-      runOnboardingGraph(
-        this.dependencies,
-        { ...input, ...identifiers },
-        identifiers.runId,
-        (event) => {
-          events.push(event);
-          wake?.();
-          wake = undefined;
-        },
-      ),
-    )
+    const execution = this.executionLock
+      .run(identifiers.threadId, () =>
+        runOnboardingGraph(
+          this.dependencies,
+          { ...input, ...identifiers },
+          identifiers.runId,
+          (event) => {
+            events.push(event);
+            wake?.();
+            wake = undefined;
+          },
+        ),
+      )
       .catch((error: unknown) => {
         failure = error;
       })

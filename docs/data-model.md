@@ -40,10 +40,10 @@ PROCESSED_EVENTS {
 
 ## Leave-domain tables
 
-| Table            | Purpose                                                          | Used by        | Sensitive data                            |
-| ---------------- | ---------------------------------------------------------------- | -------------- | ----------------------------------------- |
-| `leave_policies` | Rules for supported leave types                                  | Leave workflow | Policy details, usually not personal      |
-| `leave_balances` | Allocated, used, pending, and available leave per employee       | Leave workflow | Employee relationship and balances        |
+| Table            | Purpose                                                            | Used by        | Sensitive data                             |
+| ---------------- | ------------------------------------------------------------------ | -------------- | ------------------------------------------ |
+| `leave_policies` | Rules for supported leave types                                    | Leave workflow | Policy details, usually not personal       |
+| `leave_balances` | Allocated, used, pending, and available leave per employee         | Leave workflow | Employee relationship and balances         |
 | `leave_requests` | Submitted dates, idempotent approval thread, status, and PDF bytes | Leave workflow | Employee relationship, dates, and document |
 
 ## Seed records

@@ -86,7 +86,11 @@ function safeLeaveError(error: unknown): {
   if (code === 'INVALID_LEAVE_DATES') {
     return { code, httpStatus: 400, message: 'Provide a valid leave date range.' };
   }
-  return { code: 'INTERNAL_ERROR', httpStatus: 500, message: 'The workflow could not be completed.' };
+  return {
+    code: 'INTERNAL_ERROR',
+    httpStatus: 500,
+    message: 'The workflow could not be completed.',
+  };
 }
 
 export async function runLeaveWorkerGraph(
@@ -162,12 +166,7 @@ export async function runLeaveWorkerGraph(
             severity: 'MEDIUM',
           });
         }
-        context.result = failureResult(
-          input,
-          failure.httpStatus,
-          failure.code,
-          failure.message,
-        );
+        context.result = failureResult(input, failure.httpStatus, failure.code, failure.message);
         return { route: 'RESPOND' as const };
       }
     })
@@ -212,12 +211,7 @@ export async function runLeaveWorkerGraph(
         });
       } catch (error) {
         const failure = safeLeaveError(error);
-        context.result = failureResult(
-          input,
-          failure.httpStatus,
-          failure.code,
-          failure.message,
-        );
+        context.result = failureResult(input, failure.httpStatus, failure.code, failure.message);
       }
       return { route: 'RESPOND' as const };
     })

@@ -41,7 +41,13 @@ export class KnowledgeQueryService {
     const cited = new Set(generated.citedChunkIds);
     const sources = evidence
       .filter((chunk) => cited.has(chunk.chunkId))
-      .map(({ content: _content, score: _score, ...source }) => source);
+      .map((chunk) => ({
+        documentId: chunk.documentId,
+        documentTitle: chunk.documentTitle,
+        chunkId: chunk.chunkId,
+        chunkIndex: chunk.chunkIndex,
+        pageNumber: chunk.pageNumber,
+      }));
     if (!generated.answer.trim() || sources.length === 0) return INSUFFICIENT_EVIDENCE;
 
     return { status: 'ANSWERED', answer: generated.answer.trim(), sources };

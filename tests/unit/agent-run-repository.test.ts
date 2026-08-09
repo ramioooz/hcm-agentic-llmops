@@ -39,9 +39,7 @@ describe('PrismaAgentRunRepository', () => {
       findOwnerEmployeeCodeByThreadId(threadId: string): Promise<string | undefined>;
     };
 
-    await expect(repository.findOwnerEmployeeCodeByThreadId('thread-001')).resolves.toBe(
-      'EMP-200',
-    );
+    await expect(repository.findOwnerEmployeeCodeByThreadId('thread-001')).resolves.toBe('EMP-200');
     expect(database.agentRun.findFirst).toHaveBeenCalledWith({
       where: { threadId: 'thread-001', actorEmployeeCode: { not: null } },
       orderBy: { startedAt: 'asc' },

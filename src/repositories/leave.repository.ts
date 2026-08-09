@@ -2,13 +2,7 @@ import type { PrismaClient } from '@prisma/client';
 import type { LeaveReader } from '../types/leave-reader';
 import type { LeaveApprovalStore } from '../types/leave-approval-store';
 
-const annualWorkWeek = [
-  'MONDAY',
-  'TUESDAY',
-  'WEDNESDAY',
-  'THURSDAY',
-  'FRIDAY',
-] as const;
+const annualWorkWeek = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
 
 export class PrismaLeaveRepository implements LeaveReader, LeaveApprovalStore {
   public constructor(private readonly database: PrismaClient) {}

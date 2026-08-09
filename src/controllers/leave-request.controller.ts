@@ -17,10 +17,7 @@ export class LeaveRequestController implements HttpController {
     this.router.get('/:leaveRequestId/document', this.handleDocument);
   }
 
-  public readonly handleDocument = async (
-    request: Request,
-    response: Response,
-  ): Promise<void> => {
+  public readonly handleDocument = async (request: Request, response: Response): Promise<void> => {
     const correlationId = resolveSafeCorrelationId(request.header('X-Correlation-Id'));
     response.setHeader('Cache-Control', 'no-store');
     const actorEmployeeCode = request.header('X-Employee-Id')?.trim();

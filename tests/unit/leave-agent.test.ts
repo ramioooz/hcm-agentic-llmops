@@ -43,7 +43,7 @@ describe('leave agent', () => {
           excludesHolidays: true,
         };
       }),
-      findAnnualBalance: jest.fn(async (_employeeCode: string, _year: number) => {
+      findAnnualBalance: jest.fn(async () => {
         markBalanceStarted?.();
         await balanceBlocked;
         return {

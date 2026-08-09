@@ -42,7 +42,7 @@ The current release contains the shared API and data foundation, onboarding revi
 | Structured intent normalization            | Implemented | OpenAI structured output normalizes onboarding and leave intent; deterministic controls remain authoritative       |
 | Typed onboarding graph and tools           | Implemented | LangGraph coordinates guarded lookup, deterministic calculation, notification policy, audit, and safe SSE progress |
 | Optional agent tracing and evaluation      | Implemented | LangSmith receives allowlisted metadata only; Studio and evaluation run with deterministic fake dependencies       |
-| Leave workflow                             | Implemented | Human approval interrupt, approval-time revalidation, idempotent submission, and stored PDF document                |
+| Leave workflow                             | Implemented | Human approval interrupt, approval-time revalidation, idempotent submission, and stored PDF document               |
 | Scheduled, webhook, and RabbitMQ workflows | Implemented | Shared typed onboarding commands, idempotency, API-key webhook, and disabled-by-default daily policy               |
 | Versioned HR policy retrieval              | Implemented | HR-only bounded indexing, active-version pgvector search, grounded answers, and page/chunk sources                 |
 | Read-only MCP endpoint                     | Implemented | Stateless Streamable HTTP at `/mcp` with two authorized, non-mutating tools                                        |
