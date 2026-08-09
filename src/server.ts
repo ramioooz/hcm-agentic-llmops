@@ -17,6 +17,7 @@ import { loadEnvironment } from './config/load-environment';
 import { AgentController } from './controllers/agent.controller';
 import { HealthController } from './controllers/health.controller';
 import { KnowledgeController } from './controllers/knowledge.controller';
+import { LeaveRequestController } from './controllers/leave-request.controller';
 import { McpController } from './controllers/mcp.controller';
 import { todayAsDateOnly } from './helpers/onboarding-agent.helpers';
 import { createLangSmithAgentTraceRecorder } from './observability/langsmith-agent-trace-recorder';
@@ -46,6 +47,8 @@ async function startServer(): Promise<void> {
 
     const employees = new PrismaEmployeeRepository(database);
     const runRepository = new PrismaAgentRunRepository(database);
+    const leaves = new PrismaLeaveRepository(database);
+    const logger = new PinoApplicationLogger();
     let knowledgeQueries: KnowledgeQueryService | undefined;
     let knowledgeController = new KnowledgeController({
       employees,
@@ -78,7 +81,8 @@ async function startServer(): Promise<void> {
     }
     const onboardingAgent = new OnboardingAgentService({
       employees,
-      leaves: new PrismaLeaveRepository(database),
+      leaves,
+      leaveApprovals: leaves,
       clock: { today: todayAsDateOnly },
       recorder: runRepository,
       threadOwnership: runRepository,
@@ -128,7 +132,6 @@ async function startServer(): Promise<void> {
     const healthController = new HealthController(async () => {
       await database.$queryRaw`SELECT 1`;
     });
-    const logger = new PinoApplicationLogger();
     const agentController = new AgentController({
       agent: onboardingAgent,
       logger,
@@ -139,6 +142,7 @@ async function startServer(): Promise<void> {
       knowledgeQueries,
       logger,
     });
+    const leaveRequestController = new LeaveRequestController({ approvals: leaves, logger });
     const triggerControllers = createTriggerControllers({
       nodeEnv: environment.nodeEnv,
       processor,
@@ -148,6 +152,7 @@ async function startServer(): Promise<void> {
     const app = createApp([
       healthController,
       agentController,
+      leaveRequestController,
       knowledgeController,
       mcpController,
       ...triggerControllers,

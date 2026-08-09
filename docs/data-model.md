@@ -44,7 +44,7 @@ PROCESSED_EVENTS {
 | ---------------- | ---------------------------------------------------------------- | -------------- | ----------------------------------------- |
 | `leave_policies` | Rules for supported leave types                                  | Leave workflow | Policy details, usually not personal      |
 | `leave_balances` | Allocated, used, pending, and available leave per employee       | Leave workflow | Employee relationship and balances        |
-| `leave_requests` | Requested dates, leave type, requested days, and decision status | Leave workflow | Employee relationship and request details |
+| `leave_requests` | Submitted dates, idempotent approval thread, status, and PDF bytes | Leave workflow | Employee relationship, dates, and document |
 
 ## Seed records
 
@@ -58,7 +58,7 @@ The seed command creates fictional records:
 
 The dates are calculated relative to the seed date so the examples remain useful after the repository is cloned.
 
-The seed also creates an `ANNUAL` policy with a 20-working-day allowance, Monday–Friday workweek, three working days of notice, ten consecutive working days maximum, and holiday exclusion. Fictional current-year balances are created for `EMP-200`, `EMP-201`, and `EMP-202`; no leave request is seeded or created by the agent.
+The seed also creates an `ANNUAL` policy with a 20-working-day allowance, Monday–Friday workweek, three working days of notice, ten consecutive working days maximum, and holiday exclusion. Fictional current-year balances are created for `EMP-200`, `EMP-201`, and `EMP-202`; no leave request is seeded. The agent writes a request only after approval and stores its generated PDF in `leave_requests.document_pdf`; `approval_thread_id` prevents duplicate submissions.
 
 ### Seeded reporting story
 

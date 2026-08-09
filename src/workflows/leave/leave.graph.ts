@@ -40,6 +40,15 @@ type LeaveWorkerContext = {
   result?: OnboardingInvocationResult;
   steps: AgentRunStepRecord[];
   securityEvents: SecurityEventRecord[];
+  approval?: LeaveApprovalProposal;
+};
+
+export type LeaveApprovalProposal = {
+  employeeId: string;
+  policyId: string;
+  startDate: string;
+  endDate: string;
+  requestedWorkingDays: number;
 };
 
 function failureResult(input: LeaveWorkerInput, httpStatus: number, code: string, message: string) {
@@ -88,6 +97,7 @@ export async function runLeaveWorkerGraph(
   result: OnboardingInvocationResult;
   steps: AgentRunStepRecord[];
   securityEvents: SecurityEventRecord[];
+  approval?: LeaveApprovalProposal;
 }> {
   const context: LeaveWorkerContext = { steps: [], securityEvents: [] };
   const policyTool = createLeavePolicyTool(dependencies.employees, dependencies.leaves);
@@ -171,6 +181,15 @@ export async function runLeaveWorkerGraph(
           policy: context.policy,
           balance: context.balance,
         });
+        if (proposal.eligible) {
+          context.approval = {
+            employeeId: context.balance.employeeId,
+            policyId: context.policy.id,
+            startDate: input.startDate,
+            endDate: input.endDate,
+            requestedWorkingDays: proposal.requestedWorkingDays,
+          };
+        }
         context.steps.push({
           stepName: 'leave_proposal_calculation',
           status: 'COMPLETED',
@@ -211,5 +230,10 @@ export async function runLeaveWorkerGraph(
 
   await graph.invoke({ route: 'CALCULATE' });
   if (!context.result) throw new Error('LEAVE_RESULT_MISSING');
-  return { result: context.result, steps: context.steps, securityEvents: context.securityEvents };
+  return {
+    result: context.result,
+    steps: context.steps,
+    securityEvents: context.securityEvents,
+    ...(context.approval ? { approval: context.approval } : {}),
+  };
 }

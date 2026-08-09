@@ -45,6 +45,22 @@ export type AgentProgressEvent =
       };
     }
   | {
+      event: 'approval';
+      data: {
+        runId: string;
+        status: 'awaiting' | 'approved' | 'rejected';
+        outcomeCode: string;
+      };
+    }
+  | {
+      event: 'document';
+      data: {
+        runId: string;
+        status: 'generated' | 'available';
+        leaveRequestId: string;
+      };
+    }
+  | {
       event: 'response';
       data: {
         runId: string;

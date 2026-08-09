@@ -125,7 +125,26 @@ curl -X POST http://localhost:3000/api/v1/agent/invoke \
   -d '{"query":"Request annual leave from 2026-08-14 through 2026-08-18"}'
 ```
 
-The result counts only Monday–Friday, checks the annual policy and seeded balance, and includes `requestCreated: false`. Employees and managers can request proposals only for themselves; `EMP-100` may request a proposal for another explicit employee code because HR has organization-wide leave read access. Managers do not inherit leave access to direct reports.
+The result counts only Monday–Friday and returns HTTP `202` with `AWAITING_APPROVAL`. Employees and managers can submit only for themselves; HR may target another explicit employee code. Managers do not inherit leave access to direct reports.
+
+Resume the same thread and identity:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/agent/resume \
+  -H 'Content-Type: application/json' \
+  -H 'X-Employee-Id: EMP-201' \
+  -d '{"threadId":"8b8a6d62-bf1c-4abf-9968-84b8e23b58cb","decision":"APPROVE"}'
+```
+
+Use the actual returned thread UUID. Approval revalidates policy and balance before creating one `SUBMITTED` request. Repeating `APPROVE` returns the existing request. `REJECT` creates no request. Download the approved PDF with the same authorized identity:
+
+```bash
+curl http://localhost:3000/api/v1/leave-requests/LEAVE_REQUEST_ID/document \
+  -H 'X-Employee-Id: EMP-201' \
+  --output leave-request.pdf
+```
+
+The document response is `application/pdf` with `Cache-Control: no-store`.
 
 When the API runs inside Docker Compose, use port `3300` instead of `3000`.
 

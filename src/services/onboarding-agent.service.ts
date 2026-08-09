@@ -3,12 +3,14 @@ import { MemorySaver, type BaseCheckpointSaver } from '@langchain/langgraph';
 import { resolveSafeCorrelationId } from '../security/correlation-id';
 import { resolveThreadId } from '../security/thread-id';
 import type { AgentInvoker } from '../types/agent-invoker';
+import type { AgentResumeInput } from '../types/agent-resume-input';
 import type { AgentProgressEvent } from '../types/agent-progress-event';
 import type { OnboardingInvocationInput } from '../types/onboarding-invocation-input';
 import type { OnboardingInvocationResult } from '../types/onboarding-invocation-result';
 import type { ThreadOwnershipReader } from '../types/thread-ownership-reader';
 import {
   runOnboardingGraph,
+  resumeOnboardingGraph,
   type OnboardingGraphDependencies,
 } from '../workflows/onboarding/onboarding.graph';
 
@@ -112,6 +114,20 @@ export class OnboardingAgentService implements AgentInvoker {
     }
     await execution;
     if (failure) throw failure;
+  }
+
+  public resume(input: AgentResumeInput): Promise<OnboardingInvocationResult> {
+    const threadId = resolveThreadId(input.threadId);
+    const correlationId = resolveSafeCorrelationId(input.correlationId, [threadId]);
+    const runId = resolveSafeCorrelationId(input.runId, [threadId, correlationId]);
+    return this.executionLock.run(threadId, () =>
+      resumeOnboardingGraph(this.dependencies, {
+        ...input,
+        threadId,
+        correlationId,
+        runId,
+      }),
+    );
   }
 
   private resolveIdentifiers(input: OnboardingInvocationInput): {
