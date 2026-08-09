@@ -1,5 +1,39 @@
 # Local usage guide
 
+## MCP Inspector
+
+Start the API, then point MCP Inspector at the stateless Streamable HTTP endpoint. With `npm run dev`, use `http://localhost:3000/mcp`; with the default Docker mapping, use `http://localhost:3300/mcp`. Supply a PostgreSQL-backed development identity header on every connection.
+
+Discover the exact two-tool surface:
+
+```bash
+npx @modelcontextprotocol/inspector --cli http://localhost:3000/mcp \
+  --transport http --method tools/list \
+  --header "X-Employee-Id: EMP-200"
+```
+
+Call the authorized onboarding-status tool:
+
+```bash
+npx @modelcontextprotocol/inspector --cli http://localhost:3000/mcp \
+  --transport http --method tools/call \
+  --tool-name get_employee_onboarding_status \
+  --tool-arg targetEmployeeCode=EMP-201 \
+  --header "X-Employee-Id: EMP-200"
+```
+
+Call cross-document knowledge search when external RAG processing is enabled:
+
+```bash
+npx @modelcontextprotocol/inspector --cli http://localhost:3000/mcp \
+  --transport http --method tools/call \
+  --tool-name search_knowledge_documents \
+  --tool-arg "query=How many remote days are allowed?" \
+  --header "X-Employee-Id: EMP-200"
+```
+
+The web Inspector can use transport `streamable-http`, server URL `http://localhost:3000/mcp`, and the same custom header. `GET` and `DELETE` return a stable method-not-supported response because this endpoint is intentionally stateless and POST-only.
+
 ## HR policy documents
 
 Set `OPENAI_EMBEDDING_MODEL` (default `text-embedding-3-small`). Knowledge endpoints return `RAG_EXTERNAL_PROCESSING_DISABLED` until an operator explicitly sets `RAG_EXTERNAL_PROCESSING_ENABLED=true`, acknowledging that extracted policy chunks will be sent to the configured OpenAI embedding and answer models.

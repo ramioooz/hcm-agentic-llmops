@@ -10,6 +10,10 @@ The knowledge path is isolated behind ingestion, embedding, repository, and grou
 
 External processing is disabled unless `RAG_EXTERNAL_PROCESSING_ENABLED=true`. Enabling it sends extracted chunks to the configured OpenAI embedding model and selected evidence to the configured OpenAI answer model. Retrieved text is labeled untrusted evidence; it cannot grant permissions or issue tool instructions. Application code accepts only citations to retrieved chunk IDs and constructs the final source list. Document text is excluded from operational logs and LangSmith traces.
 
+## Read-only MCP boundary
+
+The `/mcp` endpoint creates a fresh official TypeScript SDK `McpServer` and stateless Streamable HTTP transport for every POST. The HTTP adapter resolves a canonical employee through PostgreSQL before MCP dispatch and closes identity plus a safe correlation ID over the two handlers. `get_employee_onboarding_status` delegates to the existing authorized onboarding calculation tool; `search_knowledge_documents` delegates to the existing active-version knowledge search tool/service. Both are annotated read-only and only masked, bounded structured results cross the MCP boundary. No notification, leave, upload, reindex, or other mutating capability is registered.
+
 ```mermaid
 flowchart LR
 HTTP["HTTP controllers"] --> APP["Application services"]

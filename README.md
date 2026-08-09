@@ -45,6 +45,7 @@ The current release contains the shared API and data foundation, onboarding revi
 | Leave workflow                             | Implemented | Parallel authorized policy/balance reads and deterministic proposal calculation; no request creation               |
 | Scheduled, webhook, and RabbitMQ workflows | Implemented | Shared typed onboarding commands, idempotency, API-key webhook, and disabled-by-default daily policy               |
 | Versioned HR policy retrieval              | Implemented | HR-only bounded indexing, active-version pgvector search, grounded answers, and page/chunk sources                 |
+| Read-only MCP endpoint                     | Implemented | Stateless Streamable HTTP at `/mcp` with two authorized, non-mutating tools                                        |
 | Integration and end-to-end tests           | Planned     | Added after the initial release                                                                                    |
 
 ## Architecture
@@ -160,6 +161,12 @@ PostgreSQL 16 runs from the pinned `pgvector/pgvector:0.8.1-pg16` image while re
 External RAG processing is disabled by default. Setting `RAG_EXTERNAL_PROCESSING_ENABLED=true` explicitly permits the configured OpenAI embedding and answer models to receive extracted policy text/chunks. Document text is never written to operational logs or LangSmith traces.
 
 Each document stores one active index version and content hash. Reindexing writes chunks under a new version beside the active version, then conditionally activates it. Queries join only the active version, retrieve at most eight chunks, treat every retrieved chunk as untrusted evidence, and return either a grounded answer with document/page/chunk sources or the stable `INSUFFICIENT_EVIDENCE` result. The included `fixtures/fictional-flexible-work-policy.md` contains demonstration data only.
+
+## Read-only MCP
+
+`POST /mcp` is a stateless Streamable HTTP endpoint built with the official TypeScript MCP SDK. It exposes only `get_employee_onboarding_status` and `search_knowledge_documents`. Every request requires the same PostgreSQL-derived development identity in `X-Employee-Id` used by the HTTP API. The onboarding tool reuses the existing authorized calculation tool; knowledge search reuses the existing query service. Employee identifiers are masked, document evidence remains untrusted, and errors contain stable codes without internal exception text. Mutation, notification, and leave tools are not registered.
+
+The endpoint accepts an optional UUID v4 `X-Correlation-Id`, returns the resolved value in the response header and tool structured content, and records only safe MCP lifecycle metadata. See [docs/usage-guide.md](docs/usage-guide.md) for MCP Inspector discovery and call examples.
 
 ## Data model
 
