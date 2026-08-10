@@ -656,7 +656,7 @@ This section is the primary manual verification playbook for the implemented sys
 | `npm run dev`                | `http://localhost:3000` |
 | Docker Compose `api` service | `http://localhost:3300` |
 
-Replace port `3000` with `3300` when testing the containerized API. Every curl block can also be imported into Insomnia through **Create → Import → From Clipboard**.
+Replace port `3000` with `3300` when testing the containerized API. If the local `.env` overrides `PORT`, use that configured local port instead. Every curl block can also be imported into Insomnia through **Create → Import → From Clipboard**.
 
 The seeded fictional identities are:
 
