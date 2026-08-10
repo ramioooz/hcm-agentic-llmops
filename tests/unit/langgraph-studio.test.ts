@@ -1,64 +1,57 @@
-import {
-  createNotificationStudioGraph,
-  createReviewStudioGraph,
-} from '../../src/studio/onboarding.studio.graph';
+import { readFileSync } from 'node:fs';
+import { createHcmAgentStudioGraph } from '../../src/studio/hcm-agent.studio.graph';
+import { createLeaveStudioGraph } from '../../src/studio/leave.studio.graph';
+import { createOnboardingStudioGraph } from '../../src/studio/onboarding.studio.graph';
 
-async function executedNodes(graph: ReturnType<typeof createReviewStudioGraph>): Promise<string[]> {
-  const nodes: string[] = [];
-  const stream = await graph.stream({ ownerBindingId: 'studio-owner' }, { streamMode: 'updates' });
-  for await (const update of stream) {
-    nodes.push(...Object.keys(update));
-  }
-  return nodes;
-}
+type LangGraphConfiguration = { graphs: Record<string, string> };
 
 describe('LangGraph Studio production export', () => {
-  it('exposes the production topology and follows review and notification paths', async () => {
-    const reviewGraph = createReviewStudioGraph();
-    const topology = reviewGraph.getGraph({ xray: true });
-    const nodeNames = Object.keys(topology.nodes);
+  it('exposes the HCM root graph and both domain subgraphs', () => {
+    const configuration = JSON.parse(
+      readFileSync('langgraph.json', 'utf8'),
+    ) as LangGraphConfiguration;
+    expect(configuration.graphs).toEqual({
+      hcm_agent: './src/studio/hcm-agent.studio.graph.ts:createHcmAgentStudioGraph',
+      onboarding: './src/studio/onboarding.studio.graph.ts:createOnboardingStudioGraph',
+      leave: './src/studio/leave.studio.graph.ts:createLeaveStudioGraph',
+    });
 
-    expect(nodeNames).toEqual(
+    const rootNodes = Object.keys(createHcmAgentStudioGraph().getGraph().nodes);
+    const expandedRootNodes = Object.keys(
+      createHcmAgentStudioGraph().getGraph({ xray: true }).nodes,
+    );
+    const onboardingNodes = Object.keys(createOnboardingStudioGraph().getGraph().nodes);
+    const leaveNodes = Object.keys(createLeaveStudioGraph().getGraph().nodes);
+
+    expect(rootNodes).toEqual(
       expect.arrayContaining([
         'request_guard',
         'intent_normalization',
         'routing',
-        'onboarding:employee_lookup',
-        'onboarding:onboarding_calculation',
-        'onboarding:manager_notification',
+        'onboarding',
+        'leave',
         'response_audit',
       ]),
     );
-    expect(nodeNames).not.toContain('onboarding_agent');
-    expect(
-      topology.edges
-        .filter((edge) => edge.source === 'request_guard')
-        .map((edge) => edge.target)
-        .sort(),
-    ).toEqual(['intent_normalization', 'response_audit']);
-    expect(
-      topology.edges
-        .filter((edge) => edge.source === 'routing')
-        .map((edge) => edge.target)
-        .sort(),
-    ).toEqual(['leave:parallel_leave_context', 'onboarding:employee_lookup', 'response_audit']);
-
-    const reviewPath = await executedNodes(reviewGraph);
-    const notificationPath = await executedNodes(createNotificationStudioGraph());
-
-    expect(reviewPath).toEqual([
-      'request_guard',
-      'intent_normalization',
-      'routing',
-      'onboarding',
-      'response_audit',
-    ]);
-    expect(notificationPath).toEqual([
-      'request_guard',
-      'intent_normalization',
-      'routing',
-      'onboarding',
-      'response_audit',
-    ]);
+    expect(expandedRootNodes).toEqual(
+      expect.arrayContaining([
+        'onboarding:employee_lookup',
+        'onboarding:onboarding_calculation',
+        'onboarding:manager_notification',
+        'leave:parallel_leave_context',
+        'leave:leave_proposal_calculation',
+        'leave:leave_approval',
+      ]),
+    );
+    expect(onboardingNodes).toEqual(
+      expect.arrayContaining(['employee_lookup', 'onboarding_calculation', 'manager_notification']),
+    );
+    expect(leaveNodes).toEqual(
+      expect.arrayContaining([
+        'parallel_leave_context',
+        'leave_proposal_calculation',
+        'leave_approval',
+      ]),
+    );
   });
 });

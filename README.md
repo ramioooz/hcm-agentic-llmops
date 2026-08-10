@@ -420,12 +420,12 @@ These controls are implemented in application code and adapters; they are not de
 
 The project separates four kinds of operational evidence:
 
-| Mechanism        | Purpose                                                     | Stored information                                                                                                                                         |
-| ---------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| LangSmith        | Optional AI-agent trace and evaluation view                 | Safe identifiers, prompt version, configured model, normalized intent, node/tool paths, authorization outcome, end-to-end latency, and stable failure code |
-| LangGraph Studio | Run and inspect fresh instances of the production HCM graph | Seven fake-backed scenarios with the real nodes, conditional edges, selected path, intermediate state, and final route state                               |
-| Pino             | Application and HTTP/MCP operational logs                   | JSON lifecycle events with correlation/run identifiers and stable status codes                                                                             |
-| PostgreSQL audit | Durable business and security traceability                  | `agent_runs`, `agent_run_steps`, and `security_events` with redacted summaries and outcomes                                                                |
+| Mechanism        | Purpose                                                   | Stored information                                                                                                                                         |
+| ---------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| LangSmith        | Optional AI-agent trace and evaluation view               | Safe identifiers, prompt version, configured model, normalized intent, node/tool paths, authorization outcome, end-to-end latency, and stable failure code |
+| LangGraph Studio | Inspect the production HCM graph and its domain subgraphs | One end-to-end HCM graph plus independently openable onboarding and leave graphs, all backed by fictional offline dependencies                             |
+| Pino             | Application and HTTP/MCP operational logs                 | JSON lifecycle events with correlation/run identifiers and stable status codes                                                                             |
+| PostgreSQL audit | Durable business and security traceability                | `agent_runs`, `agent_run_steps`, and `security_events` with redacted summaries and outcomes                                                                |
 
 LangSmith tracing is disabled by default. The application deliberately uses one explicit, allowlisted invocation trace instead of global automatic LangChain tracing, because automatic tracing may capture raw model inputs or duplicate runs. The current trace sets retry count to `0`, leaves token and estimated-cost fields empty, and infers model-call count as `0` or `1` from whether intent normalization ran; these are not provider-collected usage metrics.
 
@@ -447,7 +447,7 @@ The bounded runner uses deterministic fake dependencies and covers intent normal
 npm run agent:studio
 ```
 
-`langgraph.json` exports seven deterministic factories backed by the same `createHcmAgentGraph` topology used by the production API. The root graph owns guarding, normalization, supervisor routing, and response auditing, and statically composes onboarding and leave subgraphs. Expanding those subgraphs in Studio reveals their employee lookup, calculation, notification, parallel leave context, proposal, and approval nodes. Each Studio run receives fresh fictional dependencies without starting Express or calling PostgreSQL, RabbitMQ, or OpenAI. Keep automatic LangChain/LangSmith tracing environment aliases unset because the project rejects them to preserve its explicit safe tracing path.
+`langgraph.json` exports `hcm_agent`, `onboarding`, and `leave`. Open `hcm_agent` first to inspect the end-to-end supervisor: guarding, normalization, routing, both domain subgraphs, and response auditing. Expand its nested domains or open `onboarding` and `leave` independently to focus on employee lookup, onboarding calculation, notification, parallel leave context, proposal, and approval. Every factory delegates to the same graph builders used by the production API and supplies fresh fictional dependencies without starting Express or calling PostgreSQL, RabbitMQ, or OpenAI. Keep automatic LangChain/LangSmith tracing disabled because the project preserves an explicit safe tracing path.
 
 ## Data model
 
@@ -1085,7 +1085,7 @@ npm run eval:agent
 
 Studio loads the graph factories configured by `langgraph.json`. The evaluation report shows each scenario and its pass/fail result. When `LANGSMITH_AGENT_TRACING=true` and valid LangSmith settings are present, inspect the safe invocation trace for prompt version, model, selected intent, graph path, node and tool names, authorization result, identifiers, latency, model-call count, and available usage metadata. Global automatic LangChain tracing remains disabled.
 
-Studio registers `onboarding_review`, `onboarding_notification`, `missing_information`, `unsupported_request`, `unsafe_request`, `authorization_denied`, and `tool_failure`. Select a graph in Graph mode, enter `{"ownerBindingId":"studio-owner"}` as its input, and submit it. The diagram highlights the executed production path; for example, review bypasses `manager_notification`, while notification traverses it before `response_audit`.
+Studio registers `hcm_agent`, `onboarding`, and `leave`. Start with `hcm_agent` to see the supervisor and both nested domains. Open `onboarding` or `leave` when you want a simpler domain-only diagram. Enter `{"ownerBindingId":"studio-owner"}` as the input and submit it. The root factory runs a review-only onboarding path, the onboarding factory runs the explicit-notification path, and the leave factory prepares an eligible proposal and pauses at human approval.
 
 Pino console output should be parseable JSON linked by `correlationId` and, when available, `runId`. It must not contain raw queries, employee records, API keys, or tokens.
 

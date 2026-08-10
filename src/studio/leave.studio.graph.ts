@@ -1,12 +1,12 @@
 import { assertAutomaticTracingDisabled } from '../observability/automatic-tracing-guard';
-import { createOnboardingGraph } from '../graphs/onboarding.graph';
+import { createLeaveGraph } from '../graphs/leave.graph';
 import { createStudioExecutionContext, createStudioScenario } from './hcm-agent.studio-scenarios';
 
 assertAutomaticTracingDisabled(process.env);
 
-export function createOnboardingStudioGraph() {
-  const definition = createStudioScenario('notification');
-  return createOnboardingGraph(
+export function createLeaveStudioGraph() {
+  const definition = createStudioScenario('leave');
+  return createLeaveGraph(
     definition.dependencies,
     createStudioExecutionContext(definition),
     () => undefined,
