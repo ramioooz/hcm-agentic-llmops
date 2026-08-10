@@ -1,12 +1,8 @@
 {
   "graphs": {
-    "onboarding_review": "./src/studio/onboarding.studio.graph.ts:createReviewStudioGraph",
-    "onboarding_notification": "./src/studio/onboarding.studio.graph.ts:createNotificationStudioGraph",
-    "missing_information": "./src/studio/onboarding.studio.graph.ts:createMissingDataStudioGraph",
-    "unsupported_request": "./src/studio/onboarding.studio.graph.ts:createUnsupportedStudioGraph",
-    "unsafe_request": "./src/studio/onboarding.studio.graph.ts:createUnsafeStudioGraph",
-    "authorization_denied": "./src/studio/onboarding.studio.graph.ts:createAuthorizationDeniedStudioGraph",
-    "tool_failure": "./src/studio/onboarding.studio.graph.ts:createToolFailureStudioGraph"
+    "hcm_agent": "./src/studio/hcm-agent.studio.graph.ts:createHcmAgentStudioGraph",
+    "onboarding": "./src/studio/onboarding.studio.graph.ts:createOnboardingStudioGraph",
+    "leave": "./src/studio/leave.studio.graph.ts:createLeaveStudioGraph"
   },
   "node_version": "22",
   "env": ".env"
