@@ -378,13 +378,14 @@ export function createOnboardingGraph(
   dependencies: OnboardingGraphDependencies,
   context: ExecutionContext,
   emit: EventSink,
+  options: { agentServerManagedCheckpointer?: boolean } = {},
 ) {
   const { runId } = context;
   const lookup = createEmployeeLookupTool(dependencies.employees);
   const calculate = createOnboardingCalculationTool(dependencies.employees);
   const notify = createManagerNotificationTool(dependencies.employees, dependencies.notifications);
 
-  return new StateGraph(OnboardingGraphState)
+  const graph = new StateGraph(OnboardingGraphState)
     .addNode('request_guard', () => {
       if (isTechnicalCommand(context.input)) {
         nodeEvent(emit, runId, 'request_guard', 'completed', 'TYPED_COMMAND_ACCEPTED');
@@ -967,29 +968,66 @@ export function createOnboardingGraph(
       };
     })
     .addEdge(START, 'request_guard')
-    .addConditionalEdges('request_guard', (state) =>
-      state.route === 'RESPOND' ? 'response_audit' : 'intent_normalization',
+    .addConditionalEdges(
+      'request_guard',
+      (state) => (state.route === 'RESPOND' ? 'response_audit' : 'intent_normalization'),
+      ['response_audit', 'intent_normalization'],
     )
-    .addConditionalEdges('intent_normalization', (state) =>
-      state.route === 'RESPOND' ? 'response_audit' : 'routing',
+    .addConditionalEdges(
+      'intent_normalization',
+      (state) => (state.route === 'RESPOND' ? 'response_audit' : 'routing'),
+      ['response_audit', 'routing'],
     )
-    .addConditionalEdges('routing', (state) => {
-      if (state.route === 'RESPOND') return 'response_audit';
-      return state.route === 'LEAVE' ? 'leave_worker' : 'employee_lookup';
-    })
-    .addConditionalEdges('leave_worker', (state) =>
-      state.route === 'APPROVAL' ? 'leave_approval' : 'response_audit',
+    .addConditionalEdges(
+      'routing',
+      (state) => {
+        if (state.route === 'RESPOND') return 'response_audit';
+        return state.route === 'LEAVE' ? 'leave_worker' : 'employee_lookup';
+      },
+      ['response_audit', 'leave_worker', 'employee_lookup'],
+    )
+    .addConditionalEdges(
+      'leave_worker',
+      (state) => (state.route === 'APPROVAL' ? 'leave_approval' : 'response_audit'),
+      ['leave_approval', 'response_audit'],
     )
     .addEdge('leave_approval', 'response_audit')
-    .addConditionalEdges('employee_lookup', (state) =>
-      state.route === 'CALCULATE' ? 'onboarding_calculation' : 'response_audit',
+    .addConditionalEdges(
+      'employee_lookup',
+      (state) => (state.route === 'CALCULATE' ? 'onboarding_calculation' : 'response_audit'),
+      ['onboarding_calculation', 'response_audit'],
     )
-    .addConditionalEdges('onboarding_calculation', (state) =>
-      state.route === 'NOTIFY' ? 'manager_notification' : 'response_audit',
+    .addConditionalEdges(
+      'onboarding_calculation',
+      (state) => (state.route === 'NOTIFY' ? 'manager_notification' : 'response_audit'),
+      ['manager_notification', 'response_audit'],
     )
     .addEdge('manager_notification', 'response_audit')
-    .addEdge('response_audit', END)
-    .compile({ checkpointer: dependencies.checkpointer });
+    .addEdge('response_audit', END);
+
+  return options.agentServerManagedCheckpointer
+    ? graph.compile()
+    : graph.compile({ checkpointer: dependencies.checkpointer });
+}
+
+export function createOnboardingGraphForExecution(
+  dependencies: OnboardingGraphDependencies,
+  input: OnboardingInvocationInput & { threadId: string },
+  runId: string,
+  options: { agentServerManagedCheckpointer?: boolean } = {},
+) {
+  return createOnboardingGraph(
+    dependencies,
+    {
+      input,
+      runId,
+      actionPerformed: false,
+      steps: [],
+      securityEvents: [],
+    },
+    () => undefined,
+    options,
+  );
 }
 
 export async function runOnboardingGraph(
