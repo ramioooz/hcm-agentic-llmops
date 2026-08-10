@@ -2,13 +2,17 @@ import type { PrismaClient } from '@prisma/client';
 import { redactSensitiveData } from '../security/pii-redaction';
 import type { AgentInvocationRecord } from '../types/agent-invocation-record';
 import type { AgentRunRecorder } from '../types/agent-run-recorder';
+import type { SecurityEventRecord } from '../types/security-event-record';
+import type { SecurityEventRecorder } from '../types/security-event-recorder';
 import type { ThreadOwnershipReader } from '../types/thread-ownership-reader';
 
 function encodeRedacted(value: Record<string, unknown> | undefined): string | undefined {
   return value ? JSON.stringify(redactSensitiveData(value)) : undefined;
 }
 
-export class PrismaAgentRunRepository implements AgentRunRecorder, ThreadOwnershipReader {
+export class PrismaAgentRunRepository
+  implements AgentRunRecorder, ThreadOwnershipReader, SecurityEventRecorder
+{
   public constructor(private readonly database: PrismaClient) {}
 
   public async resolveCanonicalOwner(employeeCode: string) {
@@ -26,6 +30,34 @@ export class PrismaAgentRunRepository implements AgentRunRecorder, ThreadOwnersh
       select: { actorEmployeeCode: true },
     });
     return run?.actorEmployeeCode ?? undefined;
+  }
+
+  public async recordSecurityEvent(input: {
+    correlationId: string;
+    actorEmployeeCode?: string;
+    event: SecurityEventRecord;
+  }): Promise<void> {
+    await this.database.$transaction(async (transaction) => {
+      const actorEmployeeCode = input.actorEmployeeCode
+        ? (
+            await transaction.employee.findUnique({
+              where: { employeeCode: input.actorEmployeeCode },
+              select: { employeeCode: true },
+            })
+          )?.employeeCode
+        : undefined;
+
+      await transaction.securityEvent.create({
+        data: {
+          agentRunId: undefined,
+          correlationId: input.correlationId,
+          actorEmployeeCode,
+          eventType: input.event.eventType,
+          severity: input.event.severity,
+          details: encodeRedacted(input.event.details),
+        },
+      });
+    });
   }
 
   public async recordInvocation(record: AgentInvocationRecord): Promise<void> {
