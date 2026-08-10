@@ -13,7 +13,8 @@ export type OperationalLogEntry = {
     | 'agent.approval.failed'
     | 'leave.document.served'
     | 'leave.document.rejected'
-    | 'leave.document.failed';
+    | 'leave.document.failed'
+    | 'knowledge.security.detected';
   correlationId: string;
   runId?: string;
   status?: string;

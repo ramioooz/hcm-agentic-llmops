@@ -35,7 +35,7 @@ PROCESSED_EVENTS {
 | `onboarding_review_periods` | Start date, end date, and status of an employee's initial review period           | Onboarding review      | Employee relationship and dates |
 | `agent_runs`                | One record for each workflow execution, including run and correlation identifiers | All agent workflows    | Actor and redacted summaries    |
 | `agent_run_steps`           | Routing decisions, tool calls, outcomes, and errors inside one run                | All agent workflows    | Redacted inputs and outputs     |
-| `security_events`           | Rejected requests, authorization failures, and other security signals             | Security controls      | Actor and event metadata        |
+| `security_events`           | Rejected requests, authorization failures, and direct or RAG injection signals    | Security controls      | Actor and safe event metadata   |
 | `processed_events`          | Idempotency and delivery metadata for technical onboarding triggers               | Technical triggers     | Opaque event and trace metadata |
 
 ## Leave-domain tables
@@ -95,3 +95,5 @@ The onboarding service writes run records through the Prisma-backed agent-run re
 LangGraph's `PostgresSaver` owns its technical checkpoint tables and applies its own idempotent setup migrations during application startup. The domain model deliberately has no `agent_threads` table: checkpointed owner metadata binds the thread identity, while `agent_runs`, `agent_run_steps`, and `security_events` remain the audit trail and carry `threadId` through their parent run.
 
 Raw prompts and unredacted tool payloads are not stored in operational records.
+
+RAG inspection can create a standalone `security_events` row without an `agent_run_id`, because the knowledge HTTP and MCP boundaries are not LangGraph executions. `correlation_id` links the event to its request. `PROMPT_INJECTION_DETECTED` details contain only a stable source/reason, a SHA-256 content hash, and optional document/chunk/page coordinates; they never contain raw knowledge text or model output.

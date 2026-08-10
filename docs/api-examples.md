@@ -73,6 +73,8 @@ Set `Accept: text/event-stream` to receive `run`, `intent`, `node`, `tool`, and 
 
 For a Docker Compose API, replace port `3000` with `3300` in these examples.
 
+Knowledge ingestion rejects indirect prompt injection with HTTP `400` and `KNOWLEDGE_DOCUMENT_UNSAFE` before embeddings are generated. Knowledge questions containing unsafe instructions return HTTP `403` and `UNSAFE_KNOWLEDGE_QUERY` before query embedding or retrieval. Copyable examples are in the README's [HR policy RAG](../README.md#hr-policy-rag) testing section.
+
 ### Annual-leave proposal
 
 ```http

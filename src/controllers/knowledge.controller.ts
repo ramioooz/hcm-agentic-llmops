@@ -2,6 +2,7 @@ import { extname } from 'node:path';
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
+import { resolveSafeCorrelationId } from '../security/correlation-id';
 import {
   KnowledgeIngestionService,
   MAX_KNOWLEDGE_FILE_BYTES,
@@ -87,6 +88,9 @@ export class KnowledgeController implements HttpController {
     response: Response,
     next: NextFunction,
   ): Promise<void> => {
+    const correlationId = resolveSafeCorrelationId(request.header('X-Correlation-Id'));
+    response.setHeader('X-Correlation-Id', correlationId);
+    response.locals.correlationId = correlationId;
     const employeeCode = request.header('X-Employee-Id')?.trim().toUpperCase();
     if (!employeeCode || !/^EMP-\d+$/.test(employeeCode)) {
       response.status(401).json({
@@ -168,17 +172,26 @@ export class KnowledgeController implements HttpController {
         mediaType: request.file.mimetype,
         buffer: request.file.buffer,
         createdByEmployeeCode: response.locals.actorEmployee.employeeCode,
+        correlationId: response.locals.correlationId,
       });
       response.status(documentId ? 200 : 201).json({ status: 'INDEXED', ...result });
     } catch (error) {
       request.file.buffer.fill(0);
-      const notFound = error instanceof Error && error.message === 'KNOWLEDGE_DOCUMENT_NOT_FOUND';
+      const errorCode = error instanceof Error ? error.message : '';
+      const notFound = errorCode === 'KNOWLEDGE_DOCUMENT_NOT_FOUND';
+      const unsafe = errorCode === 'KNOWLEDGE_DOCUMENT_UNSAFE';
       response.status(notFound ? 404 : 400).json({
         status: 'FAILED',
-        code: notFound ? 'KNOWLEDGE_DOCUMENT_NOT_FOUND' : 'KNOWLEDGE_UPLOAD_REJECTED',
+        code: notFound
+          ? 'KNOWLEDGE_DOCUMENT_NOT_FOUND'
+          : unsafe
+            ? 'KNOWLEDGE_DOCUMENT_UNSAFE'
+            : 'KNOWLEDGE_UPLOAD_REJECTED',
         message: notFound
           ? 'The knowledge document was not found.'
-          : 'The knowledge file could not be safely indexed.',
+          : unsafe
+            ? 'The knowledge document contains unsafe instructions and was not indexed.'
+            : 'The knowledge file could not be safely indexed.',
       });
     }
   };
@@ -200,13 +213,20 @@ export class KnowledgeController implements HttpController {
         await this.dependencies.queries!.query({
           ...parsed.data,
           documentId,
+          securityContext: {
+            correlationId: response.locals.correlationId,
+            actorEmployeeCode: response.locals.actorEmployee.employeeCode,
+          },
         }),
       );
-    } catch {
-      response.status(500).json({
+    } catch (error) {
+      const unsafe = error instanceof Error && error.message === 'UNSAFE_KNOWLEDGE_QUERY';
+      response.status(unsafe ? 403 : 500).json({
         status: 'FAILED',
-        code: 'KNOWLEDGE_QUERY_FAILED',
-        message: 'The knowledge query could not be completed.',
+        code: unsafe ? 'UNSAFE_KNOWLEDGE_QUERY' : 'KNOWLEDGE_QUERY_FAILED',
+        message: unsafe
+          ? 'The knowledge query contains unsafe instructions and was rejected.'
+          : 'The knowledge query could not be completed.',
       });
     }
   };

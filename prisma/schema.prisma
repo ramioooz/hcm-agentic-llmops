@@ -34,6 +34,7 @@ enum RunStatus {
 enum SecurityEventType {
   AUTHORIZATION_DENIED
   UNSAFE_REQUEST_REJECTED
+  PROMPT_INJECTION_DETECTED
 }
 
 enum SecuritySeverity {

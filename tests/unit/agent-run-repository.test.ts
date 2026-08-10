@@ -57,6 +57,7 @@ describe('PrismaAgentRunRepository', () => {
       },
       securityEvent: {
         createMany: jest.fn().mockResolvedValue({ count: 1 }),
+        create: jest.fn().mockResolvedValue({ id: 'security-event-standalone-001' }),
       },
       employee: {
         findUnique: jest.fn().mockResolvedValue({ employeeCode: 'EMP-200' }),
@@ -97,8 +98,21 @@ describe('PrismaAgentRunRepository', () => {
     };
 
     await repository.recordInvocation(record);
+    await repository.recordSecurityEvent({
+      correlationId: 'corr-security-001',
+      actorEmployeeCode: 'EMP-200',
+      event: {
+        eventType: 'PROMPT_INJECTION_DETECTED',
+        severity: 'HIGH',
+        details: {
+          source: 'RETRIEVED_EVIDENCE',
+          reasonCode: 'INSTRUCTION_OVERRIDE',
+          contentHash: 'sha256-safe-hash',
+        },
+      },
+    });
 
-    expect(database.$transaction).toHaveBeenCalledTimes(1);
+    expect(database.$transaction).toHaveBeenCalledTimes(2);
     expect(transaction.agentRun.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -124,6 +138,20 @@ describe('PrismaAgentRunRepository', () => {
           details: expect.not.stringContaining('EMP-201'),
         }),
       ],
+    });
+    expect(transaction.securityEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        agentRunId: undefined,
+        correlationId: 'corr-security-001',
+        actorEmployeeCode: 'EMP-200',
+        eventType: 'PROMPT_INJECTION_DETECTED',
+        severity: 'HIGH',
+        details: JSON.stringify({
+          source: 'RETRIEVED_EVIDENCE',
+          reasonCode: 'INSTRUCTION_OVERRIDE',
+          contentHash: 'sha256-safe-hash',
+        }),
+      }),
     });
   });
 

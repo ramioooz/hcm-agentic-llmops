@@ -47,6 +47,8 @@ Set `OPENAI_EMBEDDING_MODEL` (default `text-embedding-3-small`). Knowledge endpo
 
 Query bodies use `{ "query": "...", "limit": 5 }`, where `limit` is 1 through 8. Answers include document/page/chunk sources, or return `INSUFFICIENT_EVIDENCE` with no sources. Use only the fictional fixture under `fixtures/` for repository examples.
 
+The ingestion boundary scans extracted chunks before embeddings and index activation. A detected indirect injection returns `KNOWLEDGE_DOCUMENT_UNSAFE`. The query boundary scans the question before embedding and returns `UNSAFE_KNOWLEDGE_QUERY` for unsafe instructions; retrieved chunks and generated answers are inspected again before a response is released. See the README's [Prompt-Injection Protection](../README.md#prompt-injection-protection) section for the complete control flow and safe audit fields.
+
 ## Start infrastructure
 
 ```bash
