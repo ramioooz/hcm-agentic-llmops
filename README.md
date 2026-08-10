@@ -667,6 +667,7 @@ The seeded fictional identities are:
 | `EMP-201` | Employee           | Reports to `EMP-200`                                  |
 | `EMP-202` | Employee           | Reports to `EMP-200`                                  |
 
+| `EMP-300` | Employee | Reports to `EMP-100`; completed onboarding review |
 Use the actual values returned by earlier responses in place of `THREAD_ID`, `LEAVE_REQUEST_ID`, and `DOCUMENT_ID`. Placeholder credentials such as `YOUR_WEBHOOK_API_KEY` must match the local `.env`; never paste real secrets into committed files.
 
 ### Onboarding review

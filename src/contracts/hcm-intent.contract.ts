@@ -31,15 +31,6 @@ const onboardingIntentSchema = z
   })
   .strict()
   .superRefine((intent, context) => {
-    const hasEmployeeIdMarker =
-      intent.missingFields.length === 1 && intent.missingFields[0] === 'employeeId';
-    if (intent.employeeCode === null && !hasEmployeeIdMarker) {
-      context.addIssue({
-        code: 'custom',
-        path: ['missingFields'],
-        message: 'missingFields must contain employeeId when employeeCode is null',
-      });
-    }
     if (intent.employeeCode !== null && intent.missingFields.length !== 0) {
       context.addIssue({
         code: 'custom',

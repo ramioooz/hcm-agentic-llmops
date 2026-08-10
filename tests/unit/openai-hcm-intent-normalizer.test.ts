@@ -25,15 +25,15 @@ function fakeClient(output: unknown, capture: ModelCapture = {}): StructuredOutp
 }
 
 describe('OpenAiHcmIntentNormalizer', () => {
-  it('returns the structured onboarding intent from the model output', async () => {
+  it('returns an explicit onboarding self-reference from the model output', async () => {
     const capture: ModelCapture = {};
     const normalizer = new OpenAiHcmIntentNormalizer(
       fakeClient(
         {
           intent: 'ONBOARDING_REVIEW',
-          employeeCode: 'EMP-201',
-          thresholdDays: 14,
-          requestedAction: 'NOTIFY_MANAGER',
+          employeeCode: null,
+          thresholdDays: 30,
+          requestedAction: 'REVIEW_ONLY',
           leaveStartDate: null,
           leaveEndDate: null,
           missingFields: [],
@@ -42,19 +42,17 @@ describe('OpenAiHcmIntentNormalizer', () => {
       ),
     );
 
-    await expect(
-      normalizer.normalize('Please notify the manager about EMP-201 in 14 days.'),
-    ).resolves.toEqual({
+    await expect(normalizer.normalize('Review my onboarding status.')).resolves.toEqual({
       intent: 'ONBOARDING_REVIEW',
-      employeeCode: 'EMP-201',
-      thresholdDays: 14,
-      requestedAction: 'NOTIFY_MANAGER',
+      employeeCode: null,
+      thresholdDays: 30,
+      requestedAction: 'REVIEW_ONLY',
       missingFields: [],
     });
     expect(capture.schema).toBe(hcmIntentStructuredOutputSchema);
     expect(capture.options).toEqual({ name: 'normalize_hcm_intent', strict: true });
     expect((capture.input as BaseMessage[]).at(-1)).toMatchObject({
-      content: 'Please notify the manager about EMP-201 in 14 days.',
+      content: 'Review my onboarding status.',
     });
   });
 
@@ -143,18 +141,6 @@ describe('OpenAiHcmIntentNormalizer', () => {
         employeeCode: 'EMP-201',
         thresholdDays: 30,
         requestedAction: null,
-        leaveStartDate: null,
-        leaveEndDate: null,
-        missingFields: [],
-      },
-    },
-    {
-      description: 'missing employee without the employeeId marker',
-      output: {
-        intent: 'ONBOARDING_REVIEW',
-        employeeCode: null,
-        thresholdDays: 30,
-        requestedAction: 'REVIEW_ONLY',
         leaveStartDate: null,
         leaveEndDate: null,
         missingFields: [],
