@@ -1,16 +1,12 @@
-import type { OnboardingReviewAction } from '../../types/onboarding-review-action';
+import { OnboardingReviewAction as OnboardingReviewActionValue } from '../enums/onboarding.enum';
+import type { OnboardingReviewAction } from '../types/onboarding-review-action';
+import type { OnboardingReviewResult } from '../types/onboarding-review-result';
 
 type OnboardingReviewInput = {
   reviewEndDate: string;
   today: string;
   thresholdDays: number;
   requestedAction?: OnboardingReviewAction;
-};
-
-type OnboardingReviewResult = {
-  daysRemaining: number;
-  withinThreshold: boolean;
-  action: OnboardingReviewAction;
 };
 
 function parseDateOnly(value: string, fieldName: string): number {
@@ -44,6 +40,6 @@ export function evaluateOnboardingReview(input: OnboardingReviewInput): Onboardi
   return {
     daysRemaining,
     withinThreshold: daysRemaining >= 0 && daysRemaining <= input.thresholdDays,
-    action: input.requestedAction ?? 'REVIEW_ONLY',
+    action: input.requestedAction ?? OnboardingReviewActionValue.ReviewOnly,
   };
 }

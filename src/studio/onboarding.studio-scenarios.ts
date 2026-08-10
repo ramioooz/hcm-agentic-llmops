@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { MemorySaver } from '@langchain/langgraph';
 import { createOfflineAgentDependencies } from '../evaluation/onboarding-agent.evaluation';
-import type { OnboardingGraphDependencies } from '../workflows/onboarding/onboarding.graph';
+import type { HcmAgentGraphDependencies } from '../types/hcm-agent-graph-dependencies';
+import { OnboardingReviewAction } from '../enums/onboarding.enum';
 import type { HcmIntent } from '../types/hcm-intent';
 import type { OnboardingInvocationInput } from '../types/onboarding-invocation-input';
 
@@ -15,7 +16,7 @@ export type StudioScenario =
   | 'tool-failure';
 
 type StudioScenarioDefinition = {
-  dependencies: OnboardingGraphDependencies;
+  dependencies: HcmAgentGraphDependencies;
   input: OnboardingInvocationInput & { threadId: string };
   runId: string;
 };
@@ -24,7 +25,7 @@ const supportedIntent: Extract<HcmIntent, { intent: 'ONBOARDING_REVIEW' }> = {
   intent: 'ONBOARDING_REVIEW',
   employeeCode: 'EMP-201',
   thresholdDays: 30,
-  requestedAction: 'REVIEW_ONLY',
+  requestedAction: OnboardingReviewAction.ReviewOnly,
   missingFields: [],
 };
 
@@ -73,7 +74,10 @@ function scenarioInput(scenario: StudioScenario): {
       return {
         query: 'Review EMP-201 onboarding status and notify the manager.',
         actorEmployeeCode: 'EMP-200',
-        intent: { ...supportedIntent, requestedAction: 'NOTIFY_MANAGER' },
+        intent: {
+          ...supportedIntent,
+          requestedAction: OnboardingReviewAction.NotifyManager,
+        },
       };
     case 'tool-failure':
       return {
@@ -95,7 +99,7 @@ export function createStudioScenario(scenario: StudioScenario): StudioScenarioDe
   const selected = scenarioInput(scenario);
   const threadId = randomUUID();
   const runId = randomUUID();
-  const dependencies: OnboardingGraphDependencies = {
+  const dependencies: HcmAgentGraphDependencies = {
     ...createOfflineAgentDependencies(selected.intent, {
       failEmployeeLookup: selected.failEmployeeLookup,
     }),

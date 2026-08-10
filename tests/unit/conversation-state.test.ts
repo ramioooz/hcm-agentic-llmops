@@ -1,5 +1,5 @@
 import { MemorySaver } from '@langchain/langgraph';
-import { OnboardingAgentService } from '../../src/services/onboarding-agent.service';
+import { HcmAgentService } from '../../src/services/hcm-agent.service';
 import type { AgentRunRecorder } from '../../src/types/agent-run-recorder';
 import type { EmployeeReader } from '../../src/types/employee-reader';
 import type { EmployeeRecord } from '../../src/types/employee-record';
@@ -108,7 +108,7 @@ function createConversationService(
     normalize,
     recorder,
     threadOwnership,
-    service: new OnboardingAgentService(dependencies),
+    service: new HcmAgentService(dependencies),
   };
 }
 

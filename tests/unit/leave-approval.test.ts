@@ -1,5 +1,5 @@
 import { MemorySaver } from '@langchain/langgraph';
-import { OnboardingAgentService } from '../../src/services/onboarding-agent.service';
+import { HcmAgentService } from '../../src/services/hcm-agent.service';
 import type { EmployeeRecord } from '../../src/types/employee-record';
 
 const threadId = '8b8a6d62-bf1c-4abf-9968-84b8e23b58cb';
@@ -59,7 +59,7 @@ describe('leave approval', () => {
       submitApproved,
       findAuthorizedDocument: jest.fn(),
     };
-    const service = new OnboardingAgentService({
+    const service = new HcmAgentService({
       employees: { findByEmployeeCode: jest.fn().mockResolvedValue(employee) },
       leaves,
       leaveApprovals: approvals,

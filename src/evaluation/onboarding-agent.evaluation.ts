@@ -1,6 +1,7 @@
 import type { EmployeeRecord } from '../types/employee-record';
+import { OnboardingReviewAction } from '../enums/onboarding.enum';
 import { assertAutomaticTracingDisabled } from '../observability/automatic-tracing-guard';
-import { OnboardingAgentService } from '../services/onboarding-agent.service';
+import { HcmAgentService } from '../services/hcm-agent.service';
 import type { HcmIntent } from '../types/hcm-intent';
 import type { OnboardingInvocationResult } from '../types/onboarding-invocation-result';
 
@@ -57,7 +58,7 @@ const evaluationCases: EvaluationCase[] = [
       intent: 'ONBOARDING_REVIEW',
       employeeCode: 'EMP-201',
       thresholdDays: 30,
-      requestedAction: 'REVIEW_ONLY',
+      requestedAction: OnboardingReviewAction.ReviewOnly,
       missingFields: [],
     },
     expectedOutcome: 'COMPLETED',
@@ -70,7 +71,7 @@ const evaluationCases: EvaluationCase[] = [
       intent: 'ONBOARDING_REVIEW',
       employeeCode: null,
       thresholdDays: 30,
-      requestedAction: 'REVIEW_ONLY',
+      requestedAction: OnboardingReviewAction.ReviewOnly,
       missingFields: ['employeeId'],
     },
     expectedOutcome: 'NEED_MORE_INFORMATION',
@@ -96,7 +97,7 @@ const evaluationCases: EvaluationCase[] = [
       intent: 'ONBOARDING_REVIEW',
       employeeCode: null,
       thresholdDays: 30,
-      requestedAction: 'REVIEW_ONLY',
+      requestedAction: OnboardingReviewAction.ReviewOnly,
       missingFields: ['employeeId'],
     },
     expectedOutcome: 'UNSAFE_REQUEST_REJECTED',
@@ -109,7 +110,7 @@ const evaluationCases: EvaluationCase[] = [
       intent: 'ONBOARDING_REVIEW',
       employeeCode: 'EMP-201',
       thresholdDays: 30,
-      requestedAction: 'REVIEW_ONLY',
+      requestedAction: OnboardingReviewAction.ReviewOnly,
       missingFields: [],
     },
     expectedOutcome: 'AUTHORIZATION_DENIED',
@@ -122,7 +123,7 @@ const evaluationCases: EvaluationCase[] = [
       intent: 'ONBOARDING_REVIEW',
       employeeCode: 'EMP-201',
       thresholdDays: 30,
-      requestedAction: 'NOTIFY_MANAGER',
+      requestedAction: OnboardingReviewAction.NotifyManager,
       missingFields: [],
     },
     expectedOutcome: 'MANAGER_NOTIFIED',
@@ -135,7 +136,7 @@ const evaluationCases: EvaluationCase[] = [
       intent: 'ONBOARDING_REVIEW',
       employeeCode: 'EMP-201',
       thresholdDays: 30,
-      requestedAction: 'REVIEW_ONLY',
+      requestedAction: OnboardingReviewAction.ReviewOnly,
       missingFields: [],
     },
     expectedOutcome: 'INTERNAL_ERROR',
@@ -146,7 +147,7 @@ const evaluationCases: EvaluationCase[] = [
 export function createOfflineAgentDependencies(
   normalizedIntent: HcmIntent,
   options: { failEmployeeLookup?: boolean } = {},
-): ConstructorParameters<typeof OnboardingAgentService>[0] {
+): ConstructorParameters<typeof HcmAgentService>[0] {
   return {
     employees: {
       findByEmployeeCode: async (employeeCode) => {
@@ -189,7 +190,7 @@ export async function runOfflineAgentEvaluation(): Promise<AgentEvaluationReport
   const cases = [];
   for (const [index, evaluationCase] of evaluationCases.entries()) {
     const suffix = String(index + 1).padStart(12, '0');
-    const agent = new OnboardingAgentService(
+    const agent = new HcmAgentService(
       createOfflineAgentDependencies(evaluationCase.normalizedIntent, {
         failEmployeeLookup: evaluationCase.failEmployeeLookup,
       }),

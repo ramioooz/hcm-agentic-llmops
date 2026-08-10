@@ -3,6 +3,7 @@ import {
   createManagerNotificationTool,
   createOnboardingCalculationTool,
 } from '../../src/tools/onboarding.tools';
+import { OnboardingReviewAction } from '../../src/enums/onboarding.enum';
 import type { EmployeeReader } from '../../src/types/employee-reader';
 
 const employees = {
@@ -80,7 +81,7 @@ describe('onboarding tools', () => {
         targetEmployeeCode: 'EMP-201',
         today: '2026-08-07',
         thresholdDays: 30,
-        requestedAction: 'REVIEW_ONLY',
+        requestedAction: OnboardingReviewAction.ReviewOnly,
       }),
     ).resolves.toEqual({ daysRemaining: 14, withinThreshold: true, action: 'REVIEW_ONLY' });
   });

@@ -145,10 +145,10 @@ flowchart LR
 ### Main dependency direction
 
 ```text
-controller or trigger → application service → LangGraph workflow → authorized tool → repository
+controller or trigger → application service → HCM graph → domain subgraph → authorized tool → repository
 ```
 
-`server.ts` is the composition root. It creates the database client, checkpointer, model adapters, repositories, tools, services, trigger transports, and controllers. Controllers translate HTTP details; business decisions stay in workflows and deterministic helpers.
+`server.ts` is the composition root. It creates the database client, checkpointer, model adapters, repositories, tools, services, trigger transports, and controllers. Controllers translate HTTP details. `graphs/` contains topology only; node behavior lives in `graph-nodes/`, pure route decisions in `graph-routing/`, checkpoint schemas in `graph-state/`, and deterministic calculations in services.
 
 ## Where the LLM is used
 
@@ -447,7 +447,7 @@ The bounded runner uses deterministic fake dependencies and covers intent normal
 npm run agent:studio
 ```
 
-`langgraph.json` exports seven deterministic factories backed by the same `createOnboardingGraph` topology used by the production API. Each Studio run receives a fresh graph and fictional dependencies, so Graph mode shows the actual request guard, normalization, routing, onboarding, leave, approval, notification, and response-audit nodes without starting Express or calling PostgreSQL, RabbitMQ, or OpenAI. Keep automatic LangChain/LangSmith tracing environment aliases unset because the project rejects them to preserve its explicit safe tracing path.
+`langgraph.json` exports seven deterministic factories backed by the same `createHcmAgentGraph` topology used by the production API. The root graph owns guarding, normalization, supervisor routing, and response auditing, and statically composes onboarding and leave subgraphs. Expanding those subgraphs in Studio reveals their employee lookup, calculation, notification, parallel leave context, proposal, and approval nodes. Each Studio run receives fresh fictional dependencies without starting Express or calling PostgreSQL, RabbitMQ, or OpenAI. Keep automatic LangChain/LangSmith tracing environment aliases unset because the project rejects them to preserve its explicit safe tracing path.
 
 ## Data model
 
@@ -604,6 +604,11 @@ src/
 ├── contracts/       Zod HTTP, event, model-output, and resume schemas
 ├── controllers/     Express routes and transport-to-service mapping
 ├── evaluation/      Bounded agent evaluation dataset and runner
+├── enums/           Stable runtime vocabulary for graph, domain, and security decisions
+├── graph-nodes/     Executable shared, onboarding, and leave graph nodes
+├── graph-routing/   Pure conditional-edge routing functions
+├── graph-state/     Root and domain checkpoint-state schemas
+├── graphs/          Graph-only HCM supervisor, onboarding, and leave topology
 ├── helpers/         Pure date and response helpers
 ├── mcp/             Official SDK read-only MCP server
 ├── observability/   Pino adapter, log mapping, and safe LangSmith recorder
@@ -615,9 +620,6 @@ src/
 ├── tools/           Typed onboarding, leave, and knowledge tools
 ├── triggers/        Schedule, webhook, and RabbitMQ transport adapters
 ├── types/           Shared TypeScript interfaces and result types
-├── workflows/
-│   ├── onboarding/  Supervisor graph, onboarding worker, approval, and audit
-│   └── leave/       Parallel context tools and deterministic leave calculation
 ├── app.ts           Middleware and controller mounting
 └── server.ts        Runtime composition and graceful shutdown
 

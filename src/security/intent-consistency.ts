@@ -1,4 +1,5 @@
 import type { HcmIntent } from '../types/hcm-intent';
+import { OnboardingReviewAction } from '../enums/onboarding.enum';
 
 const employeeCodePattern = /\bEMP-\d+\b/gi;
 const thresholdDaysPatterns = [
@@ -92,8 +93,9 @@ export function enforceIntentConsistency(query: string, intent: HcmIntent): HcmI
       : null;
   const explicitSelfReference = onboardingSelfReferencePattern.test(query);
   const requestedAction =
-    intent.requestedAction === 'NOTIFY_MANAGER' && !hasExplicitNotificationRequest(query)
-      ? 'REVIEW_ONLY'
+    intent.requestedAction === OnboardingReviewAction.NotifyManager &&
+    !hasExplicitNotificationRequest(query)
+      ? OnboardingReviewAction.ReviewOnly
       : intent.requestedAction;
 
   return {

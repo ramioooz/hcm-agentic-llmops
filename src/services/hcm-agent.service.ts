@@ -8,11 +8,8 @@ import type { AgentProgressEvent } from '../types/agent-progress-event';
 import type { OnboardingInvocationInput } from '../types/onboarding-invocation-input';
 import type { OnboardingInvocationResult } from '../types/onboarding-invocation-result';
 import type { ThreadOwnershipReader } from '../types/thread-ownership-reader';
-import {
-  runOnboardingGraph,
-  resumeOnboardingGraph,
-  type OnboardingGraphDependencies,
-} from '../workflows/onboarding/onboarding.graph';
+import { resumeHcmAgentGraph, runHcmAgentGraph } from './hcm-agent-runner.service';
+import type { HcmAgentGraphDependencies } from '../types/hcm-agent-graph-dependencies';
 
 class ThreadExecutionLock {
   private readonly tails = new Map<string, Promise<void>>();
@@ -52,12 +49,12 @@ function createProcessLocalThreadOwnership(): ThreadOwnershipReader {
   };
 }
 
-export class OnboardingAgentService implements AgentInvoker {
-  private readonly dependencies: OnboardingGraphDependencies;
+export class HcmAgentService implements AgentInvoker {
+  private readonly dependencies: HcmAgentGraphDependencies;
   private readonly executionLock = new ThreadExecutionLock();
 
   public constructor(
-    dependencies: Omit<OnboardingGraphDependencies, 'checkpointer' | 'threadOwnership'> & {
+    dependencies: Omit<HcmAgentGraphDependencies, 'checkpointer' | 'threadOwnership'> & {
       checkpointer?: BaseCheckpointSaver;
       threadOwnership?: ThreadOwnershipReader;
     },
@@ -72,7 +69,7 @@ export class OnboardingAgentService implements AgentInvoker {
   public invoke(input: OnboardingInvocationInput): Promise<OnboardingInvocationResult> {
     const identifiers = this.resolveIdentifiers(input);
     return this.executionLock.run(identifiers.threadId, () =>
-      runOnboardingGraph(this.dependencies, { ...input, ...identifiers }, identifiers.runId),
+      runHcmAgentGraph(this.dependencies, { ...input, ...identifiers }, identifiers.runId),
     );
   }
 
@@ -84,7 +81,7 @@ export class OnboardingAgentService implements AgentInvoker {
     const identifiers = this.resolveIdentifiers(input);
     const execution = this.executionLock
       .run(identifiers.threadId, () =>
-        runOnboardingGraph(
+        runHcmAgentGraph(
           this.dependencies,
           { ...input, ...identifiers },
           identifiers.runId,
@@ -122,7 +119,7 @@ export class OnboardingAgentService implements AgentInvoker {
     const correlationId = resolveSafeCorrelationId(input.correlationId, [threadId]);
     const runId = resolveSafeCorrelationId(input.runId, [threadId, correlationId]);
     return this.executionLock.run(threadId, () =>
-      resumeOnboardingGraph(this.dependencies, {
+      resumeHcmAgentGraph(this.dependencies, {
         ...input,
         threadId,
         correlationId,

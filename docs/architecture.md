@@ -22,9 +22,10 @@ The `/mcp` endpoint creates a fresh official TypeScript SDK `McpServer` and stat
 flowchart LR
 HTTP["HTTP controllers"] --> APP["Application services"]
 TRIG["Technical triggers"] --> APP
-APP --> GUARD["Guards and authorization"]
-APP --> WF["Domain workflows"]
-WF --> TOOL["Authorized tools"]
+APP --> GRAPH["HCM supervisor graph"]
+GRAPH --> GUARD["Request guard and intent routing"]
+GUARD --> SUBGRAPH["Onboarding or leave subgraph"]
+SUBGRAPH --> TOOL["Authorized tools"]
 TOOL --> REPO["Repository interfaces"]
 REPO --> DB[("PostgreSQL")]
 APP --> OBS["Run tracking, security events, and structured logs"]
@@ -36,7 +37,8 @@ TRIG --> MQ[("RabbitMQ")]
 
 - Controllers translate transport details; they do not own business decisions.
 - Services coordinate application behavior and return stable result types.
-- Workflows are grouped by business domain rather than by transport.
+- The root graph owns cross-domain flow; onboarding and leave subgraphs own their domain topology.
+- Graph files contain wiring only. Nodes, state, routing, services, and runtime enums have separate owners.
 - Tools expose small operations with authorization at the boundary.
 - Repositories hide the persistence implementation.
 - Technical triggers create typed commands and reuse the same application services.
@@ -50,7 +52,7 @@ The workflow owns business decisions, such as whether an onboarding review is in
 
 ## HTTP controller registration and dependency injection
 
-HTTP endpoints are grouped in class-based controllers under `src/controllers`. Each controller declares a base path, owns an Express router, validates transport-specific input, and maps service results into HTTP responses. Business decisions remain in services and workflows.
+HTTP endpoints are grouped in class-based controllers under `src/controllers`. Each controller declares a base path, owns an Express router, validates transport-specific input, and maps service results into HTTP responses. Business decisions remain in deterministic services and graph nodes.
 
 `server.ts` is the composition root. It creates the PostgreSQL client, repository, application service, and controllers, then passes the controller collection to `app.ts`. Constructor injection makes dependencies visible and lets controller tests provide small fakes without starting PostgreSQL or an HTTP server.
 
@@ -70,11 +72,11 @@ flowchart LR
     CONTROLLERS --> APP["app.ts controller mounting"]
 ```
 
-The dependency direction is `controller/trigger → service → workflow/repository`. Scheduled jobs, webhook handlers, and RabbitMQ consumers are separate trigger adapters that reuse the same typed onboarding command entry; they do not call the user-query controller or duplicate workflow rules.
+The dependency direction is `controller/trigger → service → HCM graph → domain subgraph → tool → repository`. `src/graphs` contains only graph construction, edges, compilation, and exports. `src/graph-nodes` contains executable handlers; `src/graph-state` contains checkpoint schemas; `src/graph-routing` contains pure conditional decisions; and `src/enums` contains stable runtime vocabulary. Scheduled jobs, webhook handlers, and RabbitMQ consumers reuse the same typed command entry and never duplicate workflow rules.
 
 Pino remains the operational HTTP logger and PostgreSQL remains the durable audit store. Optional LangSmith tracing is an invocation-level graph adapter and does not rely on global LangChain tracing; a shared guard rejects every recognized LangSmith/LangChain automatic-tracing alias in API, evaluation, and Studio entrypoints. Its completed run payload is built from an allowlist: safe UUIDs, numeric start/end times, the existing prompt version, configured model, normalized intent, ordered node/tool paths, authorization result, retry/model-call counts, latency, optional token/cost metrics, and stable failure codes.
 
-LangGraph Studio loads graph factories rather than a service-level wrapper. Every factory creates a fresh deterministic execution context and returns the same compiled production topology used by `OnboardingAgentService`; there is no duplicate Studio graph. The local Agent Server owns Studio checkpointing, while production continues using its configured PostgreSQL checkpointer. Separate graph IDs select review, notification, missing-information, unsupported, unsafe, authorization-denied, and tool-failure paths. Their dependencies are fictional and offline, but the node names, conditional edges, and routing behavior come from the production graph definition.
+LangGraph Studio loads graph factories rather than a service-level wrapper. Every factory creates a fresh deterministic execution context and returns the same compiled root graph used by `HcmAgentService`; there is no duplicate Studio graph. The root graph statically registers onboarding and leave subgraphs, so Studio can expand their internal nodes and checkpoint namespaces. The local Agent Server owns Studio checkpointing, while production continues using its configured PostgreSQL checkpointer. Separate graph IDs select review, notification, missing-information, unsupported, unsafe, authorization-denied, and tool-failure paths. Their dependencies are fictional and offline, but all nodes, subgraphs, conditional edges, and routing behavior come from production definitions.
 
 Field-aware masking preserves only a recognition-safe shape: `0501234567` becomes `05********`, `EMP-201` becomes `EMP-***`, `samira@company.com` becomes `s*****@company.com`, and `Samira Noor` becomes `S***** N***`.
 

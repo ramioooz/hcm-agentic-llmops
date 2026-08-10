@@ -1,5 +1,8 @@
-import { runLeaveWorkerGraph } from '../../src/workflows/leave/leave.graph';
+import { loadLeaveContext } from '../../src/graph-nodes/leave/leave-context.node';
+import { evaluateLeaveProposal } from '../../src/services/leave-proposal.service';
 import type { EmployeeRecord } from '../../src/types/employee-record';
+import type { HcmAgentExecutionContext } from '../../src/types/hcm-agent-execution-context';
+import type { HcmAgentGraphDependencies } from '../../src/types/hcm-agent-graph-dependencies';
 
 const employee: EmployeeRecord = {
   employeeCode: 'EMP-201',
@@ -58,21 +61,29 @@ describe('leave agent', () => {
       }),
     };
 
-    const execution = runLeaveWorkerGraph(
-      {
-        employees: { findByEmployeeCode: jest.fn().mockResolvedValue(employee) },
-        leaves,
-      },
-      {
+    const context: HcmAgentExecutionContext = {
+      input: {
+        kind: 'USER_QUERY',
+        query: 'Request annual leave from 2026-08-14 to 2026-08-18',
         actorEmployeeCode: 'EMP-201',
-        targetEmployeeCode: 'EMP-201',
-        startDate: '2026-08-14',
-        endDate: '2026-08-18',
-        today: '2026-08-10',
-        threadId: '8b8a6d62-bf1c-4abf-9968-84b8e23b58cb',
-        runId: 'b4b012a7-740a-49c0-9ca5-f83485db7b86',
         correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
+        threadId: '8b8a6d62-bf1c-4abf-9968-84b8e23b58cb',
       },
+      runId: 'b4b012a7-740a-49c0-9ca5-f83485db7b86',
+      actionPerformed: false,
+      steps: [],
+      securityEvents: [],
+    };
+    const dependencies = {
+      employees: { findByEmployeeCode: jest.fn().mockResolvedValue(employee) },
+      leaves,
+    } as unknown as HcmAgentGraphDependencies;
+    const execution = loadLeaveContext(
+      dependencies,
+      context,
+      () => undefined,
+      'EMP-201',
+      '2026-08-14',
     );
 
     await Promise.all([policyStarted, balanceStarted]);
@@ -81,25 +92,24 @@ describe('leave agent', () => {
     releasePolicy?.();
     releaseBalance?.();
 
-    await expect(execution).resolves.toMatchObject({
-      result: {
-        httpStatus: 200,
-        body: {
-          status: 'COMPLETED',
-          message: 'Leave request proposal prepared; no request was created.',
-          data: {
-            requestCreated: false,
-            proposal: {
-              leaveType: 'ANNUAL',
-              requestedWorkingDays: 3,
-              noticeWorkingDays: 3,
-              availableDays: 14,
-              eligible: true,
-              reasons: [],
-            },
-          },
-        },
-      },
+    await expect(execution).resolves.toBe(true);
+    expect(context.leavePolicy).toBeDefined();
+    expect(context.leaveBalance).toBeDefined();
+    expect(
+      evaluateLeaveProposal({
+        today: '2026-08-10',
+        startDate: '2026-08-14',
+        endDate: '2026-08-18',
+        policy: context.leavePolicy!,
+        balance: context.leaveBalance!,
+      }),
+    ).toMatchObject({
+      leaveType: 'ANNUAL',
+      requestedWorkingDays: 3,
+      noticeWorkingDays: 3,
+      availableDays: 14,
+      eligible: true,
+      reasons: [],
     });
   });
 });

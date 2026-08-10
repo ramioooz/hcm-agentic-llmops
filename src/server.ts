@@ -30,7 +30,7 @@ import { PrismaProcessedEventRepository } from './repositories/processed-event.r
 import { KnowledgeIngestionService } from './services/knowledge-ingestion.service';
 import { KnowledgeQueryService } from './services/knowledge-query.service';
 import { KnowledgeSecurityService } from './services/knowledge-security.service';
-import { OnboardingAgentService } from './services/onboarding-agent.service';
+import { HcmAgentService } from './services/hcm-agent.service';
 import { OnboardingTriggerProcessor } from './services/onboarding-trigger-processor';
 import { createTriggerControllers } from './triggers/create-trigger-controllers';
 import { OnboardingScheduleTrigger } from './triggers/onboarding-schedule.trigger';
@@ -83,7 +83,7 @@ async function startServer(): Promise<void> {
         }),
       });
     }
-    const onboardingAgent = new OnboardingAgentService({
+    const onboardingAgent = new HcmAgentService({
       employees,
       leaves,
       leaveApprovals: leaves,

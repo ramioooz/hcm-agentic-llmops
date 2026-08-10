@@ -15,7 +15,7 @@ async function executedNodes(graph: ReturnType<typeof createReviewStudioGraph>):
 describe('LangGraph Studio production export', () => {
   it('exposes the production topology and follows review and notification paths', async () => {
     const reviewGraph = createReviewStudioGraph();
-    const topology = reviewGraph.getGraph();
+    const topology = reviewGraph.getGraph({ xray: true });
     const nodeNames = Object.keys(topology.nodes);
 
     expect(nodeNames).toEqual(
@@ -23,9 +23,9 @@ describe('LangGraph Studio production export', () => {
         'request_guard',
         'intent_normalization',
         'routing',
-        'employee_lookup',
-        'onboarding_calculation',
-        'manager_notification',
+        'onboarding:employee_lookup',
+        'onboarding:onboarding_calculation',
+        'onboarding:manager_notification',
         'response_audit',
       ]),
     );
@@ -41,7 +41,7 @@ describe('LangGraph Studio production export', () => {
         .filter((edge) => edge.source === 'routing')
         .map((edge) => edge.target)
         .sort(),
-    ).toEqual(['employee_lookup', 'leave_worker', 'response_audit']);
+    ).toEqual(['leave:parallel_leave_context', 'onboarding:employee_lookup', 'response_audit']);
 
     const reviewPath = await executedNodes(reviewGraph);
     const notificationPath = await executedNodes(createNotificationStudioGraph());
@@ -50,17 +50,14 @@ describe('LangGraph Studio production export', () => {
       'request_guard',
       'intent_normalization',
       'routing',
-      'employee_lookup',
-      'onboarding_calculation',
+      'onboarding',
       'response_audit',
     ]);
     expect(notificationPath).toEqual([
       'request_guard',
       'intent_normalization',
       'routing',
-      'employee_lookup',
-      'onboarding_calculation',
-      'manager_notification',
+      'onboarding',
       'response_audit',
     ]);
   });

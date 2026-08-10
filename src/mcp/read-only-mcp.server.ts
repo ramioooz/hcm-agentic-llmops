@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { OnboardingReviewAction } from '../enums/onboarding.enum';
 import { redactSensitiveData } from '../security/pii-redaction';
 import type { KnowledgeQueryService } from '../services/knowledge-query.service';
 import { createSearchKnowledgeDocumentsTool } from '../tools/knowledge.tools';
@@ -77,7 +78,7 @@ export function createReadOnlyMcpServer(input: {
           targetEmployeeCode,
           today: input.clock.today(),
           thresholdDays,
-          requestedAction: 'REVIEW_ONLY',
+          requestedAction: OnboardingReviewAction.ReviewOnly,
         })) as { daysRemaining: number; withinThreshold: boolean };
         const masked = redactSensitiveData({ employeeCode: targetEmployeeCode });
         return toolResult({

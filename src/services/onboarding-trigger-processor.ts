@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { OnboardingTriggerEvent } from '../contracts/onboarding-trigger-event';
+import { OnboardingReviewAction } from '../enums/onboarding.enum';
 import { resolveSafeCorrelationId } from '../security/correlation-id';
 import type { AgentInvoker } from '../types/agent-invoker';
 import type { ProcessedEventStore } from '../types/processed-event-store';
@@ -57,7 +58,7 @@ export class OnboardingTriggerProcessor {
         notificationPolicy:
           input.triggerType === 'SCHEDULE'
             ? 'SYSTEM_POLICY'
-            : input.event.data.action === 'NOTIFY_MANAGER'
+            : input.event.data.action === OnboardingReviewAction.NotifyManager
               ? 'EXPLICIT_REQUEST'
               : 'NONE',
         actorEmployeeCode: this.dependencies.automationActorEmployeeCode,
