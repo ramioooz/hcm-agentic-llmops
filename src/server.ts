@@ -29,6 +29,7 @@ import { PrismaLeaveRepository } from './repositories/leave.repository';
 import { PrismaProcessedEventRepository } from './repositories/processed-event.repository';
 import { KnowledgeIngestionService } from './services/knowledge-ingestion.service';
 import { KnowledgeQueryService } from './services/knowledge-query.service';
+import { KnowledgeSecurityService } from './services/knowledge-security.service';
 import { OnboardingAgentService } from './services/onboarding-agent.service';
 import { OnboardingTriggerProcessor } from './services/onboarding-trigger-processor';
 import { createTriggerControllers } from './triggers/create-trigger-controllers';
@@ -49,6 +50,7 @@ async function startServer(): Promise<void> {
     const runRepository = new PrismaAgentRunRepository(database);
     const leaves = new PrismaLeaveRepository(database);
     const logger = new PinoApplicationLogger();
+    const knowledgeSecurity = new KnowledgeSecurityService({ recorder: runRepository, logger });
     let knowledgeQueries: KnowledgeQueryService | undefined;
     let knowledgeController = new KnowledgeController({
       employees,
@@ -67,6 +69,7 @@ async function startServer(): Promise<void> {
           apiKey: environment.openAiApiKey,
           model: environment.openAiModel,
         }),
+        security: knowledgeSecurity,
       });
       knowledgeController = new KnowledgeController({
         employees,
@@ -76,6 +79,7 @@ async function startServer(): Promise<void> {
           repository: knowledgeRepository,
           embeddings: knowledgeEmbeddings,
           embeddingModel: environment.openAiEmbeddingModel,
+          security: knowledgeSecurity,
         }),
       });
     }

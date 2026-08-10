@@ -27,6 +27,7 @@ function stableToolError(error: unknown, correlationId: string) {
     ONBOARDING_REVIEW_NOT_FOUND: 'The employee has no active onboarding review period.',
     RAG_EXTERNAL_PROCESSING_DISABLED: 'Knowledge processing is disabled by configuration.',
     KNOWLEDGE_QUERY_INVALID: 'The knowledge query is invalid.',
+    UNSAFE_KNOWLEDGE_QUERY: 'The knowledge query contains unsafe instructions.',
   } as const;
   const stableCode = code in known ? (code as keyof typeof known) : 'INTERNAL_ERROR';
   return toolResult(
@@ -114,7 +115,10 @@ export function createReadOnlyMcpServer(input: {
         return stableToolError(new Error('RAG_EXTERNAL_PROCESSING_DISABLED'), input.correlationId);
       }
       try {
-        const search = createSearchKnowledgeDocumentsTool(input.knowledgeQueries);
+        const search = createSearchKnowledgeDocumentsTool(input.knowledgeQueries, {
+          correlationId: input.correlationId,
+          actorEmployeeCode: input.actorEmployeeCode,
+        });
         const result = await search.invoke({ query, documentId, limit });
         return toolResult({ ...result, correlationId: input.correlationId });
       } catch (error) {

@@ -6,6 +6,7 @@ import type {
   KnowledgeRepository,
   KnowledgeVersionResult,
 } from '../types/knowledge';
+import type { KnowledgeSecurityService } from './knowledge-security.service';
 
 export const MAX_KNOWLEDGE_FILE_BYTES = 5 * 1_024 * 1_024;
 const MAX_EXTRACTED_CHARACTERS = 500_000;
@@ -88,6 +89,7 @@ export class KnowledgeIngestionService {
       repository: KnowledgeRepository;
       embeddings: Pick<KnowledgeEmbeddingProvider, 'embedDocuments'>;
       embeddingModel: string;
+      security: Pick<KnowledgeSecurityService, 'inspect'>;
     },
   ) {}
 
@@ -98,6 +100,7 @@ export class KnowledgeIngestionService {
     mediaType: string;
     buffer: Buffer;
     createdByEmployeeCode: string;
+    correlationId: string;
   }): Promise<KnowledgeVersionResult> {
     if (input.buffer.length === 0 || input.buffer.length > MAX_KNOWLEDGE_FILE_BYTES) {
       throw new Error('KNOWLEDGE_FILE_SIZE_INVALID');
@@ -114,6 +117,20 @@ export class KnowledgeIngestionService {
         throw new Error('KNOWLEDGE_EXTRACTION_LIMIT_EXCEEDED');
       }
       const chunks = chunkPages(pages);
+      for (const chunk of chunks) {
+        const risk = await this.dependencies.security.inspect({
+          text: chunk.content,
+          source: 'KNOWLEDGE_DOCUMENT',
+          correlationId: input.correlationId,
+          actorEmployeeCode: input.createdByEmployeeCode,
+          metadata: {
+            documentId: input.documentId,
+            chunkIndex: chunk.chunkIndex,
+            pageNumber: chunk.pageNumber,
+          },
+        });
+        if (!risk.safe) throw new Error('KNOWLEDGE_DOCUMENT_UNSAFE');
+      }
       const embeddings = await this.dependencies.embeddings.embedDocuments(
         chunks.map((chunk) => chunk.content),
       );
