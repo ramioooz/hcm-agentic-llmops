@@ -1,12 +1,12 @@
 import { assertAutomaticTracingDisabled } from '../observability/automatic-tracing-guard';
-import { createOnboardingGraphForExecution } from '../workflows/onboarding/onboarding.graph';
+import { createHcmAgentGraphForExecution } from '../services/hcm-agent-runner.service';
 import { createStudioScenario, type StudioScenario } from './onboarding.studio-scenarios';
 
 assertAutomaticTracingDisabled(process.env);
 
 function createStudioGraph(scenario: StudioScenario) {
   const definition = createStudioScenario(scenario);
-  return createOnboardingGraphForExecution(
+  return createHcmAgentGraphForExecution(
     definition.dependencies,
     definition.input,
     definition.runId,

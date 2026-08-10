@@ -1,4 +1,4 @@
-import { evaluateOnboardingReview } from '../../src/workflows/onboarding/evaluate-onboarding-review';
+import { evaluateOnboardingReview } from '../../src/services/onboarding-review.service';
 
 describe('evaluateOnboardingReview', () => {
   it('flags an active review period inside the configured threshold', () => {

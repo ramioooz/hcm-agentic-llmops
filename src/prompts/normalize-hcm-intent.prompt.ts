@@ -1,4 +1,5 @@
 import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { OnboardingReviewAction } from '../enums/onboarding.enum';
 
 export const HCM_INTENT_PROMPT_VERSION = 'hcm-intent-v3';
 
@@ -11,8 +12,8 @@ All other requests are UNSUPPORTED.
 Extract employee codes only when explicitly present in the request and use the exact EMP-<digits> format.
 Extract a numeric day threshold when explicitly stated.
 When no day threshold is stated, use 30 for ONBOARDING_REVIEW.
-Use REVIEW_ONLY unless the request explicitly asks to notify or message a manager.
-Use NOTIFY_MANAGER only when the request explicitly asks to notify or message a manager.
+Use ${OnboardingReviewAction.ReviewOnly} unless the request explicitly asks to notify or message a manager.
+Use ${OnboardingReviewAction.NotifyManager} only when the request explicitly asks to notify or message a manager.
 For ONBOARDING_REVIEW with an explicit first-person target such as "my onboarding status", use null for employeeCode and do not include employeeId in missingFields; the application resolves the authenticated actor deterministically.
 For ONBOARDING_REVIEW with neither an employee code nor an explicit first-person target, use null for employeeCode and include employeeId in missingFields.
 Never invent employee identifiers or notification actions.
@@ -29,7 +30,7 @@ export function buildHcmIntentNormalizationMessages(query: string) {
         intent: 'ONBOARDING_REVIEW',
         employeeCode: 'EMP-201',
         thresholdDays: 14,
-        requestedAction: 'REVIEW_ONLY',
+        requestedAction: OnboardingReviewAction.ReviewOnly,
         leaveStartDate: null,
         leaveEndDate: null,
         missingFields: [],
@@ -41,7 +42,7 @@ export function buildHcmIntentNormalizationMessages(query: string) {
         intent: 'ONBOARDING_REVIEW',
         employeeCode: 'EMP-201',
         thresholdDays: 30,
-        requestedAction: 'NOTIFY_MANAGER',
+        requestedAction: OnboardingReviewAction.NotifyManager,
         leaveStartDate: null,
         leaveEndDate: null,
         missingFields: [],
@@ -53,7 +54,7 @@ export function buildHcmIntentNormalizationMessages(query: string) {
         intent: 'ONBOARDING_REVIEW',
         employeeCode: null,
         thresholdDays: 30,
-        requestedAction: 'REVIEW_ONLY',
+        requestedAction: OnboardingReviewAction.ReviewOnly,
         leaveStartDate: null,
         leaveEndDate: null,
         missingFields: [],
@@ -65,7 +66,7 @@ export function buildHcmIntentNormalizationMessages(query: string) {
         intent: 'ONBOARDING_REVIEW',
         employeeCode: null,
         thresholdDays: 30,
-        requestedAction: 'REVIEW_ONLY',
+        requestedAction: OnboardingReviewAction.ReviewOnly,
         leaveStartDate: null,
         leaveEndDate: null,
         missingFields: ['employeeId'],

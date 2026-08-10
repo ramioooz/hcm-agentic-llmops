@@ -2,18 +2,14 @@ import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { assertEmployeeReadAccess } from '../security/authorization';
 import type { AccessRole } from '../types/access-role';
+import type { AuthorizedEmployeeLookup } from '../types/authorized-employee-lookup';
 import type { EmployeeReader } from '../types/employee-reader';
-import type { EmployeeRecord } from '../types/employee-record';
 import type { ManagerNotificationSender } from '../types/manager-notification-sender';
-import { evaluateOnboardingReview } from '../workflows/onboarding/evaluate-onboarding-review';
+import { OnboardingReviewAction } from '../enums/onboarding.enum';
+import { evaluateOnboardingReview } from '../services/onboarding-review.service';
 
 const employeeCode = z.string().regex(/^EMP-\d+$/);
-const reviewAction = z.enum(['REVIEW_ONLY', 'NOTIFY_MANAGER']);
-
-export type AuthorizedEmployeeLookup = {
-  actor: EmployeeRecord;
-  employee: EmployeeRecord;
-};
+const reviewAction = z.enum(OnboardingReviewAction);
 
 async function loadAuthorizedEmployee(
   employees: EmployeeReader,

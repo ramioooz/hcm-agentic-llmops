@@ -1,4 +1,4 @@
-import { OnboardingAgentService } from '../../src/services/onboarding-agent.service';
+import { HcmAgentService } from '../../src/services/hcm-agent.service';
 import type { AgentRunRecorder } from '../../src/types/agent-run-recorder';
 import type { EmployeeReader } from '../../src/types/employee-reader';
 import type { EmployeeRecord } from '../../src/types/employee-record';
@@ -81,7 +81,7 @@ function createService(
     recorder,
     normalize,
     send,
-    service: new OnboardingAgentService({
+    service: new HcmAgentService({
       employees: reader,
       clock: {
         today: () => '2026-08-07',
@@ -96,7 +96,7 @@ function createService(
   };
 }
 
-describe('OnboardingAgentService', () => {
+describe('HcmAgentService', () => {
   it('executes a typed scheduled review without normalizing fabricated language', async () => {
     const { service, normalize, send, recorder } = createService({
       normalizerError: new Error('OpenAI must not be called for technical commands'),

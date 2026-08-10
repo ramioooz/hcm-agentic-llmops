@@ -1,5 +1,5 @@
-import type { LeaveBalanceRecord } from '../../types/leave-balance-record';
-import type { LeavePolicyRecord } from '../../types/leave-policy-record';
+import type { LeaveBalanceRecord } from '../types/leave-balance-record';
+import type { LeavePolicyRecord } from '../types/leave-policy-record';
 
 const dayMilliseconds = 86_400_000;
 

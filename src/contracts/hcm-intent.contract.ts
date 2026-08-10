@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ONBOARDING_REVIEW_ACTION_VALUES } from '../enums/onboarding.enum';
 
 const employeeCode = z
   .string()
@@ -14,7 +15,7 @@ export const hcmIntentStructuredOutputSchema = z
     intent: z.enum(['ONBOARDING_REVIEW', 'LEAVE_REQUEST', 'UNSUPPORTED']),
     employeeCode,
     thresholdDays: z.number().int().min(1).max(365).nullable(),
-    requestedAction: z.enum(['REVIEW_ONLY', 'NOTIFY_MANAGER']).nullable(),
+    requestedAction: z.enum(ONBOARDING_REVIEW_ACTION_VALUES).nullable(),
     leaveStartDate: dateOnly,
     leaveEndDate: dateOnly,
     missingFields: z.array(z.enum(['employeeId', 'startDate', 'endDate'])),
@@ -26,7 +27,7 @@ const onboardingIntentSchema = z
     intent: z.literal('ONBOARDING_REVIEW'),
     employeeCode,
     thresholdDays: z.number().int().min(1).max(365),
-    requestedAction: z.enum(['REVIEW_ONLY', 'NOTIFY_MANAGER']),
+    requestedAction: z.enum(ONBOARDING_REVIEW_ACTION_VALUES),
     missingFields: z.array(z.literal('employeeId')),
   })
   .strict()

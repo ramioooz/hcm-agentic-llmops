@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { onboardingTriggerEventSchema } from '../contracts/onboarding-trigger-event';
+import { OnboardingReviewAction } from '../enums/onboarding.enum';
 import type { DailyScheduler, ScheduledJob } from '../types/daily-scheduler';
 import type { OnboardingReviewCandidateReader } from '../types/onboarding-review-candidate-reader';
 import type { OnboardingTriggerHandler } from '../types/onboarding-trigger-handler';
@@ -72,7 +73,7 @@ export class OnboardingScheduleTrigger {
             data: {
               employeeCode,
               thresholdDays: THRESHOLD_DAYS,
-              action: 'NOTIFY_MANAGER',
+              action: OnboardingReviewAction.NotifyManager,
               threadId: scheduledThreadId(today, employeeCode),
             },
           }),
