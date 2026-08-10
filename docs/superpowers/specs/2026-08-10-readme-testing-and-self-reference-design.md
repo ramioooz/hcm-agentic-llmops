@@ -17,11 +17,11 @@ No new API endpoint, database table, external dependency, Insomnia export, or se
 
 The workflow will distinguish these requests:
 
-| Request | Target resolution |
-| --- | --- |
-| `Review my onboarding status` | Use the authenticated `X-Employee-Id` actor as the target. |
+| Request                            | Target resolution                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------------------------- |
+| `Review my onboarding status`      | Use the authenticated `X-Employee-Id` actor as the target.                            |
 | `Review EMP-202 onboarding status` | Use the explicitly supplied employee code and apply the existing authorization rules. |
-| `Review the onboarding status` | Return `NEED_MORE_INFORMATION` because the target is ambiguous. |
+| `Review the onboarding status`     | Return `NEED_MORE_INFORMATION` because the target is ambiguous.                       |
 
 The language model must not manufacture an employee code. The existing structured fields will encode the distinction without adding a second target identifier:
 

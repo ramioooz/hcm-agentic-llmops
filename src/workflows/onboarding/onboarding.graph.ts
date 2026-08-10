@@ -234,10 +234,7 @@ async function recordResult(
   });
 }
 
-function resolveAuthenticatedSelfTarget(
-  intent: HcmIntent,
-  actorEmployeeCode: string,
-): HcmIntent {
+function resolveAuthenticatedSelfTarget(intent: HcmIntent, actorEmployeeCode: string): HcmIntent {
   if (
     intent.intent !== 'ONBOARDING_REVIEW' ||
     intent.employeeCode !== null ||

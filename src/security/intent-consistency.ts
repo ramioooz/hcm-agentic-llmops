@@ -101,7 +101,6 @@ export function enforceIntentConsistency(query: string, intent: HcmIntent): HcmI
     employeeCode,
     thresholdDays: resolveThresholdDays(query),
     requestedAction,
-    missingFields:
-      employeeCode === null && !explicitSelfReference ? (['employeeId'] as const) : [],
+    missingFields: employeeCode === null && !explicitSelfReference ? (['employeeId'] as const) : [],
   };
 }

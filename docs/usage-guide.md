@@ -1,5 +1,7 @@
 # Local usage guide
 
+The main README contains the complete [Manual Testing with Insomnia and CLI](../README.md#manual-testing-with-insomnia-and-cli) playbook. This guide keeps the shorter setup and interface reference.
+
 ## MCP Inspector
 
 Start the API, then point MCP Inspector at the stateless Streamable HTTP endpoint. With `npm run dev`, use `http://localhost:3000/mcp`; with the default Docker mapping, use `http://localhost:3300/mcp`. Supply a PostgreSQL-backed development identity header on every connection.
@@ -91,6 +93,8 @@ curl -X POST http://localhost:3000/api/v1/agent/invoke \
 ```
 
 `X-Employee-Id` is the sole local mock identity header. The API loads its canonical role and manager relationships from PostgreSQL. Use `EMP-100` for HR access or `EMP-200` for manager access to the direct reports `EMP-201` and `EMP-202`.
+
+An explicit request such as `Review my onboarding status` targets the authenticated `X-Employee-Id`. A request such as `Review the onboarding status` is intentionally ambiguous and returns `NEED_MORE_INFORMATION` until the same identity continues the returned thread with an employee code.
 
 `X-Correlation-Id` is optional and accepts only a UUID v4. Missing or invalid values are replaced with a generated UUID before logging or workflow execution.
 
