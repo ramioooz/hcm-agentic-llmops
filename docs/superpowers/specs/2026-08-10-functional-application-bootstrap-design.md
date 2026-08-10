@@ -108,7 +108,8 @@ Creates the trigger subsystem:
 It returns its controllers and lifecycle functions:
 
 - `start()` starts RabbitMQ before enabling the scheduler.
-- `stop()` disables the scheduler before closing RabbitMQ.
+- `stopScheduling()` disables the scheduler immediately so it cannot create new work.
+- `close()` closes RabbitMQ after the HTTP listener stops accepting requests.
 
 The module routes every trigger through the existing shared agent service and does not duplicate workflow behavior.
 
