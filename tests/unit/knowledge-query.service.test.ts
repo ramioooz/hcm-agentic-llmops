@@ -41,11 +41,22 @@ describe('KnowledgeQueryService', () => {
       answer: 'Eligible employees may work remotely for two days each week.',
       citedChunkIds: ['chunk-2'],
     });
+    const recordTrace = jest
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('LangSmith unavailable'))
+      .mockResolvedValue(undefined);
     const service = new KnowledgeQueryService({
       repository,
       embeddings: { embedQuery: async () => [0.25, 0.75] },
       answers: { generate },
       security,
+      tracing: {
+        recorder: { record: recordTrace },
+        logger,
+        embeddingModel: 'text-embedding-3-small',
+        answerModel: 'gpt-5.4-mini',
+      },
     });
 
     const grounded = await service.query({
@@ -55,6 +66,7 @@ describe('KnowledgeQueryService', () => {
       securityContext: {
         correlationId: '00000000-0000-4000-8000-000000000041',
         actorEmployeeCode: 'EMP-201',
+        requestSource: 'HTTP',
       },
     });
     const insufficient = await service.query({
@@ -62,6 +74,7 @@ describe('KnowledgeQueryService', () => {
       securityContext: {
         correlationId: '00000000-0000-4000-8000-000000000042',
         actorEmployeeCode: 'EMP-201',
+        requestSource: 'HTTP',
       },
     });
     const blocked = await service.query({
@@ -69,6 +82,7 @@ describe('KnowledgeQueryService', () => {
       securityContext: {
         correlationId: '00000000-0000-4000-8000-000000000043',
         actorEmployeeCode: 'EMP-201',
+        requestSource: 'HTTP',
       },
     });
 
@@ -116,5 +130,45 @@ describe('KnowledgeQueryService', () => {
       },
     });
     expect(JSON.stringify(recordSecurityEvent.mock.calls)).not.toContain('malicious.example');
+    expect(recordTrace).toHaveBeenCalledTimes(3);
+    expect(recordTrace.mock.calls[0]?.[0]).toMatchObject({
+      correlationId: '00000000-0000-4000-8000-000000000041',
+      actorEmployeeCode: 'EMP-201',
+      source: 'HTTP',
+      question: 'How many remote days are allowed?',
+      answer: 'Eligible employees may work remotely for two days each week.',
+      documentId: 'doc-policy',
+      limit: 3,
+      embeddingModel: 'text-embedding-3-small',
+      answerModel: 'gpt-5.4-mini',
+      resultStatus: 'ANSWERED',
+      retrievedChunks: [
+        {
+          documentId: 'doc-policy',
+          chunkId: 'chunk-2',
+          chunkIndex: 2,
+          pageNumber: 3,
+          score: 0.91,
+        },
+      ],
+      citations: grounded.sources,
+    });
+    expect(recordTrace.mock.calls[0]?.[0].stages.map(({ name }: { name: string }) => name)).toEqual(
+      [
+        'rag.query_guard',
+        'rag.query_embedding',
+        'rag.vector_retrieval',
+        'rag.evidence_guard',
+        'rag.grounded_answer',
+        'rag.output_validation',
+      ],
+    );
+    expect(logger.warn).toHaveBeenCalledWith({
+      event: 'knowledge.trace.failed',
+      correlationId: '00000000-0000-4000-8000-000000000042',
+      status: 'FAILED',
+      code: 'LANGSMITH_RAG_TRACE_FAILED',
+    });
+    expect(JSON.stringify(recordTrace.mock.calls[2])).not.toContain('malicious.example');
   });
 });

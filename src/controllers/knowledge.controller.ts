@@ -216,6 +216,7 @@ export class KnowledgeController implements HttpController {
           securityContext: {
             correlationId: response.locals.correlationId,
             actorEmployeeCode: response.locals.actorEmployee.employeeCode,
+            requestSource: 'HTTP',
           },
         }),
       );
