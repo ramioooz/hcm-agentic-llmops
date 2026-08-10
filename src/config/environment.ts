@@ -40,6 +40,7 @@ const environmentSchema = z
       .transform(Number)
       .refine((value) => value >= 1 && value <= 10),
     LANGSMITH_AGENT_TRACING: z.enum(['true', 'false']).default('false'),
+    LANGSMITH_RAG_TRACING: z.enum(['true', 'false']).default('false'),
     LANGSMITH_API_KEY: z.preprocess(
       (value) => (value === '' ? undefined : value),
       z.string().min(1).optional(),
@@ -47,7 +48,11 @@ const environmentSchema = z
     LANGSMITH_PROJECT: z.string().min(1).default('hcm-agentic-llmops'),
   })
   .superRefine((environment, context) => {
-    if (environment.LANGSMITH_AGENT_TRACING === 'true' && !environment.LANGSMITH_API_KEY) {
+    if (
+      (environment.LANGSMITH_AGENT_TRACING === 'true' ||
+        environment.LANGSMITH_RAG_TRACING === 'true') &&
+      !environment.LANGSMITH_API_KEY
+    ) {
       context.addIssue({
         code: 'custom',
         path: ['LANGSMITH_API_KEY'],
@@ -71,6 +76,7 @@ type Environment = {
   rabbitPrefetch: number;
   rabbitMaxAttempts: number;
   langSmithTracing: boolean;
+  langSmithRagTracing: boolean;
   langSmithApiKey?: string;
   langSmithProject: string;
 };
@@ -89,8 +95,13 @@ export function parseEnvironment(input: Record<string, string | undefined>): Env
     const langSmithKeyIssue = parsed.error.issues.find(
       (issue) => issue.path[0] === 'LANGSMITH_API_KEY',
     );
-    if (langSmithKeyIssue && input.LANGSMITH_AGENT_TRACING === 'true') {
-      throw new Error('LANGSMITH_API_KEY is required when LANGSMITH_AGENT_TRACING=true');
+    if (langSmithKeyIssue) {
+      if (input.LANGSMITH_AGENT_TRACING === 'true') {
+        throw new Error('LANGSMITH_API_KEY is required when LANGSMITH_AGENT_TRACING=true');
+      }
+      if (input.LANGSMITH_RAG_TRACING === 'true') {
+        throw new Error('LANGSMITH_API_KEY is required when LANGSMITH_RAG_TRACING=true');
+      }
     }
 
     throw new Error(
@@ -113,6 +124,7 @@ export function parseEnvironment(input: Record<string, string | undefined>): Env
     rabbitPrefetch: parsed.data.RABBITMQ_PREFETCH,
     rabbitMaxAttempts: parsed.data.RABBITMQ_MAX_ATTEMPTS,
     langSmithTracing: parsed.data.LANGSMITH_AGENT_TRACING === 'true',
+    langSmithRagTracing: parsed.data.LANGSMITH_RAG_TRACING === 'true',
     langSmithApiKey: parsed.data.LANGSMITH_API_KEY,
     langSmithProject: parsed.data.LANGSMITH_PROJECT,
   };

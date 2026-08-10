@@ -26,6 +26,7 @@ describe('parseEnvironment', () => {
       rabbitPrefetch: 10,
       rabbitMaxAttempts: 3,
       langSmithTracing: false,
+      langSmithRagTracing: false,
       langSmithApiKey: undefined,
       langSmithProject: 'hcm-agentic-llmops',
     });
@@ -101,6 +102,18 @@ describe('parseEnvironment', () => {
         LANGSMITH_AGENT_TRACING: 'true',
       }),
     ).toThrow('LANGSMITH_API_KEY is required when LANGSMITH_AGENT_TRACING=true');
+
+    expect(() =>
+      parseEnvironment({
+        NODE_ENV: 'test',
+        PORT: '3010',
+        DATABASE_URL: 'postgresql://app:secret@localhost:5432/hcm',
+        AMQP_URL: 'amqp://localhost:5672',
+        OPENAI_API_KEY: 'unit-test-key',
+        WEBHOOK_API_KEY: 'unit-test-webhook-key-at-least-32-characters',
+        LANGSMITH_RAG_TRACING: 'true',
+      }),
+    ).toThrow('LANGSMITH_API_KEY is required when LANGSMITH_RAG_TRACING=true');
   });
 
   it.each([
