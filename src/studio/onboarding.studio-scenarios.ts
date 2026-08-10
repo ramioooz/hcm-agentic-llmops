@@ -1,13 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { entrypoint } from '@langchain/langgraph';
+import { MemorySaver } from '@langchain/langgraph';
 import { createOfflineAgentDependencies } from '../evaluation/onboarding-agent.evaluation';
-import { assertAutomaticTracingDisabled } from '../observability/automatic-tracing-guard';
-import { OnboardingAgentService } from '../services/onboarding-agent.service';
+import type { OnboardingGraphDependencies } from '../workflows/onboarding/onboarding.graph';
 import type { HcmIntent } from '../types/hcm-intent';
+import type { OnboardingInvocationInput } from '../types/onboarding-invocation-input';
 
-assertAutomaticTracingDisabled(process.env);
-
-type StudioScenario =
+export type StudioScenario =
   | 'review'
   | 'missing-data'
   | 'unsupported'
@@ -16,9 +14,13 @@ type StudioScenario =
   | 'notification'
   | 'tool-failure';
 
-type StudioInput = { scenario?: StudioScenario };
+type StudioScenarioDefinition = {
+  dependencies: OnboardingGraphDependencies;
+  input: OnboardingInvocationInput & { threadId: string };
+  runId: string;
+};
 
-const supportedIntent: HcmIntent = {
+const supportedIntent: Extract<HcmIntent, { intent: 'ONBOARDING_REVIEW' }> = {
   intent: 'ONBOARDING_REVIEW',
   employeeCode: 'EMP-201',
   thresholdDays: 30,
@@ -26,7 +28,12 @@ const supportedIntent: HcmIntent = {
   missingFields: [],
 };
 
-function scenarioInput(scenario: StudioScenario) {
+function scenarioInput(scenario: StudioScenario): {
+  query: string;
+  actorEmployeeCode: string;
+  intent: HcmIntent;
+  failEmployeeLookup?: boolean;
+} {
   switch (scenario) {
     case 'missing-data':
       return {
@@ -36,7 +43,7 @@ function scenarioInput(scenario: StudioScenario) {
           ...supportedIntent,
           employeeCode: null,
           missingFields: ['employeeId'],
-        } as HcmIntent,
+        },
       };
     case 'unsupported':
       return {
@@ -48,7 +55,7 @@ function scenarioInput(scenario: StudioScenario) {
           thresholdDays: null,
           requestedAction: null,
           missingFields: [],
-        } as HcmIntent,
+        },
       };
     case 'unsafe':
       return {
@@ -66,9 +73,15 @@ function scenarioInput(scenario: StudioScenario) {
       return {
         query: 'Review EMP-201 onboarding status and notify the manager.',
         actorEmployeeCode: 'EMP-200',
-        intent: { ...supportedIntent, requestedAction: 'NOTIFY_MANAGER' } as HcmIntent,
+        intent: { ...supportedIntent, requestedAction: 'NOTIFY_MANAGER' },
       };
     case 'tool-failure':
+      return {
+        query: 'Review EMP-201 onboarding status.',
+        actorEmployeeCode: 'EMP-200',
+        intent: supportedIntent,
+        failEmployeeLookup: true,
+      };
     case 'review':
       return {
         query: 'Review EMP-201 onboarding status.',
@@ -78,24 +91,35 @@ function scenarioInput(scenario: StudioScenario) {
   }
 }
 
-export const graph = entrypoint('onboarding_agent', async (input: StudioInput) => {
-  const scenario = input.scenario ?? 'review';
+export function createStudioScenario(scenario: StudioScenario): StudioScenarioDefinition {
   const selected = scenarioInput(scenario);
-  const agent = new OnboardingAgentService(
-    createOfflineAgentDependencies(selected.intent, {
-      failEmployeeLookup: scenario === 'tool-failure',
+  const threadId = randomUUID();
+  const runId = randomUUID();
+  const dependencies: OnboardingGraphDependencies = {
+    ...createOfflineAgentDependencies(selected.intent, {
+      failEmployeeLookup: selected.failEmployeeLookup,
     }),
-  );
-  const result = await agent.invoke({
-    query: selected.query,
-    actorEmployeeCode: selected.actorEmployeeCode,
-    threadId: randomUUID(),
-    correlationId: randomUUID(),
-    runId: randomUUID(),
-  });
-  return {
-    httpStatus: result.httpStatus,
-    status: result.body.status,
-    code: typeof result.body.code === 'string' ? result.body.code : null,
+    checkpointer: new MemorySaver(),
+    threadOwnership: {
+      resolveCanonicalOwner: async (employeeCode) => ({
+        employeeCode,
+        bindingId: `studio-${employeeCode}`,
+      }),
+      findOwnerEmployeeCodeByThreadId: async () => undefined,
+    },
   };
-});
+
+  return {
+    dependencies,
+    runId,
+    input: {
+      kind: 'USER_QUERY',
+      query: selected.query,
+      actorEmployeeCode: selected.actorEmployeeCode,
+      threadId,
+      correlationId: randomUUID(),
+      runId,
+      triggerType: 'HTTP',
+    },
+  };
+}

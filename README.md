@@ -39,7 +39,7 @@ It also provides:
 | MCP                    | Stateless Streamable HTTP endpoint with exactly two authorized read-only tools                                                                          |
 | Triggers               | Disabled-by-default schedule, API-key webhook, RabbitMQ publish/consume, bounded retries, dead-lettering, and event idempotency                         |
 | Security               | Pre-model injection guard, PostgreSQL-derived development identity, authorization at tool boundaries, explicit side effects, and field-aware masking    |
-| Observability          | Pino operational logs, durable run/step/security audit records, optional LangSmith agent traces, a Studio demonstration entrypoint, and evaluations     |
+| Observability          | Pino operational logs, durable run/step/security audit records, optional LangSmith agent traces, production-topology Studio scenarios, and evaluations  |
 | Engineering foundation | Node.js 22, strict TypeScript, Express controllers, Prisma, Docker Compose, Jest, ESLint, Prettier, and GitHub Actions                                  |
 
 ## Architecture
@@ -96,7 +96,7 @@ flowchart LR
         Pino["Pino JSON logs"]
         Audit["Run, step, and<br/>security audit"]
         LangSmith["Optional LangSmith<br/>trace and evaluation"]
-        Studio["LangGraph Studio<br/>deterministic onboarding demo"]
+        Studio["LangGraph Studio<br/>production graph paths"]
     end
 
     User --> AgentApi
@@ -420,12 +420,12 @@ These controls are implemented in application code and adapters; they are not de
 
 The project separates four kinds of operational evidence:
 
-| Mechanism        | Purpose                                                          | Stored information                                                                                                                                         |
-| ---------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| LangSmith        | Optional AI-agent trace and evaluation view                      | Safe identifiers, prompt version, configured model, normalized intent, node/tool paths, authorization outcome, end-to-end latency, and stable failure code |
-| LangGraph Studio | Run and inspect the exported deterministic onboarding entrypoint | Seven fake-backed onboarding scenarios and their summarized status/code results                                                                            |
-| Pino             | Application and HTTP/MCP operational logs                        | JSON lifecycle events with correlation/run identifiers and stable status codes                                                                             |
-| PostgreSQL audit | Durable business and security traceability                       | `agent_runs`, `agent_run_steps`, and `security_events` with redacted summaries and outcomes                                                                |
+| Mechanism        | Purpose                                                     | Stored information                                                                                                                                         |
+| ---------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| LangSmith        | Optional AI-agent trace and evaluation view                 | Safe identifiers, prompt version, configured model, normalized intent, node/tool paths, authorization outcome, end-to-end latency, and stable failure code |
+| LangGraph Studio | Run and inspect fresh instances of the production HCM graph | Seven fake-backed scenarios with the real nodes, conditional edges, selected path, intermediate state, and final route state                               |
+| Pino             | Application and HTTP/MCP operational logs                   | JSON lifecycle events with correlation/run identifiers and stable status codes                                                                             |
+| PostgreSQL audit | Durable business and security traceability                  | `agent_runs`, `agent_run_steps`, and `security_events` with redacted summaries and outcomes                                                                |
 
 LangSmith tracing is disabled by default. The application deliberately uses one explicit, allowlisted invocation trace instead of global automatic LangChain tracing, because automatic tracing may capture raw model inputs or duplicate runs. The current trace sets retry count to `0`, leaves token and estimated-cost fields empty, and infers model-call count as `0` or `1` from whether intent normalization ran; these are not provider-collected usage metrics.
 
@@ -447,7 +447,7 @@ The bounded runner uses deterministic fake dependencies and covers intent normal
 npm run agent:studio
 ```
 
-`langgraph.json` exports a deterministic onboarding demonstration entrypoint without starting Express. It runs the seven fake-backed evaluation scenarios through `OnboardingAgentService` and returns a summarized result; it does not expose separate production onboarding and leave worker graphs or their complete internal topology. Keep automatic LangChain/LangSmith tracing environment aliases unset because the project rejects them to preserve its explicit safe tracing path.
+`langgraph.json` exports seven deterministic factories backed by the same `createOnboardingGraph` topology used by the production API. Each Studio run receives a fresh graph and fictional dependencies, so Graph mode shows the actual request guard, normalization, routing, onboarding, leave, approval, notification, and response-audit nodes without starting Express or calling PostgreSQL, RabbitMQ, or OpenAI. Keep automatic LangChain/LangSmith tracing environment aliases unset because the project rejects them to preserve its explicit safe tracing path.
 
 ## Data model
 
@@ -1081,7 +1081,9 @@ npm run agent:studio
 npm run eval:agent
 ```
 
-Studio loads the standalone graph configured by `langgraph.json`. The evaluation report shows each scenario and its pass/fail result. When `LANGSMITH_AGENT_TRACING=true` and valid LangSmith settings are present, inspect the safe invocation trace for prompt version, model, selected intent, graph path, node and tool names, authorization result, identifiers, latency, model-call count, and available usage metadata. Global automatic LangChain tracing remains disabled.
+Studio loads the graph factories configured by `langgraph.json`. The evaluation report shows each scenario and its pass/fail result. When `LANGSMITH_AGENT_TRACING=true` and valid LangSmith settings are present, inspect the safe invocation trace for prompt version, model, selected intent, graph path, node and tool names, authorization result, identifiers, latency, model-call count, and available usage metadata. Global automatic LangChain tracing remains disabled.
+
+Studio registers `onboarding_review`, `onboarding_notification`, `missing_information`, `unsupported_request`, `unsafe_request`, `authorization_denied`, and `tool_failure`. Select a graph in Graph mode, enter `{"ownerBindingId":"studio-owner"}` as its input, and submit it. The diagram highlights the executed production path; for example, review bypasses `manager_notification`, while notification traverses it before `response_audit`.
 
 Pino console output should be parseable JSON linked by `correlationId` and, when available, `runId`. It must not contain raw queries, employee records, API keys, or tokens.
 

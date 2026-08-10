@@ -19,6 +19,7 @@
 ### Task 1: Prove and replace the wrapper export
 
 **Files:**
+
 - Create: `tests/unit/langgraph-studio.test.ts`
 - Create: `src/studio/onboarding.studio-scenarios.ts`
 - Create: `src/studio/onboarding.studio.graph.ts`
@@ -36,6 +37,7 @@
 ### Task 2: Document and verify Studio use
 
 **Files:**
+
 - Modify: `README.md`
 - Modify: `docs/architecture.md`
 - Modify: `docs/usage-guide.md`

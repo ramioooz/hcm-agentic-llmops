@@ -8,7 +8,7 @@ describe('Studio automatic tracing guard', () => {
     process.env.LANGSMITH_TRACING_V2 = 'true';
     jest.resetModules();
 
-    await expect(import('../../src/studio/onboarding.studio')).rejects.toThrow(
+    await expect(import('../../src/studio/onboarding.studio.graph')).rejects.toThrow(
       'Automatic LangChain tracing must remain disabled',
     );
   });

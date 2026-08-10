@@ -158,7 +158,17 @@ When the API runs inside Docker Compose, use port `3300` instead of `3000`.
 
 Tracing is off by default. `LANGSMITH_API_KEY` is required only when `LANGSMITH_AGENT_TRACING=true`. The explicit trace contains allowlisted operational metadata and completed numeric timestamps while omitting raw queries, prompt text, employee PII, tool payloads, arbitrary errors, and secrets. The API, evaluation, and Studio fail fast if `LANGSMITH_TRACING`, `LANGSMITH_TRACING_V2`, `LANGCHAIN_TRACING`, or `LANGCHAIN_TRACING_V2` enables an automatic tracing path.
 
-Use `npm run agent:studio` for deterministic graph scenarios and `npm run eval:agent` for the stable seven-case local report. Both use fakes and need no application credentials or live services. Evaluation upload is independent and occurs only when `LANGSMITH_EVALUATION_UPLOAD=true` with a LangSmith key.
+Use `npm run agent:studio` for deterministic production-topology graph scenarios and `npm run eval:agent` for the stable seven-case local report. The scenario graphs use fakes and make no OpenAI, PostgreSQL, or RabbitMQ calls; opening the hosted Studio interface requires a LangSmith account and `LANGSMITH_API_KEY` in `.env`. Evaluation upload is independent and occurs only when `LANGSMITH_EVALUATION_UPLOAD=true` with a LangSmith key.
+
+After Studio opens, use Graph mode and select one of `onboarding_review`, `onboarding_notification`, `missing_information`, `unsupported_request`, `unsafe_request`, `authorization_denied`, or `tool_failure`. Submit:
+
+```json
+{
+  "ownerBindingId": "studio-owner"
+}
+```
+
+The displayed nodes and conditional edges are the production graph topology. `onboarding_review` follows request guard through onboarding calculation directly to response audit. `onboarding_notification` additionally traverses manager notification. Unsafe and unsupported scenarios reach response audit without invoking protected employee tools.
 
 ## Try the webhook trigger
 
