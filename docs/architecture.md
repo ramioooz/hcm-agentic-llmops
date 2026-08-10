@@ -8,7 +8,11 @@ The knowledge path is isolated behind ingestion, embedding, repository, and grou
 
 `knowledge_documents` owns the active index version and content hash. `knowledge_chunks` stores document/index version, embedding model, chunking version, page/chunk coordinates, extracted text, and a 1,536-dimensional vector. Reindexing writes a complete inactive version before a conditional update atomically activates it. Retrieval joins only the active version, optionally scopes to one document, and caps results at eight chunks.
 
-External processing is disabled unless `RAG_EXTERNAL_PROCESSING_ENABLED=true`. Enabling it sends extracted chunks to the configured OpenAI embedding model and selected evidence to the configured OpenAI answer model. Retrieved text is labeled untrusted evidence; it cannot grant permissions or issue tool instructions. Application code accepts only citations to retrieved chunk IDs and constructs the final source list. Document text is excluded from operational logs and LangSmith traces.
+External processing is disabled unless `RAG_EXTERNAL_PROCESSING_ENABLED=true`. Enabling it sends extracted chunks to the configured OpenAI embedding model and selected evidence to the configured OpenAI answer model. Before those boundaries, deterministic rules inspect every extracted chunk, the knowledge question, and every selected evidence chunk. Unsafe uploads stop before embedding and activation; unsafe questions stop before query embedding; unsafe retrieved evidence produces `INSUFFICIENT_EVIDENCE` before answer generation.
+
+The answer adapter uses a trusted `SystemMessage` for policy and a separate JSON `HumanMessage` for the question and evidence. Retrieved text is untrusted reference data; it cannot grant permissions, change roles, request tools, or issue commands. The model has no mutating RAG tool. A strict output schema returns an answer and cited chunk IDs; application code accepts only citations to retrieved chunks, constructs the source list, scans the answer, and rejects external URLs that are absent from cited evidence.
+
+Detected RAG injection produces a standalone `PROMPT_INJECTION_DETECTED` security event linked by correlation ID and optional actor/document/chunk coordinates. Only the source, stable reason code, coordinates, and SHA-256 content hash are stored. Raw questions, chunks, answers, document text, and malicious URLs are excluded from PostgreSQL security details, operational logs, and LangSmith traces.
 
 ## Read-only MCP boundary
 
