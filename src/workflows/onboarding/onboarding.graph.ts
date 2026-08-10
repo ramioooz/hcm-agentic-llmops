@@ -234,6 +234,24 @@ async function recordResult(
   });
 }
 
+function resolveAuthenticatedSelfTarget(
+  intent: HcmIntent,
+  actorEmployeeCode: string,
+): HcmIntent {
+  if (
+    intent.intent !== 'ONBOARDING_REVIEW' ||
+    intent.employeeCode !== null ||
+    intent.missingFields.includes('employeeId')
+  ) {
+    return intent;
+  }
+
+  return {
+    ...intent,
+    employeeCode: actorEmployeeCode,
+  };
+}
+
 function continueNormalizedIntent(
   query: string,
   current: HcmIntent,
@@ -448,13 +466,16 @@ export function createOnboardingGraph(
       }
       try {
         if (!isUserCommand(context.input)) throw new Error('GRAPH_COMMAND_INVALID');
-        context.intent = continueNormalizedIntent(
-          context.input.query,
-          enforceIntentConsistency(
+        context.intent = resolveAuthenticatedSelfTarget(
+          continueNormalizedIntent(
             context.input.query,
-            await dependencies.normalizer.normalize(context.input.query),
+            enforceIntentConsistency(
+              context.input.query,
+              await dependencies.normalizer.normalize(context.input.query),
+            ),
+            pendingIntentFromState(state),
           ),
-          pendingIntentFromState(state),
+          context.input.actorEmployeeCode,
         );
         emit({
           event: 'intent',

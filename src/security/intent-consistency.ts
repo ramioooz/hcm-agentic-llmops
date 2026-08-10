@@ -24,6 +24,8 @@ const explicitDelegationPattern = new RegExp(
 );
 const negatedNotificationPattern =
   /\b(?:do\s+not|don't|never|without|no)\s+(?:\w+\s+){0,3}(?:notify|notification|message|send|tell)\b/i;
+const onboardingSelfReferencePattern =
+  /\b(?:my\s+(?:own\s+)?(?:onboarding|probation|review)|(?:onboarding|probation|review)(?:\s+status)?\s+for\s+me)\b/i;
 
 function hasExplicitEmployeeCode(query: string, employeeCode: string): boolean {
   const explicitCodes = query.match(employeeCodePattern) ?? [];
@@ -88,6 +90,7 @@ export function enforceIntentConsistency(query: string, intent: HcmIntent): HcmI
     intent.employeeCode !== null && hasExplicitEmployeeCode(query, intent.employeeCode)
       ? intent.employeeCode
       : null;
+  const explicitSelfReference = onboardingSelfReferencePattern.test(query);
   const requestedAction =
     intent.requestedAction === 'NOTIFY_MANAGER' && !hasExplicitNotificationRequest(query)
       ? 'REVIEW_ONLY'
@@ -98,6 +101,7 @@ export function enforceIntentConsistency(query: string, intent: HcmIntent): HcmI
     employeeCode,
     thresholdDays: resolveThresholdDays(query),
     requestedAction,
-    missingFields: employeeCode === null ? ['employeeId'] : [],
+    missingFields:
+      employeeCode === null && !explicitSelfReference ? (['employeeId'] as const) : [],
   };
 }

@@ -11,9 +11,11 @@ describe('HCM intent normalization configuration', () => {
       'Could you review employee EMP-201?',
     ) as BaseMessage[];
 
-    expect(HCM_INTENT_PROMPT_VERSION).toBe('hcm-intent-v2');
+    expect(HCM_INTENT_PROMPT_VERSION).toBe('hcm-intent-v3');
     expect(messages.map((message) => message.getType())).toEqual([
       'system',
+      'human',
+      'ai',
       'human',
       'ai',
       'human',
@@ -51,6 +53,16 @@ describe('HCM intent normalization configuration', () => {
         employeeCode: 'EMP-201',
         thresholdDays: 30,
         requestedAction: 'NOTIFY_MANAGER',
+        leaveStartDate: null,
+        leaveEndDate: null,
+        missingFields: [],
+      }),
+      'Review my onboarding status.',
+      JSON.stringify({
+        intent: 'ONBOARDING_REVIEW',
+        employeeCode: null,
+        thresholdDays: 30,
+        requestedAction: 'REVIEW_ONLY',
         leaveStartDate: null,
         leaveEndDate: null,
         missingFields: [],

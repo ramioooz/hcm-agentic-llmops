@@ -1,6 +1,6 @@
 import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 
-export const HCM_INTENT_PROMPT_VERSION = 'hcm-intent-v2';
+export const HCM_INTENT_PROMPT_VERSION = 'hcm-intent-v3';
 
 const systemPrompt = `You normalize requests for a human-capital-management service.
 Return only the structured fields requested by the response schema.
@@ -13,7 +13,9 @@ Extract a numeric day threshold when explicitly stated.
 When no day threshold is stated, use 30 for ONBOARDING_REVIEW.
 Use REVIEW_ONLY unless the request explicitly asks to notify or message a manager.
 Use NOTIFY_MANAGER only when the request explicitly asks to notify or message a manager.
-For ONBOARDING_REVIEW without an employee code, include employeeId in missingFields. Do not infer employee identifiers or notification actions.
+For ONBOARDING_REVIEW with an explicit first-person target such as "my onboarding status", use null for employeeCode and do not include employeeId in missingFields; the application resolves the authenticated actor deterministically.
+For ONBOARDING_REVIEW with neither an employee code nor an explicit first-person target, use null for employeeCode and include employeeId in missingFields.
+Never invent employee identifiers or notification actions.
 For LEAVE_REQUEST, use null for thresholdDays and requestedAction. Extract leaveStartDate and leaveEndDate only as explicit YYYY-MM-DD values; include startDate or endDate in missingFields when absent. The employeeCode may be null because the authenticated actor defaults to themself.
 For ONBOARDING_REVIEW and UNSUPPORTED, use null for leaveStartDate and leaveEndDate.
 For UNSUPPORTED, use null for employeeCode, thresholdDays, and requestedAction, with an empty missingFields array.`;
@@ -40,6 +42,18 @@ export function buildHcmIntentNormalizationMessages(query: string) {
         employeeCode: 'EMP-201',
         thresholdDays: 30,
         requestedAction: 'NOTIFY_MANAGER',
+        leaveStartDate: null,
+        leaveEndDate: null,
+        missingFields: [],
+      }),
+    ),
+    new HumanMessage('Review my onboarding status.'),
+    new AIMessage(
+      JSON.stringify({
+        intent: 'ONBOARDING_REVIEW',
+        employeeCode: null,
+        thresholdDays: 30,
+        requestedAction: 'REVIEW_ONLY',
         leaveStartDate: null,
         leaveEndDate: null,
         missingFields: [],

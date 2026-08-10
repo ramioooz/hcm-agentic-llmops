@@ -208,6 +208,33 @@ describe('OnboardingAgentService', () => {
     );
   });
 
+  it('resolves an explicit onboarding self-reference to the authenticated actor', async () => {
+    const { service, reader } = createService({
+      normalizedIntent: {
+        intent: 'ONBOARDING_REVIEW',
+        employeeCode: null,
+        thresholdDays: 30,
+        requestedAction: 'REVIEW_ONLY',
+        missingFields: [],
+      },
+    });
+
+    const result = await service.invoke({
+      query: 'Review my onboarding status',
+      actorEmployeeCode: 'EMP-201',
+      correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
+    });
+
+    expect(result).toMatchObject({
+      httpStatus: 200,
+      body: {
+        status: 'COMPLETED',
+        data: { employeeCode: 'EMP-201', action: 'REVIEW_ONLY' },
+      },
+    });
+    expect(reader.findByEmployeeCode).toHaveBeenCalledWith('EMP-201');
+  });
+
   it('does not use an unrelated onboarding duration as the warning threshold', async () => {
     const { service } = createService({
       record: {
@@ -782,7 +809,7 @@ describe('OnboardingAgentService', () => {
     expect(traces).toHaveLength(1);
     expect(traces[0]).toMatchObject({
       correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
-      promptVersion: 'hcm-intent-v2',
+      promptVersion: 'hcm-intent-v3',
       configuredModel: 'gpt-5.4-mini',
       normalizedIntent: 'ONBOARDING_REVIEW',
       nodePath: [
