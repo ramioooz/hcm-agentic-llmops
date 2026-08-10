@@ -11,10 +11,11 @@ When all of the following are true, the consistency boundary converts the normal
 - The model returned `UNSUPPORTED`.
 - The query contains the affirmative phrase `request annual leave`.
 - The query contains exactly two `YYYY-MM-DD` date values.
+- The query does not name another employee, so the authenticated employee remains the unambiguous target.
 
 The two dates become `leaveStartDate` and `leaveEndDate` in their query order. `employeeCode`, `thresholdDays`, and `requestedAction` remain `null`, and `missingFields` is empty. The authenticated employee therefore remains the target through the existing leave workflow.
 
-The rule does not run when the model selects onboarding or leave, when the request lacks the explicit phrase, or when the request contains fewer or more than two ISO dates. Unrelated unsupported requests remain unsupported.
+The rule does not run when the model selects onboarding or leave, when the request lacks the explicit phrase, when another employee is named, or when the request contains fewer or more than two ISO dates. Unrelated unsupported requests remain unsupported.
 
 ## Implementation Boundary
 

@@ -43,7 +43,7 @@ Expected: FAIL because the existing function returns `UNSUPPORTED`.
 
 - [ ] **Step 3: Add the minimal deterministic rule**
 
-Add a private affirmative phrase pattern and reuse the existing explicit employee/date extraction boundaries. Only upgrade an `UNSUPPORTED` result when the phrase matches and exactly two ISO dates are present.
+Add a private affirmative phrase pattern and reuse the existing explicit employee/date extraction boundaries. Only upgrade an `UNSUPPORTED` result when the phrase matches, exactly two ISO dates are present, and no other employee is named.
 
 - [ ] **Step 4: Run the focused test and confirm green**
 
