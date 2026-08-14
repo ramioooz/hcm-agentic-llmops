@@ -58,7 +58,7 @@ The workflow owns business decisions, such as whether an onboarding review is in
 
 HTTP endpoints are grouped in class-based controllers under `src/controllers`. Each controller declares a base path, owns an Express router, validates transport-specific input, and maps service results into HTTP responses. Business decisions remain in deterministic services and graph nodes.
 
-`server.ts` is the composition root. It creates the PostgreSQL client, repository, application service, and controllers, then passes the controller collection to `app.ts`. Constructor injection makes dependencies visible and lets controller tests provide small fakes without starting PostgreSQL or an HTTP server.
+`server.ts` is the process entry point. It delegates dependency composition to `compose-application.ts`, which creates the core, knowledge, agent, and trigger factories before passing controllers to the unchanged `app.ts`. Bootstrap modules contain composition and lifecycle only, never business rules.
 
 The controller establishes three separate UUID v4 identifiers: `threadId` for a durable conversation, `runId` for one execution attempt, and `correlationId` for request tracing. It echoes the accepted or generated thread ID in `X-Thread-Id`. The application service invokes one typed supervisor graph for both JSON and SSE, using a PostgreSQL `PostgresSaver` initialized and closed by the composition root.
 
@@ -76,7 +76,10 @@ flowchart LR
     CONTROLLERS --> APP["app.ts controller mounting"]
 ```
 
-The dependency direction is `controller/trigger → service → HCM graph → domain subgraph → tool → repository`. `src/graphs` contains only graph construction, edges, compilation, and exports. `src/graph-nodes` contains executable handlers; `src/graph-state` contains checkpoint schemas; `src/graph-routing` contains pure conditional decisions; and `src/enums` contains stable runtime vocabulary. Scheduled jobs, webhook handlers, and RabbitMQ consumers reuse the same typed command entry and never duplicate workflow rules.
+The bootstrap dependency direction is `server.ts → compose-application.ts → core, knowledge, agent, and trigger factories → controllers and application services`. Startup order is `checkpointer setup → RabbitMQ → scheduler → HTTP listener`; shutdown order is `scheduler stop → HTTP listener close → RabbitMQ close → checkpointer end and Prisma disconnect`.
+
+The application dependency direction is `controller/trigger → service → HCM graph → domain subgraph → tool → repository`.
+`src/graphs` contains only graph construction, edges, compilation, and exports. `src/graph-nodes` contains executable handlers; `src/graph-state` contains checkpoint schemas; `src/graph-routing` contains pure conditional decisions; and `src/enums` contains stable runtime vocabulary. Scheduled jobs, webhook handlers, and RabbitMQ consumers reuse the same typed command entry and never duplicate workflow rules.
 
 Pino remains the operational HTTP logger and PostgreSQL remains the durable audit store. Optional agent tracing is an invocation-level graph adapter, and optional RAG tracing is a direct completed-run recorder; neither relies on global LangChain tracing. A shared guard rejects every recognized LangSmith/LangChain automatic-tracing alias in API, evaluation, and Studio entrypoints. Each LangSmith agent trace intentionally includes the exact raw user query in its inputs, together with identifiers and trace metadata; its outputs include the request-guard reason code and whether the guard blocked execution before a model call. PostgreSQL audit records, Pino operational logs, and SSE progress events continue to exclude raw user queries.
 
@@ -84,7 +87,7 @@ LangGraph Studio loads graph factories rather than a service-level wrapper. `hcm
 
 Field-aware masking preserves only a recognition-safe shape: `0501234567` becomes `05********`, `EMP-201` becomes `EMP-***`, `samira@company.com` becomes `s*****@company.com`, and `Samira Noor` becomes `S***** N***`.
 
-Shared TypeScript definitions are kept in `src/types`, with one exported type per file so callers do not depend on the service implementation. The onboarding graph depends on a typed normalizer interface; the concrete OpenAI normalizer is an outbound adapter under `src/adapters`, and `server.ts` supplies it during composition. The model only normalizes intent. Graph routing, authorization, review calculation, tool selection, and notification conditions are deterministic. Structured employee lookup, onboarding calculation, and manager notification tools re-check authorization using canonical roles and manager relationships loaded from PostgreSQL.
+Shared TypeScript definitions are kept in `src/types`, with one exported type per file so callers do not depend on the service implementation. The onboarding graph depends on a typed normalizer interface; the concrete OpenAI normalizer is an outbound adapter under `src/adapters`, and the bootstrap composition supplies it. The model only normalizes intent. Graph routing, authorization, review calculation, tool selection, and notification conditions are deterministic. Structured employee lookup, onboarding calculation, and manager notification tools re-check authorization using canonical roles and manager relationships loaded from PostgreSQL.
 
 This gives the system one business path with several safe entry points:
 

@@ -148,7 +148,7 @@ flowchart LR
 controller or trigger → application service → HCM graph → domain subgraph → authorized tool → repository
 ```
 
-`server.ts` is the composition root. It creates the database client, checkpointer, model adapters, repositories, tools, services, trigger transports, and controllers. Controllers translate HTTP details. `graphs/` contains topology only; node behavior lives in `graph-nodes/`, pure route decisions in `graph-routing/`, checkpoint schemas in `graph-state/`, and deterministic calculations in services.
+`server.ts` is the process entry point. It loads validated configuration, starts the composed runtime, and handles shutdown signals. The bootstrap directory is the composition boundary: focused factories create shared infrastructure, agent, knowledge, and trigger modules, while `application-runtime.ts` owns ordered startup and graceful cleanup. Controllers translate HTTP details. `graphs/` contains topology only; node behavior lives in `graph-nodes/`, pure route decisions in `graph-routing/`, checkpoint schemas in `graph-state/`, and deterministic calculations in services.
 
 ## Where the LLM is used
 
@@ -547,6 +547,7 @@ The complete copyable workflow, security, RAG, trigger, observability, and MCP c
 ```text
 src/
 ├── adapters/        OpenAI, RabbitMQ, scheduler, and development notification adapters
+├── bootstrap/        Functional dependency composition and runtime lifecycle
 ├── config/          Environment validation and runtime settings
 ├── contracts/       Zod HTTP, event, model-output, and resume schemas
 ├── controllers/     Express routes and transport-to-service mapping
@@ -568,7 +569,7 @@ src/
 ├── triggers/        Schedule, webhook, and RabbitMQ transport adapters
 ├── types/           Shared TypeScript interfaces and result types
 ├── app.ts           Middleware and controller mounting
-└── server.ts        Runtime composition and graceful shutdown
+└── server.ts        Process entry point and signal handling
 
 prisma/              Schema, controlled migrations, and fictional seed data
 tests/unit/           Focused critical unit tests with fake external dependencies
