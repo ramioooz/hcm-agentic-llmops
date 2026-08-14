@@ -1,202 +1,25 @@
-import { ChatOpenAI } from '@langchain/openai';
-import { PostgresSaver } from '@langchain/langgraph-checkpoint-postgres';
-import { PrismaClient } from '@prisma/client';
-import { AmqplibConnector } from './adapters/amqplib-connector';
-import { DevelopmentManagerNotification } from './adapters/development-manager-notification';
-import { NodeCronScheduler } from './adapters/node-cron-scheduler';
-import {
-  OpenAiGroundedKnowledgeAnswers,
-  OpenAiKnowledgeEmbeddings,
-} from './adapters/openai-knowledge.adapter';
-import {
-  buildOpenAiModelConfiguration,
-  OpenAiHcmIntentNormalizer,
-} from './adapters/openai-hcm-intent-normalizer';
-import { createApp } from './app';
+import { composeApplication } from './bootstrap/compose-application';
 import { loadEnvironment } from './config/load-environment';
-import { AgentController } from './controllers/agent.controller';
-import { HealthController } from './controllers/health.controller';
-import { KnowledgeController } from './controllers/knowledge.controller';
-import { LeaveRequestController } from './controllers/leave-request.controller';
-import { McpController } from './controllers/mcp.controller';
-import { todayAsDateOnly } from './helpers/onboarding-agent.helpers';
-import { createLangSmithAgentTraceRecorder } from './observability/langsmith-agent-trace-recorder';
-import { createLangSmithRagTraceRecorder } from './observability/langsmith-rag-trace-recorder';
-import { PinoApplicationLogger } from './observability/pino-application-logger';
-import { PrismaAgentRunRepository } from './repositories/agent-run.repository';
-import { PrismaEmployeeRepository } from './repositories/employee.repository';
-import { PrismaKnowledgeRepository } from './repositories/knowledge.repository';
-import { PrismaLeaveRepository } from './repositories/leave.repository';
-import { PrismaProcessedEventRepository } from './repositories/processed-event.repository';
-import { KnowledgeQueryService } from './services/knowledge-query.service';
-import { KnowledgeSecurityService } from './services/knowledge-security.service';
-import { HcmAgentService } from './services/hcm-agent.service';
-import { OnboardingTriggerProcessor } from './services/onboarding-trigger-processor';
-import { createTriggerControllers } from './triggers/create-trigger-controllers';
-import { OnboardingScheduleTrigger } from './triggers/onboarding-schedule.trigger';
-import { RabbitMqOnboardingTransport } from './triggers/rabbitmq-onboarding.transport';
 
 async function startServer(): Promise<void> {
   const environment = loadEnvironment();
-  const database = new PrismaClient();
-  const checkpointer = PostgresSaver.fromConnString(environment.databaseUrl);
-  let broker: RabbitMqOnboardingTransport | undefined;
-  let schedule: OnboardingScheduleTrigger | undefined;
+  const runtime = composeApplication(environment);
+  await runtime.start();
+  process.stdout.write(`API listening on port ${environment.port}\n`);
 
-  try {
-    await checkpointer.setup();
+  let shuttingDown = false;
+  const shutdown = (signal: string): void => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    process.stdout.write(`Received ${signal}; shutting down\n`);
+    void runtime.stop().catch(() => {
+      process.stderr.write('API failed to shut down cleanly.\n');
+      process.exitCode = 1;
+    });
+  };
 
-    const employees = new PrismaEmployeeRepository(database);
-    const runRepository = new PrismaAgentRunRepository(database);
-    const leaves = new PrismaLeaveRepository(database);
-    const logger = new PinoApplicationLogger();
-    const knowledgeSecurity = new KnowledgeSecurityService({ recorder: runRepository, logger });
-    let knowledgeQueries: KnowledgeQueryService | undefined;
-    let knowledgeController = new KnowledgeController({
-      employees,
-      enabled: false,
-    });
-    if (environment.ragExternalProcessingEnabled) {
-      const knowledgeRepository = new PrismaKnowledgeRepository(database);
-      const knowledgeEmbeddings = new OpenAiKnowledgeEmbeddings({
-        apiKey: environment.openAiApiKey,
-        model: environment.openAiEmbeddingModel,
-      });
-      const ragTraceRecorder = environment.langSmithRagTracing
-        ? createLangSmithRagTraceRecorder({
-            apiKey: environment.langSmithApiKey as string,
-            projectName: environment.langSmithProject,
-          })
-        : undefined;
-      knowledgeQueries = new KnowledgeQueryService({
-        repository: knowledgeRepository,
-        embeddings: knowledgeEmbeddings,
-        answers: new OpenAiGroundedKnowledgeAnswers({
-          apiKey: environment.openAiApiKey,
-          model: environment.openAiModel,
-        }),
-        security: knowledgeSecurity,
-        ...(ragTraceRecorder
-          ? {
-              tracing: {
-                recorder: ragTraceRecorder,
-                logger,
-                embeddingModel: environment.openAiEmbeddingModel,
-                answerModel: environment.openAiModel,
-              },
-            }
-          : {}),
-      });
-      knowledgeController = new KnowledgeController({
-        employees,
-        enabled: true,
-        queries: knowledgeQueries,
-      });
-    }
-    const onboardingAgent = new HcmAgentService({
-      employees,
-      leaves,
-      leaveApprovals: leaves,
-      clock: { today: todayAsDateOnly },
-      recorder: runRepository,
-      threadOwnership: runRepository,
-      notifications: new DevelopmentManagerNotification(),
-      normalizer: new OpenAiHcmIntentNormalizer(
-        new ChatOpenAI(
-          buildOpenAiModelConfiguration({
-            apiKey: environment.openAiApiKey,
-            model: environment.openAiModel,
-          }),
-        ),
-      ),
-      checkpointer,
-      configuredModel: environment.openAiModel,
-      ...(environment.langSmithTracing
-        ? {
-            traceRecorder: createLangSmithAgentTraceRecorder({
-              apiKey: environment.langSmithApiKey as string,
-              projectName: environment.langSmithProject,
-            }),
-          }
-        : {}),
-    });
-    const processor = new OnboardingTriggerProcessor({
-      events: new PrismaProcessedEventRepository(database),
-      agent: onboardingAgent,
-      automationActorEmployeeCode: environment.automationActorEmployeeCode,
-    });
-    broker = new RabbitMqOnboardingTransport({
-      amqpUrl: environment.amqpUrl,
-      connector: new AmqplibConnector(),
-      processor,
-      prefetch: environment.rabbitPrefetch,
-      maxAttempts: environment.rabbitMaxAttempts,
-    });
-    await broker.start();
-
-    schedule = new OnboardingScheduleTrigger({
-      enabled: environment.schedulerEnabled,
-      scheduler: new NodeCronScheduler(),
-      candidates: employees,
-      processor,
-      clock: { now: () => new Date() },
-    });
-    schedule.start();
-
-    const healthController = new HealthController(async () => {
-      await database.$queryRaw`SELECT 1`;
-    });
-    const agentController = new AgentController({
-      agent: onboardingAgent,
-      logger,
-    });
-    const mcpController = new McpController({
-      employees,
-      clock: { today: todayAsDateOnly },
-      knowledgeQueries,
-      logger,
-    });
-    const leaveRequestController = new LeaveRequestController({ approvals: leaves, logger });
-    const triggerControllers = createTriggerControllers({
-      nodeEnv: environment.nodeEnv,
-      processor,
-      webhookApiKey: environment.webhookApiKey,
-      publisher: broker,
-    });
-    const app = createApp([
-      healthController,
-      agentController,
-      leaveRequestController,
-      knowledgeController,
-      mcpController,
-      ...triggerControllers,
-    ]);
-    const server = app.listen(environment.port, () => {
-      process.stdout.write(`API listening on port ${environment.port}\n`);
-    });
-    let shuttingDown = false;
-
-    const shutdown = (signal: string): void => {
-      if (shuttingDown) return;
-      shuttingDown = true;
-      process.stdout.write(`Received ${signal}; shutting down\n`);
-      schedule?.stop();
-      server.close(() => {
-        void Promise.allSettled([broker?.close(), checkpointer.end(), database.$disconnect()]).then(
-          () => {
-            process.exit(0);
-          },
-        );
-      });
-    };
-
-    process.on('SIGINT', () => shutdown('SIGINT'));
-    process.on('SIGTERM', () => shutdown('SIGTERM'));
-  } catch (error) {
-    schedule?.stop();
-    await Promise.allSettled([broker?.close(), checkpointer.end(), database.$disconnect()]);
-    throw error;
-  }
+  process.once('SIGINT', () => shutdown('SIGINT'));
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
 }
 
 void startServer().catch(() => {

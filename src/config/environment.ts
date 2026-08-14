@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { assertAutomaticTracingDisabled } from '../observability/automatic-tracing-guard';
+import type { ApplicationEnvironment } from '../types/application-environment';
 
 const environmentSchema = z
   .object({
@@ -61,27 +62,9 @@ const environmentSchema = z
     }
   });
 
-type Environment = {
-  nodeEnv: 'development' | 'test' | 'production';
-  port: number;
-  databaseUrl: string;
-  amqpUrl: string;
-  openAiApiKey: string;
-  openAiModel: 'gpt-5.4-mini';
-  openAiEmbeddingModel: string;
-  ragExternalProcessingEnabled: boolean;
-  webhookApiKey: string;
-  schedulerEnabled: boolean;
-  automationActorEmployeeCode: string;
-  rabbitPrefetch: number;
-  rabbitMaxAttempts: number;
-  langSmithTracing: boolean;
-  langSmithRagTracing: boolean;
-  langSmithApiKey?: string;
-  langSmithProject: string;
-};
-
-export function parseEnvironment(input: Record<string, string | undefined>): Environment {
+export function parseEnvironment(
+  input: Record<string, string | undefined>,
+): ApplicationEnvironment {
   assertAutomaticTracingDisabled(input);
 
   const parsed = environmentSchema.safeParse(input);
