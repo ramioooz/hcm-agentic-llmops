@@ -27,20 +27,20 @@ It also provides:
 
 ## Implemented capabilities
 
-| Area                   | Implemented behavior                                                                                                                                    |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| LLM integration        | OpenAI `ChatOpenAI` with versioned prompts and strict Zod structured output for onboarding, leave, missing-information, and unsupported requests        |
-| Agent orchestration    | A typed LangGraph supervisor routes to onboarding and leave workers using deterministic conditional edges                                               |
-| Stateful conversations | LangGraph `PostgresSaver` checkpoints support multi-turn continuation and survive API restarts                                                          |
-| Onboarding tools       | Authorized employee lookup, deterministic review calculation, and explicit manager notification through a development adapter                           |
-| Leave workflow         | Parallel policy/balance tools, deterministic working-day calculation, human approval interrupt, revalidation, idempotent submission, and PDF generation |
-| Streaming              | JSON by default and safe lifecycle events over SSE when `Accept: text/event-stream` is supplied                                                         |
-| RAG                    | explicit repository PDF/TXT/Markdown indexing, OpenAI embeddings, active-version pgvector search, grounded answers, and page/chunk sources              |
-| MCP                    | Stateless Streamable HTTP endpoint with exactly two authorized read-only tools                                                                          |
-| Triggers               | Disabled-by-default schedule, API-key webhook, RabbitMQ publish/consume, bounded retries, dead-lettering, and event idempotency                         |
-| Security               | Pre-model injection guard, PostgreSQL-derived development identity, authorization at tool boundaries, explicit side effects, and field-aware masking    |
-| Observability          | Pino operational logs, durable run/step/security audit records, optional LangSmith agent and explicit RAG traces, production-topology Studio scenarios, and evaluations  |
-| Engineering foundation | Node.js 22, strict TypeScript, Express controllers, Prisma, Docker Compose, Jest, ESLint, Prettier, and GitHub Actions                                  |
+| Area                   | Implemented behavior                                                                                                                                                    |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| LLM integration        | OpenAI `ChatOpenAI` with versioned prompts and strict Zod structured output for onboarding, leave, missing-information, and unsupported requests                        |
+| Agent orchestration    | A typed LangGraph supervisor routes to onboarding and leave workers using deterministic conditional edges                                                               |
+| Stateful conversations | LangGraph `PostgresSaver` checkpoints support multi-turn continuation and survive API restarts                                                                          |
+| Onboarding tools       | Authorized employee lookup, deterministic review calculation, and explicit manager notification through a development adapter                                           |
+| Leave workflow         | Parallel policy/balance tools, deterministic working-day calculation, human approval interrupt, revalidation, idempotent submission, and PDF generation                 |
+| Streaming              | JSON by default and safe lifecycle events over SSE when `Accept: text/event-stream` is supplied                                                                         |
+| RAG                    | explicit repository PDF/TXT/Markdown indexing, OpenAI embeddings, active-version pgvector search, grounded answers, and page/chunk sources                              |
+| MCP                    | Stateless Streamable HTTP endpoint with exactly two authorized read-only tools                                                                                          |
+| Triggers               | Disabled-by-default schedule, API-key webhook, RabbitMQ publish/consume, bounded retries, dead-lettering, and event idempotency                                         |
+| Security               | Pre-model injection guard, PostgreSQL-derived development identity, authorization at tool boundaries, explicit side effects, and field-aware masking                    |
+| Observability          | Pino operational logs, durable run/step/security audit records, optional LangSmith agent and explicit RAG traces, production-topology Studio scenarios, and evaluations |
+| Engineering foundation | Node.js 22, strict TypeScript, Express controllers, Prisma, Docker Compose, Jest, ESLint, Prettier, and GitHub Actions                                                  |
 
 ## Architecture
 
