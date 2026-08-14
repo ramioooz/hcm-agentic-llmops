@@ -353,7 +353,7 @@ The header-based identity mechanism and fictional seeded roles are intentionally
 | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | Input schemas and bounds                  | Reject malformed bodies, oversized files, excessive extracted text/chunks, invalid events, and excessive retrieval limits                     | Controllers, Zod contracts, `knowledge-ingestion.service.ts`, and `knowledge-query.service.ts` |
 | Direct prompt-injection guard             | Stops known instruction overrides, prompt disclosure, bulk record extraction, and security bypass before the intent model and tools           | `request-safety.ts` and the LangGraph `request_guard` node                                     |
-| RAG prompt-injection guard                | Scans upload chunks, knowledge questions, retrieved evidence, and model answers; rejects before the next trust boundary                       | `prompt-injection-risk.ts` and `knowledge-security.service.ts`                                 |
+| RAG prompt-injection guard                | Scans repository document chunks, knowledge questions, retrieved evidence, and model answers; rejects before the next trust boundary          | `prompt-injection-risk.ts` and `knowledge-security.service.ts`                                 |
 | Prompt/evidence separation                | Keeps trusted answer rules in `SystemMessage` and untrusted question/evidence in a JSON `HumanMessage`                                        | `openai-knowledge.adapter.ts`                                                                  |
 | Structured model output                   | Limits intent and grounded-answer responses to strict Zod schemas instead of accepting free-form control data                                 | OpenAI adapters under `src/adapters`                                                           |
 | Grounding and output validation           | Requires citations to retrieved chunk IDs, builds sources in application code, and blocks ungrounded external URLs                            | `knowledge-query.service.ts`                                                                   |
@@ -1037,7 +1037,7 @@ Integration and end-to-end coverage are intentionally limited in this release. L
 - `X-Employee-Id` is a development identity, not production SSO, OAuth, or JWT authentication.
 - Manager notifications use a development adapter rather than an external notification provider.
 - The main conversational supervisor routes onboarding and leave; policy Q&A is exposed through the knowledge API and MCP.
-- External RAG processing and LangSmith tracing require explicit opt-in configuration.
+- External RAG processing is enabled by default but runs only for explicit indexing or query actions; LangSmith tracing remains opt-in.
 - Leave calculations use a Monday–Friday workweek but do not integrate a public-holiday calendar.
 - Generated leave PDFs are stored in PostgreSQL rather than external object storage.
 - Automated tests are focused unit tests; broad integration, end-to-end, load, and fault-injection suites are not included.
