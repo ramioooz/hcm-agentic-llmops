@@ -1,6 +1,10 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import { knowledgeMediaType, knowledgeTitle, normalizedSourcePath } from '../helpers/knowledge-file.helpers';
+import {
+  knowledgeMediaType,
+  knowledgeTitle,
+  normalizedSourcePath,
+} from '../helpers/knowledge-file.helpers';
 import { MAX_KNOWLEDGE_FILE_BYTES } from './knowledge-ingestion.service';
 import type { KnowledgeIndexResult } from '../types/knowledge-index-result';
 import type { KnowledgeSourceFile } from '../types/knowledge-source-file';
@@ -15,7 +19,9 @@ type DirectoryIndexerDependencies = {
     findActiveIndexBySourcePath(sourcePath: string): Promise<KnowledgeActiveIndex | null>;
   };
   ingestion: {
-    describeIndex(buffer: Buffer):
+    describeIndex(
+      buffer: Buffer,
+    ):
       | { contentHash: string; embeddingModel: string; chunkingVersion: string }
       | Promise<{ contentHash: string; embeddingModel: string; chunkingVersion: string }>;
     ingest(input: {
@@ -88,7 +94,9 @@ export class KnowledgeDirectoryIndexer {
           throw new Error('KNOWLEDGE_FILE_READ_FAILED');
         }
         const identity = await this.dependencies.ingestion.describeIndex(buffer);
-        const active = await this.dependencies.repository.findActiveIndexBySourcePath(file.sourcePath);
+        const active = await this.dependencies.repository.findActiveIndexBySourcePath(
+          file.sourcePath,
+        );
         if (
           active &&
           active.contentHash === identity.contentHash &&

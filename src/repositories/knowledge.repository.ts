@@ -29,7 +29,9 @@ export class PrismaKnowledgeRepository implements KnowledgeRepository {
         chunks: { select: { indexVersion: true, embeddingModel: true, chunkingVersion: true } },
       },
     });
-    const chunk = document?.chunks.find((item) => item.indexVersion === document.activeIndexVersion);
+    const chunk = document?.chunks.find(
+      (item) => item.indexVersion === document.activeIndexVersion,
+    );
     if (!document || !chunk || document.activeIndexVersion === 0) return null;
     return {
       documentId: document.id,

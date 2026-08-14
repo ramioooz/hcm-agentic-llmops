@@ -25,5 +25,7 @@ export function knowledgeTitle(fileName: string): string {
     .replace(/[-_]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  return title ? title.replace(/\b\w/g, (character) => character.toUpperCase()) : 'Knowledge Document';
+  return title
+    ? title.replace(/\b\w/g, (character) => character.toUpperCase())
+    : 'Knowledge Document';
 }
