@@ -14,7 +14,6 @@ The trace contract will always include the raw user query together with the dete
 - Every trace records `blockedBeforeModel` as a boolean.
 - PostgreSQL audit records and SSE progress events continue to omit raw queries.
 - Secrets and internal exception details remain excluded from the trace contract.
-- Future redaction is tracked separately in unparented issue #55 and is not part of this change.
 
 This policy intentionally accepts that raw queries may contain personal or sensitive values while the system is in its current development and debugging phase.
 
@@ -81,7 +80,7 @@ Update the README and architecture guide to distinguish three observability boun
 - PostgreSQL durable audit records contain reason codes and summaries but not raw queries.
 - Pino operational logs and SSE progress events do not contain raw queries.
 
-Documentation will also link future redaction work to issue #55 without claiming that redaction is already implemented.
+Documentation will distinguish the LangSmith trace contract from the raw-query exclusion that remains in PostgreSQL audits, Pino logs, and SSE progress events.
 
 ## Acceptance Criteria
 

@@ -8,6 +8,7 @@ import type { OnboardingInvocationInput } from './onboarding-invocation-input';
 import type { OnboardingInvocationResult } from './onboarding-invocation-result';
 import type { OnboardingReviewAction } from './onboarding-review-action';
 import type { OnboardingReviewResult } from './onboarding-review-result';
+import type { RequestSafetyReasonCode } from './request-safety-reason-code';
 import type { SecurityEventRecord } from './security-event-record';
 
 export type HcmAgentExecutionContext = {
@@ -21,6 +22,7 @@ export type HcmAgentExecutionContext = {
   leaveApproval?: LeaveApprovalProposal;
   actionPerformed: boolean;
   actionReason?: string;
+  guardrailReasonCode?: RequestSafetyReasonCode;
   result?: OnboardingInvocationResult;
   steps: AgentRunStepRecord[];
   securityEvents: SecurityEventRecord[];

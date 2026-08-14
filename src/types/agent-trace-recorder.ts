@@ -1,5 +1,5 @@
-import type { SafeAgentTrace } from './safe-agent-trace';
+import type { AgentTrace } from './agent-trace';
 
 export interface AgentTraceRecorder {
-  record(trace: SafeAgentTrace): Promise<void>;
+  record(trace: AgentTrace): Promise<void>;
 }

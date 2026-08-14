@@ -1,6 +1,6 @@
 import { Client } from 'langsmith';
 import type { AgentTraceRecorder } from '../types/agent-trace-recorder';
-import type { SafeAgentTrace } from '../types/safe-agent-trace';
+import type { AgentTrace } from '../types/agent-trace';
 
 export type LangSmithRun = {
   id: string;
@@ -24,7 +24,7 @@ export class LangSmithAgentTraceRecorder implements AgentTraceRecorder {
     private readonly projectName: string,
   ) {}
 
-  public async record(trace: SafeAgentTrace): Promise<void> {
+  public async record(trace: AgentTrace): Promise<void> {
     const endTime = Date.now();
     await this.client.createRun({
       id: trace.runId,
@@ -37,12 +37,15 @@ export class LangSmithAgentTraceRecorder implements AgentTraceRecorder {
         runId: trace.runId,
         threadId: trace.threadId,
         correlationId: trace.correlationId,
+        rawQuery: trace.rawQuery,
       },
       outputs: {
         normalizedIntent: trace.normalizedIntent,
         nodePath: trace.nodePath,
         toolNames: trace.toolNames,
         authorizationResult: trace.authorizationResult,
+        guardrailReasonCode: trace.guardrailReasonCode,
+        blockedBeforeModel: trace.blockedBeforeModel,
         retryCount: trace.retryCount,
         modelCallCount: trace.modelCallCount,
         tokenUsage: trace.tokenUsage,
