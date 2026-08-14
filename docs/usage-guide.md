@@ -122,10 +122,13 @@ The SSE response emits `run`, `intent`, `node`, `tool`, and `response` events. P
 ## Try an annual-leave proposal
 
 ```bash
+LEAVE_START_DATE=$(node -e "const d=new Date(); d.setUTCDate(d.getUTCDate()+14); console.log(d.toISOString().slice(0,10))")
+LEAVE_END_DATE=$(node -e "const d=new Date(); d.setUTCDate(d.getUTCDate()+18); console.log(d.toISOString().slice(0,10))")
+
 curl -X POST http://localhost:3000/api/v1/agent/invoke \
   -H 'Content-Type: application/json' \
   -H 'X-Employee-Id: EMP-201' \
-  -d '{"query":"Request annual leave from 2026-08-14 through 2026-08-18"}'
+  -d "{\"query\":\"Request annual leave from ${LEAVE_START_DATE} through ${LEAVE_END_DATE}\"}"
 ```
 
 The result counts only Monday–Friday and returns HTTP `202` with `AWAITING_APPROVAL`. Employees and managers can submit only for themselves; HR may target another explicit employee code. Managers do not inherit leave access to direct reports.
@@ -203,6 +206,8 @@ The scheduler is disabled by default. Set `SCHEDULER_ENABLED=true` to run daily 
 ## Quality checks
 
 ```bash
+npm run db:generate
+npm run db:format:check
 npm run typecheck
 npm run lint
 npm run format:check

@@ -58,24 +58,25 @@ enum LeaveRequestStatus {
 }
 
 model Employee {
-  id             String                   @id @default(cuid())
-  employeeCode   String                   @unique @map("employee_code")
-  fullName       String                   @map("full_name")
-  email          String                   @unique
-  department     String
-  jobTitle       String                   @map("job_title")
-  accessRole     AccessRole               @default(EMPLOYEE) @map("access_role")
-  status         EmployeeStatus           @default(ACTIVE)
-  managerId      String?                  @map("manager_id")
-  manager        Employee?                @relation("EmployeeManager", fields: [managerId], references: [id])
-  directReports  Employee[]               @relation("EmployeeManager")
-  reviewPeriods  OnboardingReviewPeriod[]
-  agentRuns      AgentRun[]               @relation("ActorEmployee")
-  securityEvents SecurityEvent[]
-  leaveBalances  LeaveBalance[]
-  leaveRequests  LeaveRequest[]
-  createdAt      DateTime                 @default(now()) @map("created_at")
-  updatedAt      DateTime                 @updatedAt @map("updated_at")
+  id                        String                   @id @default(cuid())
+  employeeCode              String                   @unique @map("employee_code")
+  fullName                  String                   @map("full_name")
+  email                     String                   @unique
+  department                String
+  jobTitle                  String                   @map("job_title")
+  accessRole                AccessRole               @default(EMPLOYEE) @map("access_role")
+  status                    EmployeeStatus           @default(ACTIVE)
+  managerId                 String?                  @map("manager_id")
+  manager                   Employee?                @relation("EmployeeManager", fields: [managerId], references: [id])
+  directReports             Employee[]               @relation("EmployeeManager")
+  reviewPeriods             OnboardingReviewPeriod[]
+  agentRuns                 AgentRun[]               @relation("ActorEmployee")
+  securityEvents            SecurityEvent[]
+  leaveBalances             LeaveBalance[]
+  leaveRequests             LeaveRequest[]
+  createdKnowledgeDocuments KnowledgeDocument[]      @relation("KnowledgeDocumentCreator")
+  createdAt                 DateTime                 @default(now()) @map("created_at")
+  updatedAt                 DateTime                 @updatedAt @map("updated_at")
 
   @@index([managerId])
   @@map("employees")
@@ -233,6 +234,7 @@ model KnowledgeDocument {
   sourcePath            String?          @unique @map("source_path")
   activeIndexVersion    Int              @default(0) @map("active_index_version")
   createdByEmployeeCode String           @map("created_by_employee_code")
+  createdByEmployee     Employee         @relation("KnowledgeDocumentCreator", fields: [createdByEmployeeCode], references: [employeeCode])
   chunks                KnowledgeChunk[]
   createdAt             DateTime         @default(now()) @map("created_at")
   updatedAt             DateTime         @updatedAt @map("updated_at")
@@ -242,17 +244,17 @@ model KnowledgeDocument {
 }
 
 model KnowledgeChunk {
-  id              String   @id
-  documentId      String   @map("document_id")
-  indexVersion    Int      @map("index_version")
-  embeddingModel  String   @map("embedding_model")
-  chunkingVersion String   @map("chunking_version")
-  chunkIndex      Int      @map("chunk_index")
-  pageNumber      Int?     @map("page_number")
+  id              String                      @id
+  documentId      String                      @map("document_id")
+  indexVersion    Int                         @map("index_version")
+  embeddingModel  String                      @map("embedding_model")
+  chunkingVersion String                      @map("chunking_version")
+  chunkIndex      Int                         @map("chunk_index")
+  pageNumber      Int?                        @map("page_number")
   content         String
   embedding       Unsupported("vector(1536)")
-  document        KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  createdAt       DateTime @default(now()) @map("created_at")
+  document        KnowledgeDocument           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt       DateTime                    @default(now()) @map("created_at")
 
   @@unique([documentId, indexVersion, chunkIndex])
   @@index([documentId, indexVersion])

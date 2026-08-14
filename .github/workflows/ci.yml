@@ -2,9 +2,9 @@ name: Quality checks
 
 on:
   push:
-    branches: [main, release]
+    branches: [main]
   pull_request:
-    branches: [main, release]
+    branches: [main]
 
 permissions:
   contents: read
@@ -28,6 +28,9 @@ jobs:
       - name: Generate database client
         run: npm run db:generate
 
+      - name: Check database schema formatting
+        run: npm run db:format:check
+
       - name: Type-check
         run: npm run typecheck
 
@@ -38,7 +41,7 @@ jobs:
         run: npm run format:check
 
       - name: Run focused unit tests
-        run: npm test -- --runInBand
+        run: npm test
 
       - name: Run offline agent evaluation
         run: npm run eval:agent

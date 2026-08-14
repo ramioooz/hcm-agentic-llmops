@@ -47,7 +47,7 @@ describe('LangSmithAgentTraceRecorder', () => {
     expect(runs).toHaveLength(1);
     expect(runs[0]).toEqual({
       id: safeTrace.runId,
-      name: 'hcm-onboarding-agent',
+      name: 'hcm-agent',
       run_type: 'chain',
       project_name: 'hcm-agentic-llmops-test',
       start_time: 988,

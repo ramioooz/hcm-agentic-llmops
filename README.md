@@ -22,7 +22,7 @@ It also provides:
 - user, schedule, webhook, and RabbitMQ workflow triggers;
 - PostgreSQL-backed LangGraph conversation checkpoints;
 - JSON and Server-Sent Events (SSE) responses from the same agent endpoint;
-- deterministic prompt-injection controls, tool-boundary authorization, and PII-safe telemetry;
+- deterministic prompt-injection controls, tool-boundary authorization, PII-safe operational logs, and explicit opt-in model traces;
 - optional LangSmith traces, LangGraph Studio visualization, and a bounded evaluation runner.
 
 ## Implemented capabilities
@@ -333,7 +333,7 @@ Security is layered around the non-deterministic components rather than delegate
 4. **Tool authorization:** every protected employee or leave tool rechecks the canonical role and reporting relationship.
 5. **Explicit side effects:** silence never authorizes notification or persistence; leave creation requires a resumed human approval.
 6. **RAG isolation:** retrieved content is untrusted evidence and cannot change prompts, permissions, or tool policy.
-7. **PII-safe observability:** Pino and durable audit fields are allowlisted and sensitive values are masked; enabled LangSmith agent tracing sends the raw agent query, while explicit RAG tracing sends raw questions and answers.
+7. **Separated observability:** Pino and durable audit fields are allowlisted and sensitive values are masked; opt-in LangSmith agent tracing sends the raw agent query, while explicit RAG tracing sends raw questions and answers.
 8. **Webhook secret handling:** the configured Bearer key and raw payload are never logged or persisted.
 
 Field-aware masking retains just enough shape to show that protection was applied:
@@ -349,19 +349,19 @@ The header-based identity mechanism and fictional seeded roles are intentionally
 
 ## Guardrails Used in This LLMOps System
 
-| Guardrail type                            | What it controls                                                                                                                              | Enforcement location                                                                           |
-| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Input schemas and bounds                  | Reject malformed bodies, oversized files, excessive extracted text/chunks, invalid events, and excessive retrieval limits                     | Controllers, Zod contracts, `knowledge-ingestion.service.ts`, and `knowledge-query.service.ts` |
-| Direct prompt-injection guard             | Stops known instruction overrides, prompt disclosure, bulk record extraction, and security bypass before the intent model and tools           | `request-safety.ts` and the LangGraph `request_guard` node                                     |
-| RAG prompt-injection guard                | Scans repository document chunks, knowledge questions, retrieved evidence, and model answers; rejects before the next trust boundary          | `prompt-injection-risk.ts` and `knowledge-security.service.ts`                                 |
-| Prompt/evidence separation                | Keeps trusted answer rules in `SystemMessage` and untrusted question/evidence in a JSON `HumanMessage`                                        | `openai-knowledge.adapter.ts`                                                                  |
-| Structured model output                   | Limits intent and grounded-answer responses to strict Zod schemas instead of accepting free-form control data                                 | OpenAI adapters under `src/adapters`                                                           |
-| Grounding and output validation           | Requires citations to retrieved chunk IDs, builds sources in application code, and blocks ungrounded external URLs                            | `knowledge-query.service.ts`                                                                   |
-| Canonical identity and tool authorization | Resolves `X-Employee-Id` from PostgreSQL and rechecks role/reporting rules at protected tools                                                 | Controllers, employee repository, onboarding and leave tools                                   |
-| Explicit side-effect permission           | Never infers notifications from silence; requires LangGraph human approval before leave persistence                                           | Onboarding graph/tools and leave interrupt/resume workflow                                     |
-| Thread ownership and idempotency          | Prevents another identity resuming a conversation and prevents repeated approvals/events from duplicating writes                              | Checkpoint owner state, leave repository, and `processed_events`                               |
-| PII-safe telemetry                        | Masks Pino/audit fields and excludes retrieved text; enabled agent traces send the raw query and explicit RAG traces send raw question/answer | PII redaction, Pino adapter, LangSmith trace recorders, and security-event recorder            |
-| Failure, retry, and delivery bounds       | Uses a model timeout and one bounded retry; RabbitMQ uses bounded attempts, manual acknowledgement, and a DLQ                                 | Intent normalizer and RabbitMQ transport                                                       |
+| Guardrail type                            | What it controls                                                                                                                             | Enforcement location                                                                           |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Input schemas and bounds                  | Reject malformed bodies, oversized files, excessive extracted text/chunks, invalid events, and excessive retrieval limits                    | Controllers, Zod contracts, `knowledge-ingestion.service.ts`, and `knowledge-query.service.ts` |
+| Direct prompt-injection guard             | Stops known instruction overrides, prompt disclosure, bulk record extraction, and security bypass before the intent model and tools          | `request-safety.ts` and the LangGraph `request_guard` node                                     |
+| RAG prompt-injection guard                | Scans repository document chunks, knowledge questions, retrieved evidence, and model answers; rejects before the next trust boundary         | `prompt-injection-risk.ts` and `knowledge-security.service.ts`                                 |
+| Prompt/evidence separation                | Keeps trusted answer rules in `SystemMessage` and untrusted question/evidence in a JSON `HumanMessage`                                       | `openai-knowledge.adapter.ts`                                                                  |
+| Structured model output                   | Limits intent and grounded-answer responses to strict Zod schemas instead of accepting free-form control data                                | OpenAI adapters under `src/adapters`                                                           |
+| Grounding and output validation           | Requires citations to retrieved chunk IDs, builds sources in application code, and blocks ungrounded external URLs                           | `knowledge-query.service.ts`                                                                   |
+| Canonical identity and tool authorization | Resolves `X-Employee-Id` from PostgreSQL and rechecks role/reporting rules at protected tools                                                | Controllers, employee repository, onboarding and leave tools                                   |
+| Explicit side-effect permission           | Never infers notifications from silence; requires LangGraph human approval before leave persistence                                          | Onboarding graph/tools and leave interrupt/resume workflow                                     |
+| Thread ownership and idempotency          | Prevents another identity resuming a conversation and prevents repeated approvals/events from duplicating writes                             | Checkpoint owner state, leave repository, and `processed_events`                               |
+| Operational masking and explicit traces   | Masks Pino/audit fields and excludes retrieved text; opt-in agent traces send the raw query and explicit RAG traces send raw question/answer | PII redaction, Pino adapter, LangSmith trace recorders, and security-event recorder            |
+| Failure, retry, and delivery bounds       | Uses a model timeout and one bounded retry; RabbitMQ uses bounded attempts, manual acknowledgement, and a DLQ                                | Intent normalizer and RabbitMQ transport                                                       |
 
 These controls are implemented in application code and adapters; they are not delegated to the LLM. The [architecture guide](docs/architecture.md) explains the trust boundaries, and the manual checks below show both accepted and rejected paths.
 
@@ -502,6 +502,7 @@ erDiagram
     EMPLOYEES ||--o{ LEAVE_REQUESTS : submits
     LEAVE_POLICIES ||--o{ LEAVE_BALANCES : governs
     LEAVE_POLICIES ||--o{ LEAVE_REQUESTS : governs
+    EMPLOYEES ||--o{ KNOWLEDGE_DOCUMENTS : indexes
     KNOWLEDGE_DOCUMENTS ||--o{ KNOWLEDGE_CHUNKS : versions
 ```
 
@@ -514,7 +515,7 @@ erDiagram
 | `leave_requests`            | Approved submission dates, idempotent approval thread, status, and generated PDF bytes                        |
 | `agent_runs`                | One durable record for each graph execution with run, thread, correlation, actor, trigger, intent, and status |
 | `agent_run_steps`           | Ordered workflow decisions, tool outcomes, and redacted input/output summaries for a run                      |
-| `security_events`           | Linked authorization denials and unsafe-request rejections                                                    |
+| `security_events`           | Linked authorization denials plus direct-request and RAG prompt-injection signals                             |
 | `processed_events`          | RabbitMQ/webhook delivery idempotency, attempts, hashes, trace identifiers, and stable error codes            |
 | `knowledge_documents`       | Document metadata, content hash, creator code, and active index version                                       |
 | `knowledge_chunks`          | Versioned extracted text, page/chunk coordinates, embedding metadata, and pgvector vectors                    |
@@ -559,7 +560,7 @@ src/
 ├── graphs/          Graph-only HCM supervisor, onboarding, and leave topology
 ├── helpers/         Pure date and response helpers
 ├── mcp/             Official SDK read-only MCP server
-├── observability/   Pino adapter, log mapping, and safe LangSmith recorder
+├── observability/   Pino adapter, log mapping, and explicit LangSmith recorders
 ├── prompts/         Versioned intent-normalization prompt and examples
 ├── repositories/    Prisma business, audit, delivery, leave, and knowledge access
 ├── security/        Injection checks, trace-ID validation, authorization, and masking
@@ -629,7 +630,7 @@ docker compose up -d --build
 docker compose exec api npm run db:seed
 ```
 
-Run the seed command after the first startup, or whenever the fictional development dataset should be reset. It is intentionally destructive to that sample dataset and must not be used against data that should be preserved.
+Run the seed command after the first startup, or whenever the fictional development dataset should be reset. It clears the indexed knowledge rows before recreating employees, so run `npm run knowledge:index` again afterward. The command is intentionally destructive and must not be used against data that should be preserved.
 
 The containerized API listens on `http://localhost:3300` by default. `PORT=3000` is the port inside the API process; `API_PORT=3300` is only the host-side Docker Compose mapping.
 
@@ -641,7 +642,7 @@ External RAG processing defaults to enabled. It performs no network call until a
 RAG_EXTERNAL_PROCESSING_ENABLED=true
 ```
 
-Safe application tracing is also off by default:
+Explicit LangSmith agent tracing is also off by default:
 
 ```dotenv
 LANGSMITH_AGENT_TRACING=true
@@ -672,8 +673,8 @@ The seeded fictional identities are:
 | `EMP-200` | Manager            | Reports to `EMP-100`; manages `EMP-201` and `EMP-202` |
 | `EMP-201` | Employee           | Reports to `EMP-200`                                  |
 | `EMP-202` | Employee           | Reports to `EMP-200`                                  |
+| `EMP-300` | Employee           | Reports to `EMP-100`; completed onboarding review     |
 
-| `EMP-300` | Employee | Reports to `EMP-100`; completed onboarding review |
 Use the actual values returned by earlier responses in place of `THREAD_ID`, `LEAVE_REQUEST_ID`, and `DOCUMENT_ID`. Placeholder credentials such as `YOUR_WEBHOOK_API_KEY` must match the local `.env`; never paste real secrets into committed files.
 
 ### Onboarding review
@@ -810,11 +811,14 @@ Expected: HTTP `403` with code `THREAD_IDENTITY_MISMATCH`.
 Create a proposal:
 
 ```bash
+LEAVE_START_DATE=$(node -e "const d=new Date(); d.setUTCDate(d.getUTCDate()+14); console.log(d.toISOString().slice(0,10))")
+LEAVE_END_DATE=$(node -e "const d=new Date(); d.setUTCDate(d.getUTCDate()+18); console.log(d.toISOString().slice(0,10))")
+
 curl --request POST \
   --url http://localhost:3000/api/v1/agent/invoke \
   --header 'Content-Type: application/json' \
   --header 'X-Employee-Id: EMP-201' \
-  --data '{"query":"Request annual leave from 2026-08-14 through 2026-08-18"}'
+  --data "{\"query\":\"Request annual leave from ${LEAVE_START_DATE} through ${LEAVE_END_DATE}\"}"
 ```
 
 Expected: HTTP `202`, `AWAITING_APPROVAL`, and a `threadId`. No leave-request row exists yet.
@@ -1010,6 +1014,7 @@ Finally run the complete automated verification:
 
 ```bash
 npm run db:generate
+npm run db:format:check
 npm test
 npm run typecheck
 npm run lint
@@ -1023,6 +1028,7 @@ The automated suite focuses on important deterministic behavior and uses fake mo
 
 ```bash
 npm run db:generate
+npm run db:format:check
 npm test
 npm run typecheck
 npm run lint

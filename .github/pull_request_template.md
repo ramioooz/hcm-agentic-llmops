@@ -6,7 +6,8 @@
 
 - [ ] `npm run typecheck`
 - [ ] `npm run lint`
-- [ ] `npm test -- --runInBand`
+- [ ] `npm run db:format:check`
+- [ ] `npm test`
 - [ ] `npm run build`
 
 ## Documentation

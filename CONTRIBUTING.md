@@ -22,6 +22,8 @@ Use plain, descriptive branch names and commit messages. Do not include automate
 ## Required checks
 
 ```bash
+npm run db:generate
+npm run db:format:check
 npm run typecheck
 npm run lint
 npm run format:check

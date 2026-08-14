@@ -28,7 +28,7 @@ export class LangSmithAgentTraceRecorder implements AgentTraceRecorder {
     const endTime = Date.now();
     await this.client.createRun({
       id: trace.runId,
-      name: 'hcm-onboarding-agent',
+      name: 'hcm-agent',
       run_type: 'chain',
       project_name: this.projectName,
       start_time: endTime - trace.latencyMs,
