@@ -28,7 +28,6 @@ import { PrismaEmployeeRepository } from './repositories/employee.repository';
 import { PrismaKnowledgeRepository } from './repositories/knowledge.repository';
 import { PrismaLeaveRepository } from './repositories/leave.repository';
 import { PrismaProcessedEventRepository } from './repositories/processed-event.repository';
-import { KnowledgeIngestionService } from './services/knowledge-ingestion.service';
 import { KnowledgeQueryService } from './services/knowledge-query.service';
 import { KnowledgeSecurityService } from './services/knowledge-security.service';
 import { HcmAgentService } from './services/hcm-agent.service';
@@ -92,12 +91,6 @@ async function startServer(): Promise<void> {
         employees,
         enabled: true,
         queries: knowledgeQueries,
-        ingestion: new KnowledgeIngestionService({
-          repository: knowledgeRepository,
-          embeddings: knowledgeEmbeddings,
-          embeddingModel: environment.openAiEmbeddingModel,
-          security: knowledgeSecurity,
-        }),
       });
     }
     const onboardingAgent = new HcmAgentService({
