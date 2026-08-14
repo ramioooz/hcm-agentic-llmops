@@ -91,16 +91,15 @@ The HTTP response is unchanged. The configured LangSmith project receives one `h
 
 ### Annual-leave proposal
 
-```http
-POST /api/v1/agent/invoke
-X-Employee-Id: EMP-201
-Content-Type: application/json
-```
+```bash
+LEAVE_START_DATE=$(node -e "const d=new Date(); d.setUTCDate(d.getUTCDate()+14); console.log(d.toISOString().slice(0,10))")
+LEAVE_END_DATE=$(node -e "const d=new Date(); d.setUTCDate(d.getUTCDate()+18); console.log(d.toISOString().slice(0,10))")
 
-```json
-{
-  "query": "Request annual leave from 2026-08-14 through 2026-08-18"
-}
+curl --request POST \
+  --url http://localhost:3000/api/v1/agent/invoke \
+  --header 'X-Employee-Id: EMP-201' \
+  --header 'Content-Type: application/json' \
+  --data "{\"query\":\"Request annual leave from ${LEAVE_START_DATE} through ${LEAVE_END_DATE}\"}"
 ```
 
 An eligible proposal returns HTTP `202`, `AWAITING_APPROVAL`, and the durable `threadId`. Continue with the same employee identity:

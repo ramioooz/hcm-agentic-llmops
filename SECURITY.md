@@ -20,8 +20,13 @@ Do not include credentials, real personal information, or private customer data 
 
 - Keep secrets in local environment files that are not committed.
 - Use fictional sample identities only.
-- Keep logs and traces PII-redacted.
+- Keep Pino operational logs, PostgreSQL audit records, and SSE events free of raw queries and masked where employee fields are present.
+- Treat LangSmith as an opt-in external processor: agent traces include the raw user query, and RAG traces include raw questions and generated answers. Enable either mode only with fictional or otherwise approved non-sensitive data.
 - Use a random webhook bearer key of at least 32 characters and rotate it through secret management.
 - Never log webhook credentials or raw webhook bodies; operational event persistence stores a SHA-256 payload hash only.
 - Recheck authorization inside business tools and services.
 - Treat untrusted model output as data that must be validated.
+
+## Development-tool advisory
+
+Production dependencies currently pass `npm audit --omit=dev`. The optional LangGraph Studio CLI depends on `extract-zip` through `@langchain/langgraph-cli`, and the current upstream dependency chain has a published high-severity archive-extraction advisory with no available package update. The CLI is development-only: do not run it against untrusted templates or archives, and keep it out of production images and runtime workflows.

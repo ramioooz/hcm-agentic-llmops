@@ -18,6 +18,7 @@ async function main(): Promise<void> {
     prisma.leaveRequest.deleteMany(),
     prisma.leaveBalance.deleteMany(),
     prisma.leavePolicy.deleteMany(),
+    prisma.knowledgeDocument.deleteMany(),
     prisma.onboardingReviewPeriod.deleteMany(),
     prisma.employee.deleteMany(),
   ]);
@@ -115,11 +116,11 @@ async function main(): Promise<void> {
 
   const year = new Date().getUTCFullYear();
   await prisma.leaveBalance.createMany({
-    data: [
+    data: [year, year + 1].flatMap((balanceYear) => [
       {
         employeeId: nearEnd.id,
         leavePolicyId: annualPolicy.id,
-        year,
+        year: balanceYear,
         allocatedDays: 20,
         usedDays: 4,
         pendingDays: 2,
@@ -127,7 +128,7 @@ async function main(): Promise<void> {
       {
         employeeId: outsideThreshold.id,
         leavePolicyId: annualPolicy.id,
-        year,
+        year: balanceYear,
         allocatedDays: 20,
         usedDays: 10,
         pendingDays: 0,
@@ -135,12 +136,12 @@ async function main(): Promise<void> {
       {
         employeeId: manager.id,
         leavePolicyId: annualPolicy.id,
-        year,
+        year: balanceYear,
         allocatedDays: 20,
         usedDays: 5,
         pendingDays: 0,
       },
-    ],
+    ]),
   });
 
   console.log(

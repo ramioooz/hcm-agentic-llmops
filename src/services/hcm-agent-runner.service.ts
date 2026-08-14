@@ -153,77 +153,92 @@ export async function runHcmAgentGraph(
   const owner = await dependencies.threadOwnership.resolveCanonicalOwner(
     safeInput.actorEmployeeCode,
   );
-  const identityRejection = owner
-    ? await rejectThreadIdentityMismatch(dependencies, safeInput, runId, owner)
-    : undefined;
-  if (identityRejection) {
-    context.result = identityRejection;
-    emitEvent({ event: 'response', data: { runId, status: 'completed', ...identityRejection } });
+  if (!owner) {
+    authorizationResult = 'DENIED';
+    nodePath.push('identity_resolution');
+    context.result = buildFailureResult(
+      context,
+      401,
+      'AUTHENTICATION_REQUIRED',
+      'The employee identity was not found.',
+    );
+    emitEvent({ event: 'response', data: { runId, status: 'completed', ...context.result } });
   } else {
-    const existing =
-      resumeDecision && dependencies.leaveApprovals
-        ? await dependencies.leaveApprovals.findSubmittedByThreadId(safeInput.threadId)
-        : undefined;
-    if (existing) {
-      context.result =
-        resumeDecision === LeaveApprovalDecision.Approve
-          ? buildInvocationResult(200, {
-              status: 'COMPLETED',
-              message: 'The approved leave request was already submitted.',
-              threadId: safeInput.threadId,
-              runId,
-              correlationId: safeInput.correlationId,
-              data: {
-                leaveRequestId: existing.id,
-                leaveRequestStatus: existing.status,
-                documentUrl: `/api/v1/leave-requests/${existing.id}/document`,
-              },
-            })
-          : buildFailureResult(
-              context,
-              409,
-              'LEAVE_REQUEST_ALREADY_SUBMITTED',
-              'The leave request was already submitted.',
-            );
-      emitEvent({
-        event: 'approval',
-        data: {
-          runId,
-          status: resumeDecision === LeaveApprovalDecision.Approve ? 'approved' : 'rejected',
-          outcomeCode: 'LEAVE_REQUEST_ALREADY_SUBMITTED',
-        },
-      });
-      emitEvent({
-        event: 'document',
-        data: { runId, status: 'available', leaveRequestId: existing.id },
-      });
-      await recordAgentResult(dependencies, context);
-      emitEvent({ event: 'response', data: { runId, status: 'completed', ...context.result } });
+    const identityRejection = await rejectThreadIdentityMismatch(
+      dependencies,
+      safeInput,
+      runId,
+      owner,
+    );
+    if (identityRejection) {
+      context.result = identityRejection;
+      emitEvent({ event: 'response', data: { runId, status: 'completed', ...identityRejection } });
     } else {
-      const graph = createHcmAgentGraph(dependencies, context, emitEvent);
-      const output = await graph.invoke(
-        resumeDecision
-          ? new Command({ resume: resumeDecision })
-          : { ownerBindingId: owner?.bindingId ?? resolveSafeCorrelationId(undefined) },
-        { configurable: { thread_id: safeInput.threadId } },
-      );
-      const interrupts = (output as Record<string, unknown>).__interrupt__;
-      if (Array.isArray(interrupts) && interrupts.length > 0) {
-        context.steps.push({
-          stepName: 'leave_approval',
-          status: 'REJECTED',
-          outcomeCode: 'LEAVE_APPROVAL_REQUIRED',
+      const existing =
+        resumeDecision && dependencies.leaveApprovals
+          ? await dependencies.leaveApprovals.findSubmittedByThreadId(safeInput.threadId)
+          : undefined;
+      if (existing) {
+        context.result =
+          resumeDecision === LeaveApprovalDecision.Approve
+            ? buildInvocationResult(200, {
+                status: 'COMPLETED',
+                message: 'The approved leave request was already submitted.',
+                threadId: safeInput.threadId,
+                runId,
+                correlationId: safeInput.correlationId,
+                data: {
+                  leaveRequestId: existing.id,
+                  leaveRequestStatus: existing.status,
+                  documentUrl: `/api/v1/leave-requests/${existing.id}/document`,
+                },
+              })
+            : buildFailureResult(
+                context,
+                409,
+                'LEAVE_REQUEST_ALREADY_SUBMITTED',
+                'The leave request was already submitted.',
+              );
+        emitEvent({
+          event: 'approval',
+          data: {
+            runId,
+            status: resumeDecision === LeaveApprovalDecision.Approve ? 'approved' : 'rejected',
+            outcomeCode: 'LEAVE_REQUEST_ALREADY_SUBMITTED',
+          },
         });
-        context.result = buildInvocationResult(202, {
-          status: 'AWAITING_APPROVAL',
-          code: 'LEAVE_APPROVAL_REQUIRED',
-          message: 'Approve or reject the leave request proposal before creation.',
-          threadId: safeInput.threadId,
-          runId,
-          correlationId: safeInput.correlationId,
+        emitEvent({
+          event: 'document',
+          data: { runId, status: 'available', leaveRequestId: existing.id },
         });
         await recordAgentResult(dependencies, context);
         emitEvent({ event: 'response', data: { runId, status: 'completed', ...context.result } });
+      } else {
+        const graph = createHcmAgentGraph(dependencies, context, emitEvent);
+        const output = await graph.invoke(
+          resumeDecision
+            ? new Command({ resume: resumeDecision })
+            : { ownerBindingId: owner.bindingId },
+          { configurable: { thread_id: safeInput.threadId } },
+        );
+        const interrupts = (output as Record<string, unknown>).__interrupt__;
+        if (Array.isArray(interrupts) && interrupts.length > 0) {
+          context.steps.push({
+            stepName: 'leave_approval',
+            status: 'REJECTED',
+            outcomeCode: 'LEAVE_APPROVAL_REQUIRED',
+          });
+          context.result = buildInvocationResult(202, {
+            status: 'AWAITING_APPROVAL',
+            code: 'LEAVE_APPROVAL_REQUIRED',
+            message: 'Approve or reject the leave request proposal before creation.',
+            threadId: safeInput.threadId,
+            runId,
+            correlationId: safeInput.correlationId,
+          });
+          await recordAgentResult(dependencies, context);
+          emitEvent({ event: 'response', data: { runId, status: 'completed', ...context.result } });
+        }
       }
     }
   }

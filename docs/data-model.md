@@ -9,7 +9,7 @@ This document explains why each table exists and how it fits into the applicatio
 
 Only chunks whose `index_version` equals the document's `active_index_version` are queryable. A replacement version is written without deleting the current version, then activated with one conditional update.
 
-## Sprint 1 model
+## Application data model
 
 ```mermaid
 erDiagram
@@ -22,6 +22,8 @@ EMPLOYEES ||--o{ LEAVE_BALANCES : owns
 EMPLOYEES ||--o{ LEAVE_REQUESTS : submits
 LEAVE_POLICIES ||--o{ LEAVE_BALANCES : governs
 LEAVE_POLICIES ||--o{ LEAVE_REQUESTS : governs
+EMPLOYEES ||--o{ KNOWLEDGE_DOCUMENTS : indexes
+KNOWLEDGE_DOCUMENTS ||--o{ KNOWLEDGE_CHUNKS : versions
 PROCESSED_EVENTS {
   string event_id PK
   string payload_hash
@@ -37,6 +39,8 @@ PROCESSED_EVENTS {
 | `agent_run_steps`           | Routing decisions, tool calls, outcomes, and errors inside one run                | All agent workflows    | Redacted inputs and outputs     |
 | `security_events`           | Rejected requests, authorization failures, and direct or RAG injection signals    | Security controls      | Actor and safe event metadata   |
 | `processed_events`          | Idempotency and delivery metadata for technical onboarding triggers               | Technical triggers     | Opaque event and trace metadata |
+| `knowledge_documents`       | Source identity, content hash, creator, and active knowledge-index version        | Knowledge retrieval    | Creator relationship and paths  |
+| `knowledge_chunks`          | Side-by-side extracted text and embedding versions with source coordinates        | Knowledge retrieval    | Extracted policy text           |
 
 ## Leave-domain tables
 
@@ -58,7 +62,7 @@ The seed command creates fictional records:
 
 The dates are calculated relative to the seed date so the examples remain useful after the repository is cloned.
 
-The seed also creates an `ANNUAL` policy with a 20-working-day allowance, Monday–Friday workweek, three working days of notice, ten consecutive working days maximum, and holiday exclusion. Fictional current-year balances are created for `EMP-200`, `EMP-201`, and `EMP-202`; no leave request is seeded. The agent writes a request only after approval and stores its generated PDF in `leave_requests.document_pdf`; `approval_thread_id` prevents duplicate submissions.
+The seed also creates an `ANNUAL` policy with a 20-working-day allowance, Monday–Friday workweek, three working days of notice, ten consecutive working days maximum, and holiday exclusion. Fictional current-year and next-year balances are created for `EMP-200`, `EMP-201`, and `EMP-202`; no leave request is seeded. The agent writes a request only after approval and stores its generated PDF in `leave_requests.document_pdf`; `approval_thread_id` prevents duplicate submissions.
 
 ### Seeded reporting story
 
@@ -76,13 +80,13 @@ Nadia Rahman (EMP-100, HR partner)
 
 The table story follows the business lifecycle: `employees` identifies people and reporting relationships; `onboarding_review_periods` records the business period being evaluated; `agent_runs` records one workflow attempt; `agent_run_steps` records the decisions and tool operations inside that attempt; and `security_events` records rejected or suspicious activity related to it. No separate `users` table is needed in this release because development actors are represented by employee records and production authentication is a planned boundary.
 
-The onboarding service writes run records through the Prisma-backed agent-run repository in one transaction. The run stores the final status and redacted summaries, the step rows store the key decisions, and authorization failures create linked security-event rows. Technical triggers use `processed_events` to claim an event atomically, suppress completed duplicates, allow failed delivery retries, and link the final run/thread IDs. It stores only event ID, type, SHA-256 payload hash, status, attempt, correlation, timestamps, optional trace IDs, and a stable error code—never the raw event payload. Database failures are mapped to stable errors and do not expose database details to the caller.
+The HCM agent service writes run records through the Prisma-backed agent-run repository in one transaction. The run stores the final status and redacted summaries, the step rows store the key decisions, and authorization failures create linked security-event rows. Technical triggers use `processed_events` to claim an event atomically, suppress completed duplicates, allow failed delivery retries, and link the final run/thread IDs. It stores only event ID, type, SHA-256 payload hash, status, attempt, correlation, timestamps, optional trace IDs, and a stable error code—never the raw event payload. Database failures are mapped to stable errors and do not expose database details to the caller.
 
 ### Migration and seed behavior
 
 `npm run db:migrate` runs Prisma's deployment command. It applies each migration that is not already recorded in PostgreSQL's `_prisma_migrations` table and does nothing when the database is current. It is safe to run repeatedly, but it does not undo or repair a changed migration.
 
-`npm run db:seed` is idempotent in its final result: it resets the seeded employee, onboarding, leave, run, and security-event records and recreates the same fictional sample set relative to today's date. It is intentionally a development reset, so it must not be run against a database containing data that should be preserved.
+`npm run db:seed` is idempotent in its final result: it resets processed events, audit data, leave data, knowledge documents and cascading chunks, onboarding periods, and employees before recreating the fictional HCM sample set relative to today's date. Deleting knowledge documents before employees respects the creator foreign key. Because the seed clears the active knowledge index, run `npm run knowledge:index` afterward. This is intentionally a development reset and must not be run against data that should be preserved.
 
 ## Identifiers and traceability
 

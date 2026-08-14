@@ -14,7 +14,7 @@ The answer adapter uses a trusted `SystemMessage` for policy and a separate JSON
 
 Detected RAG injection produces a standalone `PROMPT_INJECTION_DETECTED` security event linked by correlation ID and optional actor/document/chunk coordinates. Only the source, stable reason code, coordinates, and SHA-256 content hash are stored. Raw questions, chunks, answers, document text, and malicious URLs are excluded from PostgreSQL security details and operational logs. Explicit RAG tracing is the narrow LangSmith exception: it sends the raw question and generated answer, but never complete retrieved chunk text.
 
-When `LANGSMITH_RAG_TRACING=true`, `server.ts` composes one direct LangSmith recorder into `KnowledgeQueryService`; disabled tracing leaves the service without a recorder and makes no LangSmith call. The same service receives a source-bearing security context from both the HTTP controller and MCP `search_knowledge_documents` tool, then builds one `hcm-rag-query` parent trace with reached child stages for query guard, embedding, vector retrieval, evidence guard, grounded answer, and output validation.
+When `LANGSMITH_RAG_TRACING=true`, `create-knowledge-module.ts` composes one direct LangSmith recorder into `KnowledgeQueryService`; disabled tracing leaves the service without a recorder and makes no LangSmith call. The same service receives a source-bearing security context from both the HTTP controller and MCP `search_knowledge_documents` tool, then builds one `hcm-rag-query` parent trace with reached child stages for query guard, embedding, vector retrieval, evidence guard, grounded answer, and output validation.
 
 The parent records the trace/correlation/actor/source identifiers, raw question, nullable raw answer, requested document scope and limit, configured embedding/answer model names, retrieved document/chunk/page/score metadata, citations, result status, total start/end timing, and failure code. Each child records its own timestamps, status, failure code, and stage-specific bounded inputs/outputs. The recorder links children with `parent_run_id` equal to the trace UUID. Failures during delivery are caught after the business result is determined and emit only the safe `knowledge.trace.failed` log event.
 
@@ -58,22 +58,22 @@ The workflow owns business decisions, such as whether an onboarding review is in
 
 HTTP endpoints are grouped in class-based controllers under `src/controllers`. Each controller declares a base path, owns an Express router, validates transport-specific input, and maps service results into HTTP responses. Business decisions remain in deterministic services and graph nodes.
 
-`server.ts` is the process entry point. It delegates dependency composition to `compose-application.ts`, which creates the core, knowledge, agent, and trigger factories before passing controllers to the unchanged `app.ts`. Bootstrap modules contain composition and lifecycle only, never business rules.
+`server.ts` is the process entry point. It delegates dependency composition to `compose-application.ts`, which creates the core, knowledge, agent, and trigger modules before passing controllers to `app.ts`. Bootstrap modules contain composition and lifecycle only, never business rules. `app.ts` mounts shared middleware and controllers, then installs a final JSON error boundary so malformed JSON, oversized payloads, and uncaught failures cannot expose Express HTML, stack traces, or local paths.
 
 The controller establishes three separate UUID v4 identifiers: `threadId` for a durable conversation, `runId` for one execution attempt, and `correlationId` for request tracing. It echoes the accepted or generated thread ID in `X-Thread-Id`. The application service invokes one typed supervisor graph for both JSON and SSE, using a PostgreSQL `PostgresSaver` initialized and closed by the composition root.
 
-Before graph continuation, the service reads protected checkpoint metadata and rejects a thread whose canonical `ownerEmployeeCode` differs from `X-Employee-Id`. Checkpointed graph state contains only the owner and normalized continuation intent, including missing-field markers. Execution routing, run identifiers, raw queries, employee records, names, email addresses, secrets, and final employee results use untracked state or per-run execution context and are not checkpointed. SSE progress exposes only safe lifecycle metadata; its final response event carries the same structured result semantics as JSON.
+Before graph continuation, the service resolves `X-Employee-Id` against PostgreSQL. An unknown identity is rejected before checkpoint reads, model calls, employee tools, or leave-approval lookups. A known identity is then compared with protected checkpoint metadata, and a thread whose canonical owner differs is rejected. Checkpointed graph state contains only the owner and normalized continuation intent, including missing-field markers. Execution routing, run identifiers, raw queries, employee records, names, email addresses, secrets, and final employee results use untracked state or per-run execution context and are not checkpointed. SSE progress exposes only safe lifecycle metadata; its final response event carries the same structured result semantics as JSON.
 
 `AgentController` receives a required `ApplicationLogger` dependency and reports invocation lifecycle events. The observability module owns the mapping from HTTP workflow results to completion, rejection, or failure log levels, keeping that operational policy out of the controller. The Pino adapter serializes those records as JSON and recursively redacts sensitive fields before writing. This preserves a link through `correlationId` and `runId` without placing the request query, employee identifiers, personal details, error messages, or stack traces in operational logs.
 
 ```mermaid
 flowchart LR
-    SERVER["server.ts composition root"] --> REPO["Employee repository"]
-    SERVER --> SERVICE["Onboarding service"]
-    SERVER --> CONTROLLERS["HTTP controllers"]
-    REPO --> SERVICE
-    SERVICE --> CONTROLLERS
-    CONTROLLERS --> APP["app.ts controller mounting"]
+    SERVER["server.ts<br/>process entry point"] --> COMPOSE["compose-application.ts<br/>composition boundary"]
+    COMPOSE --> CORE["core dependencies<br/>database, repositories, audit"]
+    COMPOSE --> MODULES["agent, knowledge, and<br/>trigger modules"]
+    CORE --> MODULES
+    MODULES --> CONTROLLERS["HTTP controllers and<br/>application services"]
+    CONTROLLERS --> APP["app.ts<br/>middleware and controller mounting"]
 ```
 
 The bootstrap dependency direction is `server.ts → compose-application.ts → core, knowledge, agent, and trigger factories → controllers and application services`. Startup order is `checkpointer setup → RabbitMQ → scheduler → HTTP listener`; shutdown order is `scheduler stop → HTTP listener close → RabbitMQ close → checkpointer end and Prisma disconnect`.

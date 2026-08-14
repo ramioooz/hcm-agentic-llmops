@@ -123,6 +123,34 @@ function invocation(query: string, runId: string, actorEmployeeCode = 'EMP-200')
 }
 
 describe('durable conversation state', () => {
+  it('rejects an unknown employee identity before checkpoint, model, or employee access', async () => {
+    const checkpointer = new MemorySaver();
+    const checkpointRead = jest
+      .spyOn(checkpointer, 'getTuple')
+      .mockRejectedValue(new Error('PROTECTED_CHECKPOINT_SHOULD_NOT_LOAD'));
+    const { service, normalize, employees, recorder } = createConversationService(checkpointer);
+
+    const result = await service.invoke(
+      invocation('Review EMP-201 onboarding status', firstRunId, 'EMP-999'),
+    );
+
+    expect(result).toEqual({
+      httpStatus: 401,
+      body: {
+        status: 'FAILED',
+        code: 'AUTHENTICATION_REQUIRED',
+        message: 'The employee identity was not found.',
+        threadId,
+        runId: firstRunId,
+        correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
+      },
+    });
+    expect(checkpointRead).not.toHaveBeenCalled();
+    expect(normalize).not.toHaveBeenCalled();
+    expect(employees.findByEmployeeCode).not.toHaveBeenCalled();
+    expect(recorder.recordInvocation).not.toHaveBeenCalled();
+  });
+
   it('continues a missing-employee request on the same thread with a new run', async () => {
     const { service } = createConversationService(new MemorySaver());
 
