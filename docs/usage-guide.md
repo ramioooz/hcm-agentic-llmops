@@ -45,7 +45,7 @@ Set `OPENAI_EMBEDDING_MODEL` (default `text-embedding-3-small`). Knowledge endpo
 - `POST /api/v1/knowledge/query` searches across active documents.
 - `POST /api/v1/knowledge/documents/:documentId/query` searches one active document.
 
-Query bodies use `{ "query": "...", "limit": 5 }`, where `limit` is 1 through 8. Answers include document/page/chunk sources, or return `INSUFFICIENT_EVIDENCE` with no sources. Use only the fictional fixture under `fixtures/` for repository examples.
+Query bodies use `{ "query": "...", "limit": 5 }`, where `limit` is 1 through 8. Answers include document/page/chunk sources, or return `INSUFFICIENT_EVIDENCE` with no sources. Use only the fictional fixture under `fixtures/` for repository examples. With `LANGSMITH_RAG_TRACING=true`, the raw query and generated answer are also sent to LangSmith; complete retrieved chunk text is not.
 
 The ingestion boundary scans extracted chunks before embeddings and index activation. A detected indirect injection returns `KNOWLEDGE_DOCUMENT_UNSAFE`. The query boundary scans the question before embedding and returns `UNSAFE_KNOWLEDGE_QUERY` for unsafe instructions; retrieved chunks and generated answers are inspected again before a response is released. See the README's [Prompt-Injection Protection](../README.md#prompt-injection-protection) section for the complete control flow and safe audit fields.
 
@@ -156,7 +156,11 @@ When the API runs inside Docker Compose, use port `3300` instead of `3000`.
 
 ## Optional tracing, Studio, and evaluation
 
-Tracing is off by default. `LANGSMITH_API_KEY` is required only when `LANGSMITH_AGENT_TRACING=true`. The explicit trace contains allowlisted operational metadata and completed numeric timestamps while omitting raw queries, prompt text, employee PII, tool payloads, arbitrary errors, and secrets. The API, evaluation, and Studio fail fast if `LANGSMITH_TRACING`, `LANGSMITH_TRACING_V2`, `LANGCHAIN_TRACING`, or `LANGCHAIN_TRACING_V2` enables an automatic tracing path.
+Tracing is off by default. Agent tracing (`LANGSMITH_AGENT_TRACING=true`) records allowlisted operational metadata and omits raw queries. RAG tracing (`LANGSMITH_RAG_TRACING=true`) is independent and requires `LANGSMITH_API_KEY` when either mode is enabled; it records raw knowledge questions and generated answers, actor/correlation/source context, requested scope, configured model names, retrieval IDs/pages/scores, citations, guard outcomes, timing, and stable failures. It is for fictional development data only, not sensitive HR content. The API, evaluation, and Studio fail fast if `LANGSMITH_TRACING`, `LANGSMITH_TRACING_V2`, `LANGCHAIN_TRACING`, or `LANGCHAIN_TRACING_V2` enables an automatic tracing path.
+
+To inspect RAG tracing manually, set `RAG_EXTERNAL_PROCESSING_ENABLED=true`, `LANGSMITH_RAG_TRACING=true`, `LANGSMITH_API_KEY`, and `LANGSMITH_PROJECT`; then index a fictional policy and issue a fictional HTTP or MCP knowledge query. Filter that project for the parent run named `hcm-rag-query`, inspect its raw question/answer, retrieval scores, citations, and latency, then inspect its reached child stages: `rag.query_guard`, `rag.query_embedding`, `rag.vector_retrieval`, `rag.evidence_guard`, `rag.grounded_answer`, and `rag.output_validation`.
+
+RAG trace delivery is best effort. A delivery failure does not alter the HTTP or MCP result and logs only `knowledge.trace.failed`, the correlation ID, and `LANGSMITH_RAG_TRACE_FAILED`; it does not place raw content in Pino.
 
 Use `npm run agent:studio` for deterministic production-topology graphs and `npm run eval:agent` for the stable seven-case local report. The Studio graphs use fakes and make no OpenAI, PostgreSQL, or RabbitMQ calls; opening the hosted Studio interface requires a LangSmith account and `LANGSMITH_API_KEY` in `.env`. Evaluation upload is independent and occurs only when `LANGSMITH_EVALUATION_UPLOAD=true` with a LangSmith key.
 

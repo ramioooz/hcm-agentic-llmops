@@ -27,20 +27,20 @@ It also provides:
 
 ## Implemented capabilities
 
-| Area                   | Implemented behavior                                                                                                                                    |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| LLM integration        | OpenAI `ChatOpenAI` with versioned prompts and strict Zod structured output for onboarding, leave, missing-information, and unsupported requests        |
-| Agent orchestration    | A typed LangGraph supervisor routes to onboarding and leave workers using deterministic conditional edges                                               |
-| Stateful conversations | LangGraph `PostgresSaver` checkpoints support multi-turn continuation and survive API restarts                                                          |
-| Onboarding tools       | Authorized employee lookup, deterministic review calculation, and explicit manager notification through a development adapter                           |
-| Leave workflow         | Parallel policy/balance tools, deterministic working-day calculation, human approval interrupt, revalidation, idempotent submission, and PDF generation |
-| Streaming              | JSON by default and safe lifecycle events over SSE when `Accept: text/event-stream` is supplied                                                         |
-| RAG                    | HR-only PDF/TXT/Markdown ingestion, OpenAI embeddings, active-version pgvector search, grounded answers, and page/chunk sources                         |
-| MCP                    | Stateless Streamable HTTP endpoint with exactly two authorized read-only tools                                                                          |
-| Triggers               | Disabled-by-default schedule, API-key webhook, RabbitMQ publish/consume, bounded retries, dead-lettering, and event idempotency                         |
-| Security               | Pre-model injection guard, PostgreSQL-derived development identity, authorization at tool boundaries, explicit side effects, and field-aware masking    |
-| Observability          | Pino operational logs, durable run/step/security audit records, optional LangSmith agent traces, production-topology Studio scenarios, and evaluations  |
-| Engineering foundation | Node.js 22, strict TypeScript, Express controllers, Prisma, Docker Compose, Jest, ESLint, Prettier, and GitHub Actions                                  |
+| Area                   | Implemented behavior                                                                                                                                                    |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| LLM integration        | OpenAI `ChatOpenAI` with versioned prompts and strict Zod structured output for onboarding, leave, missing-information, and unsupported requests                        |
+| Agent orchestration    | A typed LangGraph supervisor routes to onboarding and leave workers using deterministic conditional edges                                                               |
+| Stateful conversations | LangGraph `PostgresSaver` checkpoints support multi-turn continuation and survive API restarts                                                                          |
+| Onboarding tools       | Authorized employee lookup, deterministic review calculation, and explicit manager notification through a development adapter                                           |
+| Leave workflow         | Parallel policy/balance tools, deterministic working-day calculation, human approval interrupt, revalidation, idempotent submission, and PDF generation                 |
+| Streaming              | JSON by default and safe lifecycle events over SSE when `Accept: text/event-stream` is supplied                                                                         |
+| RAG                    | HR-only PDF/TXT/Markdown ingestion, OpenAI embeddings, active-version pgvector search, grounded answers, and page/chunk sources                                         |
+| MCP                    | Stateless Streamable HTTP endpoint with exactly two authorized read-only tools                                                                                          |
+| Triggers               | Disabled-by-default schedule, API-key webhook, RabbitMQ publish/consume, bounded retries, dead-lettering, and event idempotency                                         |
+| Security               | Pre-model injection guard, PostgreSQL-derived development identity, authorization at tool boundaries, explicit side effects, and field-aware masking                    |
+| Observability          | Pino operational logs, durable run/step/security audit records, optional LangSmith agent and explicit RAG traces, production-topology Studio scenarios, and evaluations |
+| Engineering foundation | Node.js 22, strict TypeScript, Express controllers, Prisma, Docker Compose, Jest, ESLint, Prettier, and GitHub Actions                                                  |
 
 ## Architecture
 
@@ -170,7 +170,7 @@ The model does **not** perform these operations:
 - approve leave, enforce idempotency, publish retries, or generate PDFs;
 - write audit records or decide what telemetry is safe to expose.
 
-Raw user queries are sent to OpenAI only after the deterministic guard accepts them. They are not stored in checkpoints, Pino logs, PostgreSQL audit summaries, or LangSmith trace metadata.
+Agent-route raw user queries are sent to OpenAI only after the deterministic guard accepts them. They are not stored in checkpoints, Pino logs, PostgreSQL audit summaries, or agent-trace metadata; explicit RAG tracing is a separately enabled exception documented below.
 
 ## Agent workflow
 
@@ -312,7 +312,7 @@ flowchart LR
 
 `knowledge_documents.active_index_version` identifies the visible index. Every `knowledge_chunks` row records its document, index version, embedding model, chunking version, page number, and chunk position. Reindexing writes a complete new version beside the active one and switches the document only after the new index is ready. Queries join only the active version.
 
-`RAG_EXTERNAL_PROCESSING_ENABLED=false` is the safe default. When enabled, the configured OpenAI embedding and answer models receive extracted chunks or selected evidence. Document text is treated as untrusted data: it cannot replace system instructions, grant permissions, or request tool execution, and it is excluded from Pino and LangSmith telemetry.
+`RAG_EXTERNAL_PROCESSING_ENABLED=false` is the safe default. When enabled, the configured OpenAI embedding and answer models receive extracted chunks or selected evidence. Document text is treated as untrusted data: it cannot replace system instructions, grant permissions, or request tool execution. Pino and PostgreSQL audit records exclude raw document and query content; when explicit RAG tracing is enabled, LangSmith receives the raw question and generated answer but never complete retrieved chunk text.
 
 The natural-language supervisor currently supports onboarding and leave intents. Policy questions use the dedicated knowledge API or MCP tool rather than the main `/agent/invoke` route.
 
@@ -384,7 +384,7 @@ Security is layered around the non-deterministic components rather than delegate
 4. **Tool authorization:** every protected employee or leave tool rechecks the canonical role and reporting relationship.
 5. **Explicit side effects:** silence never authorizes notification or persistence; leave creation requires a resumed human approval.
 6. **RAG isolation:** retrieved content is untrusted evidence and cannot change prompts, permissions, or tool policy.
-7. **PII-safe observability:** safe fields are allowlisted, sensitive values are masked, and raw content is omitted.
+7. **PII-safe observability:** Pino and durable audit fields are allowlisted and sensitive values are masked; explicit RAG tracing is a separately enabled fictional-data mode that sends raw questions and answers to LangSmith.
 8. **Webhook secret handling:** the configured Bearer key and raw payload are never logged or persisted.
 
 Field-aware masking retains just enough shape to show that protection was applied:
@@ -411,7 +411,7 @@ The header-based identity mechanism and fictional seeded roles are intentionally
 | Canonical identity and tool authorization | Resolves `X-Employee-Id` from PostgreSQL and rechecks role/reporting rules at protected tools                                       | Controllers, employee repository, onboarding and leave tools                                   |
 | Explicit side-effect permission           | Never infers notifications from silence; requires LangGraph human approval before leave persistence                                 | Onboarding graph/tools and leave interrupt/resume workflow                                     |
 | Thread ownership and idempotency          | Prevents another identity resuming a conversation and prevents repeated approvals/events from duplicating writes                    | Checkpoint owner state, leave repository, and `processed_events`                               |
-| PII-safe telemetry                        | Masks recognized identifiers and allowlists trace fields; omits prompts, retrieved text, keys, and tokens                           | PII redaction, Pino adapter, LangSmith trace recorder, and security-event recorder             |
+| PII-safe telemetry                        | Masks Pino/audit fields and excludes retrieved text; explicit RAG traces send raw question/answer only when configured              | PII redaction, Pino adapter, LangSmith trace recorders, and security-event recorder            |
 | Failure, retry, and delivery bounds       | Uses a model timeout and one bounded retry; RabbitMQ uses bounded attempts, manual acknowledgement, and a DLQ                       | Intent normalizer and RabbitMQ transport                                                       |
 
 These controls are implemented in application code and adapters; they are not delegated to the LLM. The [architecture guide](docs/architecture.md) explains the trust boundaries, and the manual checks below show both accepted and rejected paths.
@@ -420,14 +420,14 @@ These controls are implemented in application code and adapters; they are not de
 
 The project separates four kinds of operational evidence:
 
-| Mechanism        | Purpose                                                   | Stored information                                                                                                                                         |
-| ---------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| LangSmith        | Optional AI-agent trace and evaluation view               | Safe identifiers, prompt version, configured model, normalized intent, node/tool paths, authorization outcome, end-to-end latency, and stable failure code |
-| LangGraph Studio | Inspect the production HCM graph and its domain subgraphs | One end-to-end HCM graph plus independently openable onboarding and leave graphs, all backed by fictional offline dependencies                             |
-| Pino             | Application and HTTP/MCP operational logs                 | JSON lifecycle events with correlation/run identifiers and stable status codes                                                                             |
-| PostgreSQL audit | Durable business and security traceability                | `agent_runs`, `agent_run_steps`, and `security_events` with redacted summaries and outcomes                                                                |
+| Mechanism        | Purpose                                                   | Stored information                                                                                                                           |
+| ---------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| LangSmith        | Optional agent, evaluation, and explicit RAG trace view   | Agent runs use allowlisted metadata; enabled RAG runs include raw question/answer, retrieval metadata, citations, guard outcomes, and timing |
+| LangGraph Studio | Inspect the production HCM graph and its domain subgraphs | One end-to-end HCM graph plus independently openable onboarding and leave graphs, all backed by fictional offline dependencies               |
+| Pino             | Application and HTTP/MCP operational logs                 | JSON lifecycle events with correlation/run identifiers and stable status codes                                                               |
+| PostgreSQL audit | Durable business and security traceability                | `agent_runs`, `agent_run_steps`, and `security_events` with redacted summaries and outcomes                                                  |
 
-LangSmith tracing is disabled by default. The application deliberately uses one explicit, allowlisted invocation trace instead of global automatic LangChain tracing, because automatic tracing may capture raw model inputs or duplicate runs. The current trace sets retry count to `0`, leaves token and estimated-cost fields empty, and infers model-call count as `0` or `1` from whether intent normalization ran; these are not provider-collected usage metrics.
+LangSmith tracing is disabled by default. Agent tracing uses one explicit allowlisted invocation trace, while RAG tracing uses a separate explicit recorder; neither enables global automatic LangChain tracing, which could capture uncontrolled inputs or create duplicate runs. The agent trace sets retry count to `0`, leaves token and estimated-cost fields empty, and infers model-call count as `0` or `1` from whether intent normalization ran; these are not provider-collected usage metrics.
 
 ### Prompt versioning
 
@@ -693,15 +693,35 @@ External RAG processing is off by default. Enable it only when policy text may b
 RAG_EXTERNAL_PROCESSING_ENABLED=true
 ```
 
-Safe application tracing is also off by default:
+Agent and explicit RAG tracing are independently off by default:
 
 ```dotenv
 LANGSMITH_AGENT_TRACING=true
+LANGSMITH_RAG_TRACING=true
 LANGSMITH_API_KEY=your-langsmith-key
 LANGSMITH_PROJECT=hcm-agentic-llmops
 ```
 
 Do not enable global automatic LangChain tracing aliases; the application rejects them so raw inputs are not captured outside the explicit allowlisted trace path.
+
+### Explicit RAG traces
+
+Set `RAG_EXTERNAL_PROCESSING_ENABLED=true` and `LANGSMITH_RAG_TRACING=true` with a valid `LANGSMITH_API_KEY` before starting the service. This setting is for fictional development data only: each knowledge query sends its raw question and generated answer, plus the actor employee code, to the external LangSmith project. Do not enable it for sensitive HR content until a deliberate redaction policy exists.
+
+Each HTTP or MCP knowledge query creates one completed `hcm-rag-query` chain run. Inputs are the raw question, correlation ID, actor employee code, source (`HTTP` or `MCP`), optional document ID, and retrieval limit. Outputs are the raw answer (or `null` on a thrown failure), result status, retrieved document/chunk/page/score metadata, citations, total latency, and failure code. The configured embedding and answer model names are run metadata. Complete retrieved chunk text is excluded.
+
+Reached child chain runs use the parent trace UUID and record timestamps, latency, status, and bounded stage fields:
+
+- `rag.query_guard` — raw question and guard decision;
+- `rag.query_embedding` — raw question and vector dimensions;
+- `rag.vector_retrieval` — document scope, limit, and retrieved identifiers/pages/scores;
+- `rag.evidence_guard` — selected chunk IDs and guard decision;
+- `rag.grounded_answer` — raw question, cited chunk IDs, and generated answer;
+- `rag.output_validation` — generated answer, citations, guard/grounding decision, and failure code when rejected.
+
+Delivery is best effort. A LangSmith delivery failure leaves the HTTP or MCP result unchanged and emits only `knowledge.trace.failed`, its correlation ID, and `LANGSMITH_RAG_TRACE_FAILED` to Pino.
+
+For a manual check, index the fictional flexible-work fixture using the HR-policy flow below, then submit the fictional query `How many remote-working days are allowed each week?` with RAG and RAG tracing enabled. In the configured LangSmith project, filter runs by `hcm-rag-query`; inspect the parent raw question/answer, retrieval scores, citations, total latency, and its reached child stages. Automatic LangChain tracing remains disabled.
 
 For migration, seed, Docker, RabbitMQ, RAG, Studio, and MCP details, see [docs/usage-guide.md](docs/usage-guide.md).
 

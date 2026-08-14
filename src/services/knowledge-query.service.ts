@@ -37,11 +37,16 @@ async function runStage<T>(input: {
   inputs?: Record<string, unknown>;
   operation: () => Promise<T>;
   outputs: (result: T) => Record<string, unknown>;
+  completion?: (result: T) => {
+    outputs?: Record<string, unknown>;
+    status?: RagTraceStage['status'];
+    failureCode?: string;
+  };
 }): Promise<T> {
   const stage = input.trace?.startStage(input.name, input.inputs);
   try {
     const result = await input.operation();
-    stage?.complete({ outputs: input.outputs(result) });
+    stage?.complete(input.completion?.(result) ?? { outputs: input.outputs(result) });
     return result;
   } catch (error) {
     stage?.complete({
@@ -86,16 +91,22 @@ export class KnowledgeQueryService {
     };
 
     try {
-      const queryGuard = trace?.startStage('rag.query_guard', { question: query });
-      const queryRisk = await this.dependencies.security.inspect({
-        text: query,
-        source: 'KNOWLEDGE_QUERY',
-        ...inspectionContext,
-      });
-      queryGuard?.complete({
-        outputs: queryRisk,
-        status: queryRisk.safe ? 'COMPLETED' : 'REJECTED',
-        ...(!queryRisk.safe ? { failureCode: queryRisk.reasonCode } : {}),
+      const queryRisk = await runStage({
+        trace,
+        name: 'rag.query_guard',
+        inputs: { question: query },
+        operation: () =>
+          this.dependencies.security.inspect({
+            text: query,
+            source: 'KNOWLEDGE_QUERY',
+            ...inspectionContext,
+          }),
+        outputs: (result) => result,
+        completion: (result) => ({
+          outputs: result,
+          status: result.safe ? 'COMPLETED' : 'REJECTED',
+          ...(!result.safe ? { failureCode: result.reasonCode } : {}),
+        }),
       });
       if (!queryRisk.safe) throw new Error('UNSAFE_KNOWLEDGE_QUERY');
 

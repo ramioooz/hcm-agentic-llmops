@@ -85,6 +85,19 @@ describe('KnowledgeQueryService', () => {
         requestSource: 'HTTP',
       },
     });
+    jest
+      .spyOn(security, 'inspect')
+      .mockRejectedValueOnce(new Error('Security service unavailable'));
+    await expect(
+      service.query({
+        query: 'What does the flexible-work policy say?',
+        securityContext: {
+          correlationId: '00000000-0000-4000-8000-000000000044',
+          actorEmployeeCode: 'EMP-201',
+          requestSource: 'HTTP',
+        },
+      }),
+    ).rejects.toThrow('Security service unavailable');
 
     expect(repository.searchActiveChunks).toHaveBeenNthCalledWith(1, {
       embedding: [0.25, 0.75],
@@ -130,7 +143,7 @@ describe('KnowledgeQueryService', () => {
       },
     });
     expect(JSON.stringify(recordSecurityEvent.mock.calls)).not.toContain('malicious.example');
-    expect(recordTrace).toHaveBeenCalledTimes(3);
+    expect(recordTrace).toHaveBeenCalledTimes(4);
     expect(recordTrace.mock.calls[0]?.[0]).toMatchObject({
       correlationId: '00000000-0000-4000-8000-000000000041',
       actorEmployeeCode: 'EMP-201',
@@ -170,5 +183,17 @@ describe('KnowledgeQueryService', () => {
       code: 'LANGSMITH_RAG_TRACE_FAILED',
     });
     expect(JSON.stringify(recordTrace.mock.calls[2])).not.toContain('malicious.example');
+    expect(recordTrace.mock.calls[3]?.[0]).toMatchObject({
+      correlationId: '00000000-0000-4000-8000-000000000044',
+      resultStatus: 'FAILED',
+      failureCode: 'KNOWLEDGE_QUERY_FAILED',
+      stages: [
+        expect.objectContaining({
+          name: 'rag.query_guard',
+          status: 'FAILED',
+          failureCode: 'KNOWLEDGE_QUERY_FAILED',
+        }),
+      ],
+    });
   });
 });
