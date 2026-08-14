@@ -560,6 +560,7 @@ src/
 ├── graphs/          Graph-only HCM supervisor, onboarding, and leave topology
 ├── helpers/         Pure date and response helpers
 ├── mcp/             Official SDK read-only MCP server
+├── middleware/      Final bounded Express JSON error handling
 ├── observability/   Pino adapter, log mapping, and explicit LangSmith recorders
 ├── prompts/         Versioned intent-normalization prompt and examples
 ├── repositories/    Prisma business, audit, delivery, leave, and knowledge access
