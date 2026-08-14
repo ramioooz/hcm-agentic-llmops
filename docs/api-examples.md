@@ -75,6 +75,20 @@ For a Docker Compose API, replace port `3000` with `3300` in these examples.
 
 Knowledge ingestion rejects indirect prompt injection with HTTP `400` and `KNOWLEDGE_DOCUMENT_UNSAFE` before embeddings are generated. Knowledge questions containing unsafe instructions return HTTP `403` and `UNSAFE_KNOWLEDGE_QUERY` before query embedding or retrieval. Copyable examples are in the README's [HR policy RAG](../README.md#hr-policy-rag) testing section.
 
+### Explicit RAG trace
+
+With fictional indexed data only, set `RAG_EXTERNAL_PROCESSING_ENABLED=true`, `LANGSMITH_RAG_TRACING=true`, `LANGSMITH_API_KEY`, and `LANGSMITH_PROJECT` before starting the API. Then issue a knowledge query through HTTP:
+
+```http
+POST /api/v1/knowledge/query
+X-Employee-Id: EMP-201
+Content-Type: application/json
+
+{"query":"How many remote-working days are allowed each week?","limit":5}
+```
+
+The HTTP response is unchanged. The configured LangSmith project receives one `hcm-rag-query` parent run with the raw question and answer, correlation/actor/source context, requested scope, model names, retrieval document/page/chunk/score metadata, citations, status, failure code, and timing. Its reached children are `rag.query_guard`, `rag.query_embedding`, `rag.vector_retrieval`, `rag.evidence_guard`, `rag.grounded_answer`, and `rag.output_validation`. Complete retrieved chunk text is excluded. Filter the project by `hcm-rag-query` to inspect the parent and children; a trace-delivery failure only emits the safe `LANGSMITH_RAG_TRACE_FAILED` operational event and does not alter this HTTP result.
+
 ### Annual-leave proposal
 
 ```http

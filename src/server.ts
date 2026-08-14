@@ -21,6 +21,7 @@ import { LeaveRequestController } from './controllers/leave-request.controller';
 import { McpController } from './controllers/mcp.controller';
 import { todayAsDateOnly } from './helpers/onboarding-agent.helpers';
 import { createLangSmithAgentTraceRecorder } from './observability/langsmith-agent-trace-recorder';
+import { createLangSmithRagTraceRecorder } from './observability/langsmith-rag-trace-recorder';
 import { PinoApplicationLogger } from './observability/pino-application-logger';
 import { PrismaAgentRunRepository } from './repositories/agent-run.repository';
 import { PrismaEmployeeRepository } from './repositories/employee.repository';
@@ -62,6 +63,12 @@ async function startServer(): Promise<void> {
         apiKey: environment.openAiApiKey,
         model: environment.openAiEmbeddingModel,
       });
+      const ragTraceRecorder = environment.langSmithRagTracing
+        ? createLangSmithRagTraceRecorder({
+            apiKey: environment.langSmithApiKey as string,
+            projectName: environment.langSmithProject,
+          })
+        : undefined;
       knowledgeQueries = new KnowledgeQueryService({
         repository: knowledgeRepository,
         embeddings: knowledgeEmbeddings,
@@ -70,6 +77,16 @@ async function startServer(): Promise<void> {
           model: environment.openAiModel,
         }),
         security: knowledgeSecurity,
+        ...(ragTraceRecorder
+          ? {
+              tracing: {
+                recorder: ragTraceRecorder,
+                logger,
+                embeddingModel: environment.openAiEmbeddingModel,
+                answerModel: environment.openAiModel,
+              },
+            }
+          : {}),
       });
       knowledgeController = new KnowledgeController({
         employees,

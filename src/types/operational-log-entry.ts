@@ -14,7 +14,8 @@ export type OperationalLogEntry = {
     | 'leave.document.served'
     | 'leave.document.rejected'
     | 'leave.document.failed'
-    | 'knowledge.security.detected';
+    | 'knowledge.security.detected'
+    | 'knowledge.trace.failed';
   correlationId: string;
   runId?: string;
   status?: string;

@@ -119,6 +119,7 @@ export function createReadOnlyMcpServer(input: {
         const search = createSearchKnowledgeDocumentsTool(input.knowledgeQueries, {
           correlationId: input.correlationId,
           actorEmployeeCode: input.actorEmployeeCode,
+          requestSource: 'MCP',
         });
         const result = await search.invoke({ query, documentId, limit });
         return toolResult({ ...result, correlationId: input.correlationId });
