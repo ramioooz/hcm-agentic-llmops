@@ -19,6 +19,26 @@ function vectorLiteral(values: number[]): string {
 export class PrismaKnowledgeRepository implements KnowledgeRepository {
   public constructor(private readonly database: PrismaClient) {}
 
+  public async findActiveIndexBySourcePath(sourcePath: string) {
+    const document = await this.database.knowledgeDocument.findUnique({
+      where: { sourcePath },
+      select: {
+        id: true,
+        contentHash: true,
+        activeIndexVersion: true,
+        chunks: { select: { indexVersion: true, embeddingModel: true, chunkingVersion: true } },
+      },
+    });
+    const chunk = document?.chunks.find((item) => item.indexVersion === document.activeIndexVersion);
+    if (!document || !chunk || document.activeIndexVersion === 0) return null;
+    return {
+      documentId: document.id,
+      contentHash: document.contentHash,
+      embeddingModel: chunk.embeddingModel,
+      chunkingVersion: chunk.chunkingVersion,
+    };
+  }
+
   public async publishVersion(input: KnowledgeVersionInput): Promise<KnowledgeVersionResult> {
     const documentId = input.documentId ?? randomUUID();
     const preparation = await this.database.$transaction(async (transaction) => {
@@ -30,6 +50,7 @@ export class PrismaKnowledgeRepository implements KnowledgeRepository {
             originalFileName: input.originalFileName,
             mediaType: input.mediaType,
             contentHash: input.contentHash,
+            sourcePath: input.sourcePath,
             activeIndexVersion: 0,
             createdByEmployeeCode: input.createdByEmployeeCode,
           },
@@ -74,6 +95,7 @@ export class PrismaKnowledgeRepository implements KnowledgeRepository {
         originalFileName: input.originalFileName,
         mediaType: input.mediaType,
         contentHash: input.contentHash,
+        ...(input.sourcePath ? { sourcePath: input.sourcePath } : {}),
         activeIndexVersion: preparation.indexVersion,
       },
     });

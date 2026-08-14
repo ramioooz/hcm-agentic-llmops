@@ -17,7 +17,8 @@
     "db:migrate": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "agent:studio": "langgraphjs dev",
-    "eval:agent": "tsx src/evaluation/run-agent-evaluation.ts"
+    "eval:agent": "tsx src/evaluation/run-agent-evaluation.ts",
+    "knowledge:index": "tsx src/commands/index-knowledge.ts"
   },
   "dependencies": {
     "@langchain/core": "^1.2.5",
