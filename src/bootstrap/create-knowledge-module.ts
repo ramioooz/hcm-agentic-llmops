@@ -4,11 +4,11 @@ import {
   OpenAiKnowledgeEmbeddings,
 } from '../adapters/openai-knowledge.adapter';
 import { KnowledgeController } from '../controllers/knowledge.controller';
+import { createLangSmithRagTraceRecorder } from '../observability/langsmith-rag-trace-recorder';
 import { PinoApplicationLogger } from '../observability/pino-application-logger';
 import { PrismaAgentRunRepository } from '../repositories/agent-run.repository';
 import { PrismaEmployeeRepository } from '../repositories/employee.repository';
 import { PrismaKnowledgeRepository } from '../repositories/knowledge.repository';
-import { KnowledgeIngestionService } from '../services/knowledge-ingestion.service';
 import { KnowledgeQueryService } from '../services/knowledge-query.service';
 import { KnowledgeSecurityService } from '../services/knowledge-security.service';
 import type { ApplicationEnvironment } from '../types/application-environment';
@@ -33,6 +33,12 @@ export function createKnowledgeModule(input: {
     apiKey: input.environment.openAiApiKey,
     model: input.environment.openAiEmbeddingModel,
   });
+  const recorder = input.environment.langSmithRagTracing
+    ? createLangSmithRagTraceRecorder({
+        apiKey: input.environment.langSmithApiKey as string,
+        projectName: input.environment.langSmithProject,
+      })
+    : undefined;
   const queries = new KnowledgeQueryService({
     repository,
     embeddings,
@@ -41,6 +47,16 @@ export function createKnowledgeModule(input: {
       model: input.environment.openAiModel,
     }),
     security,
+    ...(recorder
+      ? {
+          tracing: {
+            recorder,
+            logger: input.logger,
+            embeddingModel: input.environment.openAiEmbeddingModel,
+            answerModel: input.environment.openAiModel,
+          },
+        }
+      : {}),
   });
 
   return {
@@ -48,12 +64,6 @@ export function createKnowledgeModule(input: {
       employees: input.employees,
       enabled: true,
       queries,
-      ingestion: new KnowledgeIngestionService({
-        repository,
-        embeddings,
-        embeddingModel: input.environment.openAiEmbeddingModel,
-        security,
-      }),
     }),
     queries,
   };
