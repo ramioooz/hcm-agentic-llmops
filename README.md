@@ -900,14 +900,14 @@ The schedule is disabled by default. Set `SCHEDULER_ENABLED=true` to run the onb
 
 ### HR policy RAG
 
-Index the repository-managed fictional policy after the database is ready:
+After the database is ready, index the repository-managed policies. The command recursively scans the project-root [`knowledge-documents/`](knowledge-documents/) directory for `.pdf`, `.txt`, `.md`, and `.markdown` files. For every supported file, it validates the file, extracts and checks its text, splits it into bounded chunks, creates embeddings, and stores the versioned chunks and vectors in PostgreSQL/pgvector. The original source files remain in `knowledge-documents/` and are not copied into the database.
 
 ```bash
 npm run knowledge:index
 npm run knowledge:index
 ```
 
-The first command prints an `INDEXED` JSON line with its `documentId`; the second reports `SKIPPED` when the source, embedding model, and chunking version are unchanged. Keep the printed ID for a scoped query.
+The first command prepares every supported document found in that directory and prints an `INDEXED` JSON line with its `documentId`. The second reports `SKIPPED` when the source, embedding model, and chunking version are unchanged. Add or change files in `knowledge-documents/`, then rerun the command to create or activate their latest index versions. Keep the printed ID for a scoped query.
 
 Query page 1 contract duration:
 
