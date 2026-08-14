@@ -17,7 +17,8 @@
     "db:migrate": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "agent:studio": "langgraphjs dev",
-    "eval:agent": "tsx src/evaluation/run-agent-evaluation.ts"
+    "eval:agent": "tsx src/evaluation/run-agent-evaluation.ts",
+    "knowledge:index": "tsx src/commands/index-knowledge.ts"
   },
   "dependencies": {
     "@langchain/core": "^1.2.5",
@@ -30,7 +31,6 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "langsmith": "^0.8.9",
-    "multer": "^2.2.0",
     "node-cron": "^4.6.0",
     "pdf-parse": "2.4.5",
     "pino": "^10.3.1",
@@ -42,7 +42,6 @@
     "@types/amqplib": "^0.10.8",
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
-    "@types/multer": "2.0.0",
     "@types/node": "^26.2.0",
     "eslint": "^10.8.0",
     "jest": "^30.4.2",

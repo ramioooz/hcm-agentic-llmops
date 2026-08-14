@@ -230,6 +230,7 @@ model KnowledgeDocument {
   originalFileName      String           @map("original_file_name")
   mediaType             String           @map("media_type")
   contentHash           String           @map("content_hash")
+  sourcePath            String?          @unique @map("source_path")
   activeIndexVersion    Int              @default(0) @map("active_index_version")
   createdByEmployeeCode String           @map("created_by_employee_code")
   chunks                KnowledgeChunk[]

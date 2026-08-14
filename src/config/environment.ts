@@ -16,7 +16,7 @@ const environmentSchema = z
     OPENAI_EMBEDDING_MODEL: z.string().min(1).default('text-embedding-3-small'),
     RAG_EXTERNAL_PROCESSING_ENABLED: z
       .enum(['true', 'false'])
-      .default('false')
+      .default('true')
       .transform((value) => value === 'true'),
     WEBHOOK_API_KEY: z.string().min(32),
     SCHEDULER_ENABLED: z

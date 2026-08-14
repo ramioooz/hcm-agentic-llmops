@@ -93,8 +93,21 @@ export class KnowledgeIngestionService {
     },
   ) {}
 
+  public describeIndex(buffer: Buffer): {
+    contentHash: string;
+    embeddingModel: string;
+    chunkingVersion: string;
+  } {
+    return {
+      contentHash: createHash('sha256').update(buffer).digest('hex'),
+      embeddingModel: this.dependencies.embeddingModel,
+      chunkingVersion: CHUNKING_VERSION,
+    };
+  }
+
   public async ingest(input: {
     documentId?: string;
+    sourcePath?: string;
     title: string;
     originalFileName: string;
     mediaType: string;
@@ -107,7 +120,7 @@ export class KnowledgeIngestionService {
     }
     const title = input.title.trim();
     if (!title || title.length > 200) throw new Error('KNOWLEDGE_TITLE_INVALID');
-    const contentHash = createHash('sha256').update(input.buffer).digest('hex');
+    const { contentHash } = this.describeIndex(input.buffer);
 
     try {
       const pages = await extractPages(input);
@@ -142,6 +155,7 @@ export class KnowledgeIngestionService {
         originalFileName: input.originalFileName,
         mediaType: input.mediaType,
         contentHash,
+        sourcePath: input.sourcePath,
         createdByEmployeeCode: input.createdByEmployeeCode,
         embeddingModel: this.dependencies.embeddingModel,
         chunkingVersion: CHUNKING_VERSION,

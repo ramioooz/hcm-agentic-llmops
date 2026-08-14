@@ -11,6 +11,7 @@ export type KnowledgeVersionInput = {
   originalFileName: string;
   mediaType: string;
   contentHash: string;
+  sourcePath?: string;
   createdByEmployeeCode: string;
   embeddingModel: string;
   chunkingVersion: string;
@@ -37,6 +38,12 @@ export type RetrievedKnowledgeChunk = {
 export type KnowledgeSource = Omit<RetrievedKnowledgeChunk, 'content' | 'score'>;
 
 export interface KnowledgeRepository {
+  findActiveIndexBySourcePath(sourcePath: string): Promise<{
+    documentId: string;
+    contentHash: string;
+    embeddingModel: string;
+    chunkingVersion: string;
+  } | null>;
   publishVersion(input: KnowledgeVersionInput): Promise<KnowledgeVersionResult>;
   searchActiveChunks(input: {
     embedding: number[];

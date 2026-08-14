@@ -38,16 +38,13 @@ The web Inspector can use transport `streamable-http`, server URL `http://localh
 
 ## HR policy documents
 
-Set `OPENAI_EMBEDDING_MODEL` (default `text-embedding-3-small`). Knowledge endpoints return `RAG_EXTERNAL_PROCESSING_DISABLED` until an operator explicitly sets `RAG_EXTERNAL_PROCESSING_ENABLED=true`, acknowledging that extracted policy chunks will be sent to the configured OpenAI embedding and answer models.
+`knowledge-documents/fictional-employee-policy.pdf` is the repository-managed source document. Run `npm run knowledge:index` after adding or changing a supported PDF, TXT, Markdown, or `.markdown` file. The command stores only extracted chunks and embeddings in PostgreSQL/pgvector; queries never rescan the directory.
 
-- `POST /api/v1/knowledge/documents` accepts multipart fields `file` and optional `title`; `X-Employee-Id` must resolve to HR.
-- `POST /api/v1/knowledge/documents/:documentId/versions` builds and activates a replacement version.
-- `POST /api/v1/knowledge/query` searches across active documents.
-- `POST /api/v1/knowledge/documents/:documentId/query` searches one active document.
+The command prints one bounded JSON line per source file and a summary. A second unchanged run reports `SKIPPED`; a changed source publishes a side-by-side active version. `source_path` is the stable repository-relative identity, so a rename intentionally creates a new document identity. Removed files are not pruned automatically.
 
-Query bodies use `{ "query": "...", "limit": 5 }`, where `limit` is 1 through 8. Answers include document/page/chunk sources, or return `INSUFFICIENT_EVIDENCE` with no sources. Use only the fictional fixture under `fixtures/` for repository examples. With `LANGSMITH_RAG_TRACING=true`, the raw query and generated answer are also sent to LangSmith; complete retrieved chunk text is not.
+`RAG_EXTERNAL_PROCESSING_ENABLED=true` enables explicit model-backed actions but does not call a network service at startup. Set it to `false` to disable indexing and knowledge queries. Query endpoints are `POST /api/v1/knowledge/query` and `POST /api/v1/knowledge/documents/:documentId/query`; bodies use `{ "query": "...", "limit": 5 }`, where `limit` is 1 through 8. With `LANGSMITH_RAG_TRACING=true`, the explicit RAG trace sends the raw query and generated answer to LangSmith but never complete retrieved chunk text.
 
-The ingestion boundary scans extracted chunks before embeddings and index activation. A detected indirect injection returns `KNOWLEDGE_DOCUMENT_UNSAFE`. The query boundary scans the question before embedding and returns `UNSAFE_KNOWLEDGE_QUERY` for unsafe instructions; retrieved chunks and generated answers are inspected again before a response is released. See the README's [Prompt-Injection Protection](../README.md#prompt-injection-protection) section for the complete control flow and safe audit fields.
+The ingestion boundary scans extracted repository chunks before embeddings and activation. Unsafe documents record the existing prompt-injection security event and fail without publishing an incomplete version. Query questions, retrieved evidence, and generated answers are also inspected before crossing the next trust boundary.
 
 ## Start infrastructure
 
@@ -156,11 +153,7 @@ When the API runs inside Docker Compose, use port `3300` instead of `3000`.
 
 ## Optional tracing, Studio, and evaluation
 
-Tracing is off by default. Agent tracing (`LANGSMITH_AGENT_TRACING=true`) records allowlisted operational metadata and omits raw queries. RAG tracing (`LANGSMITH_RAG_TRACING=true`) is independent and requires `LANGSMITH_API_KEY` when either mode is enabled; it records raw knowledge questions and generated answers, actor/correlation/source context, requested scope, configured model names, retrieval IDs/pages/scores, citations, guard outcomes, timing, and stable failures. It is for fictional development data only, not sensitive HR content. The API, evaluation, and Studio fail fast if `LANGSMITH_TRACING`, `LANGSMITH_TRACING_V2`, `LANGCHAIN_TRACING`, or `LANGCHAIN_TRACING_V2` enables an automatic tracing path.
-
-To inspect RAG tracing manually, set `RAG_EXTERNAL_PROCESSING_ENABLED=true`, `LANGSMITH_RAG_TRACING=true`, `LANGSMITH_API_KEY`, and `LANGSMITH_PROJECT`; then index a fictional policy and issue a fictional HTTP or MCP knowledge query. Filter that project for the parent run named `hcm-rag-query`, inspect its raw question/answer, retrieval scores, citations, and latency, then inspect its reached child stages: `rag.query_guard`, `rag.query_embedding`, `rag.vector_retrieval`, `rag.evidence_guard`, `rag.grounded_answer`, and `rag.output_validation`.
-
-RAG trace delivery is best effort. A delivery failure does not alter the HTTP or MCP result and logs only `knowledge.trace.failed`, the correlation ID, and `LANGSMITH_RAG_TRACE_FAILED`; it does not place raw content in Pino.
+Tracing is off by default. `LANGSMITH_API_KEY` is required only when `LANGSMITH_AGENT_TRACING=true`. The explicit trace contains allowlisted operational metadata and completed numeric timestamps while omitting raw queries, prompt text, employee PII, tool payloads, arbitrary errors, and secrets. The API, evaluation, and Studio fail fast if `LANGSMITH_TRACING`, `LANGSMITH_TRACING_V2`, `LANGCHAIN_TRACING`, or `LANGCHAIN_TRACING_V2` enables an automatic tracing path.
 
 Use `npm run agent:studio` for deterministic production-topology graphs and `npm run eval:agent` for the stable seven-case local report. The Studio graphs use fakes and make no OpenAI, PostgreSQL, or RabbitMQ calls; opening the hosted Studio interface requires a LangSmith account and `LANGSMITH_API_KEY` in `.env`. Evaluation upload is independent and occurs only when `LANGSMITH_EVALUATION_UPLOAD=true` with a LangSmith key.
 

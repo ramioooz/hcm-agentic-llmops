@@ -19,7 +19,7 @@ describe('parseEnvironment', () => {
       openAiApiKey: 'unit-test-key',
       openAiModel: 'gpt-5.4-mini',
       openAiEmbeddingModel: 'text-embedding-3-small',
-      ragExternalProcessingEnabled: false,
+      ragExternalProcessingEnabled: true,
       webhookApiKey: 'unit-test-webhook-key-at-least-32-characters',
       schedulerEnabled: false,
       automationActorEmployeeCode: 'EMP-100',
