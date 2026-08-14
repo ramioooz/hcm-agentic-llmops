@@ -1,5 +1,5 @@
 {
-  "name": "hcm-agentic-api",
+  "name": "hcm-agentic-llmops",
   "version": "0.1.0",
   "private": true,
   "description": "Secure, event-driven Human Capital Management agent API.",
@@ -15,19 +15,31 @@
     "format:check": "prettier --check .",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "agent:studio": "langgraphjs dev",
+    "eval:agent": "tsx src/evaluation/run-agent-evaluation.ts",
+    "knowledge:index": "tsx src/commands/index-knowledge.ts"
   },
   "dependencies": {
     "@langchain/core": "^1.2.5",
+    "@langchain/langgraph": "^1.4.9",
+    "@langchain/langgraph-checkpoint-postgres": "^1.0.4",
     "@langchain/openai": "^1.5.6",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "@prisma/client": "^6.19.3",
+    "amqplib": "^2.0.1",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "langsmith": "^0.8.9",
+    "node-cron": "^4.6.0",
+    "pdf-parse": "2.4.5",
     "pino": "^10.3.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@langchain/langgraph-cli": "^1.4.4",
+    "@types/amqplib": "^0.10.8",
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
     "@types/node": "^26.2.0",
@@ -39,5 +51,10 @@
     "tsx": "^4.23.11",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.66.0"
+  },
+  "overrides": {
+    "@modelcontextprotocol/sdk": {
+      "@hono/node-server": "^2.0.5"
+    }
   }
 }

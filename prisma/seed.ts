@@ -11,9 +11,13 @@ function dateOnlyFromToday(offsetDays: number): Date {
 
 async function main(): Promise<void> {
   await prisma.$transaction([
+    prisma.processedEvent.deleteMany(),
     prisma.securityEvent.deleteMany(),
     prisma.agentRunStep.deleteMany(),
     prisma.agentRun.deleteMany(),
+    prisma.leaveRequest.deleteMany(),
+    prisma.leaveBalance.deleteMany(),
+    prisma.leavePolicy.deleteMany(),
     prisma.onboardingReviewPeriod.deleteMany(),
     prisma.employee.deleteMany(),
   ]);
@@ -93,6 +97,48 @@ async function main(): Promise<void> {
         startDate: dateOnlyFromToday(-210),
         endDate: dateOnlyFromToday(-30),
         status: 'COMPLETED',
+      },
+    ],
+  });
+
+  const annualPolicy = await prisma.leavePolicy.create({
+    data: {
+      code: 'ANNUAL',
+      name: 'Annual Leave',
+      annualAllowanceDays: 20,
+      workingDays: 'MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY',
+      minimumNoticeWorkingDays: 3,
+      maximumConsecutiveWorkingDays: 10,
+      excludesHolidays: true,
+    },
+  });
+
+  const year = new Date().getUTCFullYear();
+  await prisma.leaveBalance.createMany({
+    data: [
+      {
+        employeeId: nearEnd.id,
+        leavePolicyId: annualPolicy.id,
+        year,
+        allocatedDays: 20,
+        usedDays: 4,
+        pendingDays: 2,
+      },
+      {
+        employeeId: outsideThreshold.id,
+        leavePolicyId: annualPolicy.id,
+        year,
+        allocatedDays: 20,
+        usedDays: 10,
+        pendingDays: 0,
+      },
+      {
+        employeeId: manager.id,
+        leavePolicyId: annualPolicy.id,
+        year,
+        allocatedDays: 20,
+        usedDays: 5,
+        pendingDays: 0,
       },
     ],
   });

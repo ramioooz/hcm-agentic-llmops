@@ -1,0 +1,9 @@
+{
+  "graphs": {
+    "hcm_agent": "./src/studio/hcm-agent.studio.graph.ts:createHcmAgentStudioGraph",
+    "onboarding": "./src/studio/onboarding.studio.graph.ts:createOnboardingStudioGraph",
+    "leave": "./src/studio/leave.studio.graph.ts:createLeaveStudioGraph"
+  },
+  "node_version": "22",
+  "env": ".env"
+}

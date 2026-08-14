@@ -14,12 +14,28 @@ describe('redactSensitiveData', () => {
       }),
     ).toEqual({
       employeeId: 'EMP-***',
-      employeeCode: '[REDACTED]',
-      actorEmployeeCode: '[REDACTED]',
-      fullName: '[REDACTED]',
-      email: '[REDACTED]',
+      employeeCode: 'EMP-***',
+      actorEmployeeCode: 'EMP-***',
+      fullName: 'S***** N***',
+      email: 's*****@example.test',
       salary: '[REDACTED]',
       status: 'ACTIVE',
+    });
+  });
+
+  it('masks phone, employee code, email, and name fields without retaining their values', () => {
+    expect(
+      redactSensitiveData({
+        phone: '0501234567',
+        employeeCode: 'EMP-201',
+        email: 'samira@company.com',
+        fullName: 'Samira Noor',
+      }),
+    ).toEqual({
+      phone: '05********',
+      employeeCode: 'EMP-***',
+      email: 's*****@company.com',
+      fullName: 'S***** N***',
     });
   });
 });

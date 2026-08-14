@@ -1,56 +1,28 @@
-import { PrismaClient } from '@prisma/client';
-import { ChatOpenAI } from '@langchain/openai';
-import {
-  buildOpenAiModelConfiguration,
-  OpenAiHcmIntentNormalizer,
-} from './adapters/openai-hcm-intent-normalizer';
-import { createApp } from './app';
+import { composeApplication } from './bootstrap/compose-application';
 import { loadEnvironment } from './config/load-environment';
-import { AgentController } from './controllers/agent.controller';
-import { HealthController } from './controllers/health.controller';
-import { todayAsDateOnly } from './helpers/onboarding-agent.helpers';
-import { PrismaAgentRunRepository } from './repositories/agent-run.repository';
-import { PrismaEmployeeRepository } from './repositories/employee.repository';
-import { OnboardingAgentService } from './services/onboarding-agent.service';
-import { PinoApplicationLogger } from './observability/pino-application-logger';
 
-const environment = loadEnvironment();
-const database = new PrismaClient();
-const onboardingAgent = new OnboardingAgentService({
-  employees: new PrismaEmployeeRepository(database),
-  clock: {
-    today: todayAsDateOnly,
-  },
-  recorder: new PrismaAgentRunRepository(database),
-  normalizer: new OpenAiHcmIntentNormalizer(
-    new ChatOpenAI(
-      buildOpenAiModelConfiguration({
-        apiKey: environment.openAiApiKey,
-        model: environment.openAiModel,
-      }),
-    ),
-  ),
-});
-const healthController = new HealthController(async () => {
-  await database.$queryRaw`SELECT 1`;
-});
-const agentController = new AgentController({
-  agent: onboardingAgent,
-  logger: new PinoApplicationLogger(),
-});
-const app = createApp([healthController, agentController]);
-
-const server = app.listen(environment.port, () => {
+async function startServer(): Promise<void> {
+  const environment = loadEnvironment();
+  const runtime = composeApplication(environment);
+  await runtime.start();
   process.stdout.write(`API listening on port ${environment.port}\n`);
-});
 
-async function shutdown(signal: string): Promise<void> {
-  process.stdout.write(`Received ${signal}; shutting down\n`);
-  server.close(async () => {
-    await database.$disconnect();
-    process.exit(0);
-  });
+  let shuttingDown = false;
+  const shutdown = (signal: string): void => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    process.stdout.write(`Received ${signal}; shutting down\n`);
+    void runtime.stop().catch(() => {
+      process.stderr.write('API failed to shut down cleanly.\n');
+      process.exitCode = 1;
+    });
+  };
+
+  process.once('SIGINT', () => shutdown('SIGINT'));
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
 }
 
-process.on('SIGINT', () => void shutdown('SIGINT'));
-process.on('SIGTERM', () => void shutdown('SIGTERM'));
+void startServer().catch(() => {
+  process.stderr.write('API failed to start.\n');
+  process.exitCode = 1;
+});

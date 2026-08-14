@@ -2,6 +2,13 @@
 
 This document explains why each table exists and how it fits into the application. Tables are added only when a released workflow needs them.
 
+## Knowledge retrieval tables
+
+- `knowledge_documents` stores metadata, nullable unique repository-relative `source_path`, the active content hash, and active index version.
+- `knowledge_chunks` stores side-by-side versions with embedding model, chunking version, page/chunk coordinates, extracted content, and a pgvector embedding.
+
+Only chunks whose `index_version` equals the document's `active_index_version` are queryable. A replacement version is written without deleting the current version, then activated with one conditional update.
+
 ## Sprint 1 model
 
 ```mermaid
@@ -11,6 +18,15 @@ EMPLOYEES ||--o{ AGENT_RUNS : initiates
 AGENT_RUNS ||--o{ AGENT_RUN_STEPS : contains
 AGENT_RUNS ||--o{ SECURITY_EVENTS : relates
 EMPLOYEES ||--o{ SECURITY_EVENTS : causes
+EMPLOYEES ||--o{ LEAVE_BALANCES : owns
+EMPLOYEES ||--o{ LEAVE_REQUESTS : submits
+LEAVE_POLICIES ||--o{ LEAVE_BALANCES : governs
+LEAVE_POLICIES ||--o{ LEAVE_REQUESTS : governs
+PROCESSED_EVENTS {
+  string event_id PK
+  string payload_hash
+  string status
+}
 ```
 
 | Table                       | Purpose                                                                           | Used by                | Sensitive data                  |
@@ -19,16 +35,16 @@ EMPLOYEES ||--o{ SECURITY_EVENTS : causes
 | `onboarding_review_periods` | Start date, end date, and status of an employee's initial review period           | Onboarding review      | Employee relationship and dates |
 | `agent_runs`                | One record for each workflow execution, including run and correlation identifiers | All agent workflows    | Actor and redacted summaries    |
 | `agent_run_steps`           | Routing decisions, tool calls, outcomes, and errors inside one run                | All agent workflows    | Redacted inputs and outputs     |
-| `security_events`           | Rejected requests, authorization failures, and other security signals             | Security controls      | Actor and event metadata        |
+| `security_events`           | Rejected requests, authorization failures, and direct or RAG injection signals    | Security controls      | Actor and safe event metadata   |
+| `processed_events`          | Idempotency and delivery metadata for technical onboarding triggers               | Technical triggers     | Opaque event and trace metadata |
 
-## Sprint 2 additions
+## Leave-domain tables
 
-| Table              | Purpose                                                          | Used by            | Sensitive data                            |
-| ------------------ | ---------------------------------------------------------------- | ------------------ | ----------------------------------------- |
-| `leave_policies`   | Rules for supported leave types                                  | Leave workflow     | Policy details, usually not personal      |
-| `leave_balances`   | Allocated, used, pending, and available leave per employee       | Leave workflow     | Employee relationship and balances        |
-| `leave_requests`   | Requested dates, leave type, requested days, and decision status | Leave workflow     | Employee relationship and request details |
-| `processed_events` | Event IDs already handled so retries do not repeat side effects  | RabbitMQ consumers | Event identifiers and status              |
+| Table            | Purpose                                                            | Used by        | Sensitive data                             |
+| ---------------- | ------------------------------------------------------------------ | -------------- | ------------------------------------------ |
+| `leave_policies` | Rules for supported leave types                                    | Leave workflow | Policy details, usually not personal       |
+| `leave_balances` | Allocated, used, pending, and available leave per employee         | Leave workflow | Employee relationship and balances         |
+| `leave_requests` | Submitted dates, idempotent approval thread, status, and PDF bytes | Leave workflow | Employee relationship, dates, and document |
 
 ## Seed records
 
@@ -41,6 +57,8 @@ The seed command creates fictional records:
 - `EMP-300`: completed onboarding review.
 
 The dates are calculated relative to the seed date so the examples remain useful after the repository is cloned.
+
+The seed also creates an `ANNUAL` policy with a 20-working-day allowance, Monday–Friday workweek, three working days of notice, ten consecutive working days maximum, and holiday exclusion. Fictional current-year balances are created for `EMP-200`, `EMP-201`, and `EMP-202`; no leave request is seeded. The agent writes a request only after approval and stores its generated PDF in `leave_requests.document_pdf`; `approval_thread_id` prevents duplicate submissions.
 
 ### Seeded reporting story
 
@@ -58,19 +76,24 @@ Nadia Rahman (EMP-100, HR partner)
 
 The table story follows the business lifecycle: `employees` identifies people and reporting relationships; `onboarding_review_periods` records the business period being evaluated; `agent_runs` records one workflow attempt; `agent_run_steps` records the decisions and tool operations inside that attempt; and `security_events` records rejected or suspicious activity related to it. No separate `users` table is needed in this release because development actors are represented by employee records and production authentication is a planned boundary.
 
-The onboarding service writes these operational records through the Prisma-backed agent-run repository in one transaction. The run stores the final status and redacted summaries, the step rows store the key decisions, and authorization failures create linked security-event rows. Database failures are mapped to the existing structured internal-error response and do not expose database details to the caller.
+The onboarding service writes run records through the Prisma-backed agent-run repository in one transaction. The run stores the final status and redacted summaries, the step rows store the key decisions, and authorization failures create linked security-event rows. Technical triggers use `processed_events` to claim an event atomically, suppress completed duplicates, allow failed delivery retries, and link the final run/thread IDs. It stores only event ID, type, SHA-256 payload hash, status, attempt, correlation, timestamps, optional trace IDs, and a stable error code—never the raw event payload. Database failures are mapped to stable errors and do not expose database details to the caller.
 
 ### Migration and seed behavior
 
 `npm run db:migrate` runs Prisma's deployment command. It applies each migration that is not already recorded in PostgreSQL's `_prisma_migrations` table and does nothing when the database is current. It is safe to run repeatedly, but it does not undo or repair a changed migration.
 
-`npm run db:seed` is idempotent in its final result for the current Sprint 1 schema: it resets the seeded employee, onboarding, run, and security-event records and recreates the same fictional sample set relative to today's date. It is intentionally a development reset, so it must not be run against a database containing data that should be preserved.
+`npm run db:seed` is idempotent in its final result: it resets the seeded employee, onboarding, leave, run, and security-event records and recreates the same fictional sample set relative to today's date. It is intentionally a development reset, so it must not be run against a database containing data that should be preserved.
 
 ## Identifiers and traceability
 
 - `employeeCode` is the human-readable employee reference used in examples.
-- `runId` identifies one workflow attempt.
-- `correlationId` connects related work across HTTP, workflows, and events.
-- `threadId` is optional and reserved for future multi-turn conversations.
+- `threadId` identifies one durable multi-turn conversation and is recorded on every agent run.
+- `runId` identifies one workflow attempt; a resumed thread receives a new run ID.
+- `correlationId` connects one request across HTTP, workflows, audit records, events, and downstream work.
+- `eventId` identifies one versioned technical event; reusing it with a different payload hash is rejected.
+
+LangGraph's `PostgresSaver` owns its technical checkpoint tables and applies its own idempotent setup migrations during application startup. The domain model deliberately has no `agent_threads` table: checkpointed owner metadata binds the thread identity, while `agent_runs`, `agent_run_steps`, and `security_events` remain the audit trail and carry `threadId` through their parent run.
 
 Raw prompts and unredacted tool payloads are not stored in operational records.
+
+RAG inspection can create a standalone `security_events` row without an `agent_run_id`, because the knowledge HTTP and MCP boundaries are not LangGraph executions. `correlation_id` links the event to its request. `PROMPT_INJECTION_DETECTED` details contain only a stable source/reason, a SHA-256 content hash, and optional document/chunk/page coordinates; they never contain raw knowledge text or model output.

@@ -1,6 +1,9 @@
 import type { HcmIntent } from '../types/hcm-intent';
+import { OnboardingReviewAction } from '../enums/onboarding.enum';
 
 const employeeCodePattern = /\bEMP-\d+\b/gi;
+const isoDatePattern = /\b\d{4}-\d{2}-\d{2}\b/g;
+const explicitAnnualLeaveRequestPattern = /^\s*(?:please\s+)?request\s+annual\s+leave\b/i;
 const thresholdDaysPatterns = [
   /\bwithin\s+(?:the\s+)?(?:next\s+)?(\d{1,3})[\s-]+days?\b/gi,
   /\bnext\s+(\d{1,3})[\s-]+days?\b/gi,
@@ -24,6 +27,8 @@ const explicitDelegationPattern = new RegExp(
 );
 const negatedNotificationPattern =
   /\b(?:do\s+not|don't|never|without|no)\s+(?:\w+\s+){0,3}(?:notify|notification|message|send|tell)\b/i;
+const onboardingSelfReferencePattern =
+  /\b(?:my\s+(?:own\s+)?(?:onboarding|probation|review)|(?:onboarding|probation|review)(?:\s+status)?\s+for\s+me)\b/i;
 
 function hasExplicitEmployeeCode(query: string, employeeCode: string): boolean {
   const explicitCodes = query.match(employeeCodePattern) ?? [];
@@ -55,16 +60,64 @@ function resolveThresholdDays(query: string): number {
 
 export function enforceIntentConsistency(query: string, intent: HcmIntent): HcmIntent {
   if (intent.intent === 'UNSUPPORTED') {
+    const explicitDates: string[] = query.match(isoDatePattern) ?? [];
+    const explicitEmployeeCodes: string[] = query.match(employeeCodePattern) ?? [];
+    const [leaveStartDate, leaveEndDate] = explicitDates;
+    if (
+      explicitAnnualLeaveRequestPattern.test(query) &&
+      explicitDates.length === 2 &&
+      explicitEmployeeCodes.length === 0 &&
+      leaveStartDate !== undefined &&
+      leaveEndDate !== undefined
+    ) {
+      return {
+        intent: 'LEAVE_REQUEST',
+        employeeCode: null,
+        thresholdDays: null,
+        requestedAction: null,
+        leaveStartDate,
+        leaveEndDate,
+        missingFields: [],
+      };
+    }
     return intent;
+  }
+
+  if (intent.intent === 'LEAVE_REQUEST') {
+    const explicitDates: string[] = query.match(isoDatePattern) ?? [];
+    const employeeCode =
+      intent.employeeCode !== null && hasExplicitEmployeeCode(query, intent.employeeCode)
+        ? intent.employeeCode
+        : null;
+    const leaveStartDate =
+      intent.leaveStartDate !== null && explicitDates.includes(intent.leaveStartDate)
+        ? intent.leaveStartDate
+        : null;
+    const leaveEndDate =
+      intent.leaveEndDate !== null && explicitDates.includes(intent.leaveEndDate)
+        ? intent.leaveEndDate
+        : null;
+    return {
+      ...intent,
+      employeeCode,
+      leaveStartDate,
+      leaveEndDate,
+      missingFields: [
+        ...(leaveStartDate === null ? (['startDate'] as const) : []),
+        ...(leaveEndDate === null ? (['endDate'] as const) : []),
+      ],
+    };
   }
 
   const employeeCode =
     intent.employeeCode !== null && hasExplicitEmployeeCode(query, intent.employeeCode)
       ? intent.employeeCode
       : null;
+  const explicitSelfReference = onboardingSelfReferencePattern.test(query);
   const requestedAction =
-    intent.requestedAction === 'NOTIFY_MANAGER' && !hasExplicitNotificationRequest(query)
-      ? 'REVIEW_ONLY'
+    intent.requestedAction === OnboardingReviewAction.NotifyManager &&
+    !hasExplicitNotificationRequest(query)
+      ? OnboardingReviewAction.ReviewOnly
       : intent.requestedAction;
 
   return {
@@ -72,6 +125,6 @@ export function enforceIntentConsistency(query: string, intent: HcmIntent): HcmI
     employeeCode,
     thresholdDays: resolveThresholdDays(query),
     requestedAction,
-    missingFields: employeeCode === null ? ['employeeId'] : [],
+    missingFields: employeeCode === null && !explicitSelfReference ? (['employeeId'] as const) : [],
   };
 }

@@ -24,6 +24,7 @@ Use plain, descriptive branch names and commit messages. Do not include automate
 ```bash
 npm run typecheck
 npm run lint
+npm run format:check
 npm test
 npm run build
 ```

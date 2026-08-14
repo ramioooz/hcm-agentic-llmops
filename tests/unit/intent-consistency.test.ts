@@ -102,4 +102,24 @@ describe('enforceIntentConsistency', () => {
       'REVIEW_ONLY',
     );
   });
+
+  it('corrects a false unsupported result for an explicit annual leave date range', () => {
+    expect(
+      enforceIntentConsistency('Request annual leave from 2026-08-14 through 2026-08-18', {
+        intent: 'UNSUPPORTED',
+        employeeCode: null,
+        thresholdDays: null,
+        requestedAction: null,
+        missingFields: [],
+      }),
+    ).toEqual({
+      intent: 'LEAVE_REQUEST',
+      employeeCode: null,
+      thresholdDays: null,
+      requestedAction: null,
+      leaveStartDate: '2026-08-14',
+      leaveEndDate: '2026-08-18',
+      missingFields: [],
+    });
+  });
 });

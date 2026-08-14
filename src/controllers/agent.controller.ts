@@ -1,10 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
 import { parseAgentInvokeRequest } from '../contracts/agent-invoke';
+import { parseAgentResumeRequest } from '../contracts/agent-resume';
 import { logAgentInvocationResult } from '../observability/agent-invocation-logging';
-import type { AccessRole } from '../types/access-role';
+import { resolveSafeCorrelationId } from '../security/correlation-id';
+import { InvalidThreadIdError, resolveThreadId } from '../security/thread-id';
 import type { AgentInvoker } from '../types/agent-invoker';
 import type { ApplicationLogger } from '../types/application-logger';
+import type { InvocationBody } from '../types/invocation-body';
+import type { OnboardingInvocationInput } from '../types/onboarding-invocation-input';
 import type { HttpController } from './http-controller';
 
 export class AgentController implements HttpController {
@@ -12,30 +16,63 @@ export class AgentController implements HttpController {
   public readonly router = Router();
 
   public constructor(
-    private readonly dependencies: { agent?: AgentInvoker; logger: ApplicationLogger },
+    private readonly dependencies: { agent: AgentInvoker; logger: ApplicationLogger },
   ) {
     this.router.post('/invoke', this.handleInvoke);
+    this.router.post('/resume', this.handleResume);
   }
 
   public readonly handleInvoke = async (request: Request, response: Response): Promise<void> => {
-    const correlationId = request.header('X-Correlation-Id')?.trim() || randomUUID();
+    const suppliedCorrelationId = request.header('X-Correlation-Id');
+
+    let threadId: string;
+    try {
+      threadId = resolveThreadId(request.header('X-Thread-Id'));
+    } catch (error) {
+      const correlationId = resolveSafeCorrelationId(suppliedCorrelationId);
+      const runId = resolveSafeCorrelationId(undefined, [correlationId]);
+      const message =
+        error instanceof InvalidThreadIdError ? error.message : 'X-Thread-Id must be a UUID v4.';
+      this.dependencies.logger.warn({
+        event: 'agent.invoke.rejected',
+        correlationId,
+        status: 'FAILED',
+        code: 'INVALID_THREAD_ID',
+        httpStatus: 400,
+      });
+      response.status(400).json({
+        status: 'FAILED',
+        code: 'INVALID_THREAD_ID',
+        message,
+        runId,
+        correlationId,
+      });
+      return;
+    }
+    const correlationId = resolveSafeCorrelationId(suppliedCorrelationId, [threadId]);
+    const runId = resolveSafeCorrelationId(undefined, [threadId, correlationId]);
     this.dependencies.logger.info({
       event: 'agent.invoke.started',
       correlationId,
     });
+    response.setHeader('X-Thread-Id', threadId);
 
-    if (!this.dependencies.agent) {
-      this.dependencies.logger.error({
+    const actorEmployeeCode = request.header('X-Employee-Id')?.trim();
+
+    if (!actorEmployeeCode || !/^EMP-\d+$/.test(actorEmployeeCode)) {
+      this.dependencies.logger.warn({
         event: 'agent.invoke.rejected',
         correlationId,
         status: 'FAILED',
-        code: 'AGENT_NOT_CONFIGURED',
-        httpStatus: 503,
+        code: 'AUTHENTICATION_REQUIRED',
+        httpStatus: 401,
       });
-      response.status(503).json({
+      response.status(401).json({
         status: 'FAILED',
-        code: 'AGENT_NOT_CONFIGURED',
-        message: 'The agent service is not configured.',
+        code: 'AUTHENTICATION_REQUIRED',
+        message: 'Provide a valid X-Employee-Id header.',
+        threadId,
+        runId,
         correlationId,
       });
       return;
@@ -56,43 +93,29 @@ export class AgentController implements HttpController {
         status: 'FAILED',
         code: 'VALIDATION_ERROR',
         message: error instanceof Error ? error.message : 'Invalid request body.',
+        threadId,
+        runId,
         correlationId,
       });
       return;
     }
 
-    const actorEmployeeCode = request.header('X-Employee-Id')?.trim();
-    const actorRoleHeader = request.header('X-User-Role')?.trim().toUpperCase();
-    const validRoles: AccessRole[] = ['HR', 'MANAGER', 'EMPLOYEE'];
-
-    if (
-      !actorEmployeeCode ||
-      !actorRoleHeader ||
-      !validRoles.includes(actorRoleHeader as AccessRole)
-    ) {
-      this.dependencies.logger.warn({
-        event: 'agent.invoke.rejected',
-        correlationId,
-        status: 'FAILED',
-        code: 'AUTHENTICATION_REQUIRED',
-        httpStatus: 401,
-      });
-      response.status(401).json({
-        status: 'FAILED',
-        code: 'AUTHENTICATION_REQUIRED',
-        message: 'Provide a valid X-Employee-Id and X-User-Role header.',
-        correlationId,
-      });
+    const input = {
+      kind: 'USER_QUERY' as const,
+      query: body.query,
+      actorEmployeeCode,
+      threadId,
+      runId,
+      correlationId,
+      triggerType: 'HTTP' as const,
+    };
+    if (request.header('Accept')?.toLowerCase().includes('text/event-stream')) {
+      await this.writeEventStream(input, response);
       return;
     }
 
     try {
-      const result = await this.dependencies.agent.invoke({
-        query: body.query,
-        actorEmployeeCode,
-        actorRole: actorRoleHeader as AccessRole,
-        correlationId,
-      });
+      const result = await this.dependencies.agent.invoke(input);
       logAgentInvocationResult(
         this.dependencies.logger,
         result.httpStatus,
@@ -112,8 +135,153 @@ export class AgentController implements HttpController {
         status: 'FAILED',
         code: 'INTERNAL_ERROR',
         message: 'The workflow could not be completed.',
+        threadId,
+        runId,
         correlationId,
       });
     }
   };
+
+  public readonly handleResume = async (request: Request, response: Response): Promise<void> => {
+    const correlationId = resolveSafeCorrelationId(request.header('X-Correlation-Id'));
+    let body: ReturnType<typeof parseAgentResumeRequest>;
+    try {
+      body = parseAgentResumeRequest(request.body);
+    } catch {
+      response.status(400).json({
+        status: 'FAILED',
+        code: 'VALIDATION_ERROR',
+        message: 'Provide a UUID threadId and APPROVE or REJECT decision.',
+        runId: resolveSafeCorrelationId(undefined, [correlationId]),
+        correlationId,
+      });
+      return;
+    }
+    let threadId: string;
+    try {
+      threadId = resolveThreadId(body.threadId);
+    } catch {
+      response.status(400).json({
+        status: 'FAILED',
+        code: 'INVALID_THREAD_ID',
+        message: 'threadId must be a UUID v4.',
+        runId: resolveSafeCorrelationId(undefined, [correlationId]),
+        correlationId,
+      });
+      return;
+    }
+    const actorEmployeeCode = request.header('X-Employee-Id')?.trim();
+    const runId = resolveSafeCorrelationId(undefined, [threadId, correlationId]);
+    if (!actorEmployeeCode || !/^EMP-\d+$/.test(actorEmployeeCode)) {
+      response.status(401).json({
+        status: 'FAILED',
+        code: 'AUTHENTICATION_REQUIRED',
+        message: 'Provide a valid X-Employee-Id header.',
+        threadId,
+        runId,
+        correlationId,
+      });
+      return;
+    }
+    if (!this.dependencies.agent.resume) {
+      response.status(503).json({
+        status: 'FAILED',
+        code: 'AGENT_UNAVAILABLE',
+        message: 'Approval resume is unavailable.',
+        threadId,
+        runId,
+        correlationId,
+      });
+      return;
+    }
+    this.dependencies.logger.info({
+      event: 'agent.approval.started',
+      correlationId,
+      runId,
+    });
+    try {
+      const result = await this.dependencies.agent.resume({
+        decision: body.decision,
+        actorEmployeeCode,
+        correlationId,
+        threadId,
+        runId,
+      });
+      this.dependencies.logger.info({
+        event: 'agent.approval.completed',
+        correlationId,
+        runId,
+        status: result.body.status,
+        httpStatus: result.httpStatus,
+      });
+      response.setHeader('X-Thread-Id', threadId);
+      response.status(result.httpStatus).json(result.body);
+    } catch {
+      this.dependencies.logger.error({
+        event: 'agent.approval.failed',
+        correlationId,
+        runId,
+        status: 'FAILED',
+        code: 'INTERNAL_ERROR',
+        httpStatus: 500,
+      });
+      response.status(500).json({
+        status: 'FAILED',
+        code: 'INTERNAL_ERROR',
+        message: 'The workflow could not be completed.',
+        threadId,
+        runId,
+        correlationId,
+      });
+    }
+  };
+
+  private async writeEventStream(
+    input: OnboardingInvocationInput,
+    response: Response,
+  ): Promise<void> {
+    response.status(200);
+    response.setHeader('Content-Type', 'text/event-stream');
+    response.setHeader('Cache-Control', 'no-cache, no-transform');
+    response.setHeader('Connection', 'keep-alive');
+    response.flushHeaders?.();
+    let runId: string = input.runId ?? randomUUID();
+
+    try {
+      let finalResponse: { httpStatus: number; body: InvocationBody } | undefined;
+      for await (const event of this.dependencies.agent.stream(input)) {
+        if (event.event === 'run') runId = event.data.runId;
+        response.write(`event: ${event.event}\ndata: ${JSON.stringify(event.data)}\n\n`);
+        if (event.event === 'response') finalResponse = event.data;
+      }
+      if (finalResponse) {
+        logAgentInvocationResult(
+          this.dependencies.logger,
+          finalResponse.httpStatus,
+          finalResponse.body,
+          input.correlationId,
+        );
+      }
+    } catch {
+      const body: InvocationBody = {
+        status: 'FAILED',
+        code: 'INTERNAL_ERROR',
+        message: 'The workflow could not be completed.',
+        threadId: input.threadId as string,
+        runId,
+        correlationId: input.correlationId,
+      };
+      logAgentInvocationResult(this.dependencies.logger, 500, body, input.correlationId);
+      response.write(
+        `event: response\ndata: ${JSON.stringify({
+          runId,
+          status: 'completed',
+          httpStatus: 500,
+          body,
+        })}\n\n`,
+      );
+    } finally {
+      response.end();
+    }
+  }
 }

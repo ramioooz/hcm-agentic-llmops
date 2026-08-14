@@ -11,9 +11,13 @@ describe('HCM intent normalization configuration', () => {
       'Could you review employee EMP-201?',
     ) as BaseMessage[];
 
-    expect(HCM_INTENT_PROMPT_VERSION).toBe('hcm-intent-v1');
+    expect(HCM_INTENT_PROMPT_VERSION).toBe('hcm-intent-v3');
     expect(messages.map((message) => message.getType())).toEqual([
       'system',
+      'human',
+      'ai',
+      'human',
+      'ai',
       'human',
       'ai',
       'human',
@@ -39,6 +43,8 @@ describe('HCM intent normalization configuration', () => {
         employeeCode: 'EMP-201',
         thresholdDays: 14,
         requestedAction: 'REVIEW_ONLY',
+        leaveStartDate: null,
+        leaveEndDate: null,
         missingFields: [],
       }),
       'Notify the manager about EMP-201 probation status.',
@@ -47,6 +53,18 @@ describe('HCM intent normalization configuration', () => {
         employeeCode: 'EMP-201',
         thresholdDays: 30,
         requestedAction: 'NOTIFY_MANAGER',
+        leaveStartDate: null,
+        leaveEndDate: null,
+        missingFields: [],
+      }),
+      'Review my onboarding status.',
+      JSON.stringify({
+        intent: 'ONBOARDING_REVIEW',
+        employeeCode: null,
+        thresholdDays: 30,
+        requestedAction: 'REVIEW_ONLY',
+        leaveStartDate: null,
+        leaveEndDate: null,
         missingFields: [],
       }),
       'Review the onboarding status.',
@@ -55,7 +73,19 @@ describe('HCM intent normalization configuration', () => {
         employeeCode: null,
         thresholdDays: 30,
         requestedAction: 'REVIEW_ONLY',
+        leaveStartDate: null,
+        leaveEndDate: null,
         missingFields: ['employeeId'],
+      }),
+      'Request annual leave from 2026-08-14 through 2026-08-18.',
+      JSON.stringify({
+        intent: 'LEAVE_REQUEST',
+        employeeCode: null,
+        thresholdDays: null,
+        requestedAction: null,
+        leaveStartDate: '2026-08-14',
+        leaveEndDate: '2026-08-18',
+        missingFields: [],
       }),
     ]);
     expect(messages.at(-1)?.content).toBe('Could you review employee EMP-201?');
