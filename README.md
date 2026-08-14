@@ -138,8 +138,8 @@ flowchart LR
     Onboarding --> Audit
     Leave --> Audit
     Audit --> PostgreSQL
-    Onboarding -.->|"allowlisted metadata"| LangSmith
-    Leave -.->|"allowlisted metadata"| LangSmith
+    Onboarding -.->|"agent trace with raw query"| LangSmith
+    Leave -.->|"agent trace with raw query"| LangSmith
 ```
 
 ### Main dependency direction
@@ -170,7 +170,7 @@ The model does **not** perform these operations:
 - approve leave, enforce idempotency, publish retries, or generate PDFs;
 - write audit records or decide what telemetry is safe to expose.
 
-Raw user queries are sent to OpenAI only after the deterministic guard accepts them. They are not stored in checkpoints, Pino logs, PostgreSQL audit summaries, or LangSmith trace metadata.
+Agent-route raw user queries are sent to OpenAI only after the deterministic guard accepts them. They are not stored in checkpoints, Pino logs, or PostgreSQL audit summaries. When agent tracing is enabled, the exact query is intentionally sent to LangSmith as trace input; explicit RAG tracing is a separate trace contract documented below.
 
 ## Agent workflow
 
@@ -333,7 +333,7 @@ Security is layered around the non-deterministic components rather than delegate
 4. **Tool authorization:** every protected employee or leave tool rechecks the canonical role and reporting relationship.
 5. **Explicit side effects:** silence never authorizes notification or persistence; leave creation requires a resumed human approval.
 6. **RAG isolation:** retrieved content is untrusted evidence and cannot change prompts, permissions, or tool policy.
-7. **PII-safe observability:** safe fields are allowlisted, sensitive values are masked, and raw content is omitted.
+7. **PII-safe observability:** Pino and durable audit fields are allowlisted and sensitive values are masked; enabled LangSmith agent tracing sends the raw agent query, while explicit RAG tracing sends raw questions and answers.
 8. **Webhook secret handling:** the configured Bearer key and raw payload are never logged or persisted.
 
 Field-aware masking retains just enough shape to show that protection was applied:
@@ -349,19 +349,19 @@ The header-based identity mechanism and fictional seeded roles are intentionally
 
 ## Guardrails Used in This LLMOps System
 
-| Guardrail type                            | What it controls                                                                                                                    | Enforcement location                                                                           |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Input schemas and bounds                  | Reject malformed bodies, oversized files, excessive extracted text/chunks, invalid events, and excessive retrieval limits           | Controllers, Zod contracts, `knowledge-ingestion.service.ts`, and `knowledge-query.service.ts` |
-| Direct prompt-injection guard             | Stops known instruction overrides, prompt disclosure, bulk record extraction, and security bypass before the intent model and tools | `request-safety.ts` and the LangGraph `request_guard` node                                     |
-| RAG prompt-injection guard                | Scans upload chunks, knowledge questions, retrieved evidence, and model answers; rejects before the next trust boundary             | `prompt-injection-risk.ts` and `knowledge-security.service.ts`                                 |
-| Prompt/evidence separation                | Keeps trusted answer rules in `SystemMessage` and untrusted question/evidence in a JSON `HumanMessage`                              | `openai-knowledge.adapter.ts`                                                                  |
-| Structured model output                   | Limits intent and grounded-answer responses to strict Zod schemas instead of accepting free-form control data                       | OpenAI adapters under `src/adapters`                                                           |
-| Grounding and output validation           | Requires citations to retrieved chunk IDs, builds sources in application code, and blocks ungrounded external URLs                  | `knowledge-query.service.ts`                                                                   |
-| Canonical identity and tool authorization | Resolves `X-Employee-Id` from PostgreSQL and rechecks role/reporting rules at protected tools                                       | Controllers, employee repository, onboarding and leave tools                                   |
-| Explicit side-effect permission           | Never infers notifications from silence; requires LangGraph human approval before leave persistence                                 | Onboarding graph/tools and leave interrupt/resume workflow                                     |
-| Thread ownership and idempotency          | Prevents another identity resuming a conversation and prevents repeated approvals/events from duplicating writes                    | Checkpoint owner state, leave repository, and `processed_events`                               |
-| PII-safe telemetry                        | Masks recognized identifiers and allowlists trace fields; omits prompts, retrieved text, keys, and tokens                           | PII redaction, Pino adapter, LangSmith trace recorder, and security-event recorder             |
-| Failure, retry, and delivery bounds       | Uses a model timeout and one bounded retry; RabbitMQ uses bounded attempts, manual acknowledgement, and a DLQ                       | Intent normalizer and RabbitMQ transport                                                       |
+| Guardrail type                            | What it controls                                                                                                                              | Enforcement location                                                                           |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Input schemas and bounds                  | Reject malformed bodies, oversized files, excessive extracted text/chunks, invalid events, and excessive retrieval limits                     | Controllers, Zod contracts, `knowledge-ingestion.service.ts`, and `knowledge-query.service.ts` |
+| Direct prompt-injection guard             | Stops known instruction overrides, prompt disclosure, bulk record extraction, and security bypass before the intent model and tools           | `request-safety.ts` and the LangGraph `request_guard` node                                     |
+| RAG prompt-injection guard                | Scans upload chunks, knowledge questions, retrieved evidence, and model answers; rejects before the next trust boundary                       | `prompt-injection-risk.ts` and `knowledge-security.service.ts`                                 |
+| Prompt/evidence separation                | Keeps trusted answer rules in `SystemMessage` and untrusted question/evidence in a JSON `HumanMessage`                                        | `openai-knowledge.adapter.ts`                                                                  |
+| Structured model output                   | Limits intent and grounded-answer responses to strict Zod schemas instead of accepting free-form control data                                 | OpenAI adapters under `src/adapters`                                                           |
+| Grounding and output validation           | Requires citations to retrieved chunk IDs, builds sources in application code, and blocks ungrounded external URLs                            | `knowledge-query.service.ts`                                                                   |
+| Canonical identity and tool authorization | Resolves `X-Employee-Id` from PostgreSQL and rechecks role/reporting rules at protected tools                                                 | Controllers, employee repository, onboarding and leave tools                                   |
+| Explicit side-effect permission           | Never infers notifications from silence; requires LangGraph human approval before leave persistence                                           | Onboarding graph/tools and leave interrupt/resume workflow                                     |
+| Thread ownership and idempotency          | Prevents another identity resuming a conversation and prevents repeated approvals/events from duplicating writes                              | Checkpoint owner state, leave repository, and `processed_events`                               |
+| PII-safe telemetry                        | Masks Pino/audit fields and excludes retrieved text; enabled agent traces send the raw query and explicit RAG traces send raw question/answer | PII redaction, Pino adapter, LangSmith trace recorders, and security-event recorder            |
+| Failure, retry, and delivery bounds       | Uses a model timeout and one bounded retry; RabbitMQ uses bounded attempts, manual acknowledgement, and a DLQ                                 | Intent normalizer and RabbitMQ transport                                                       |
 
 These controls are implemented in application code and adapters; they are not delegated to the LLM. The [architecture guide](docs/architecture.md) explains the trust boundaries, and the manual checks below show both accepted and rejected paths.
 
@@ -369,18 +369,18 @@ These controls are implemented in application code and adapters; they are not de
 
 The project separates four kinds of operational evidence:
 
-| Mechanism        | Purpose                                                   | Stored information                                                                                                                                         |
-| ---------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| LangSmith        | Optional AI-agent trace and evaluation view               | Safe identifiers, prompt version, configured model, normalized intent, node/tool paths, authorization outcome, end-to-end latency, and stable failure code |
-| LangGraph Studio | Inspect the production HCM graph and its domain subgraphs | One end-to-end HCM graph plus independently openable onboarding and leave graphs, all backed by fictional offline dependencies                             |
-| Pino             | Application and HTTP/MCP operational logs                 | JSON lifecycle events with correlation/run identifiers and stable status codes                                                                             |
-| PostgreSQL audit | Durable business and security traceability                | `agent_runs`, `agent_run_steps`, and `security_events` with redacted summaries and outcomes                                                                |
+| Mechanism        | Purpose                                                   | Stored information                                                                                                                                                                                            |
+| ---------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| LangSmith        | Optional agent, evaluation, and explicit RAG trace view   | Agent runs include the exact raw query, trace metadata, guardrail reason, and pre-model-block status; enabled RAG runs include raw question/answer, retrieval metadata, citations, guard outcomes, and timing |
+| LangGraph Studio | Inspect the production HCM graph and its domain subgraphs | One end-to-end HCM graph plus independently openable onboarding and leave graphs, all backed by fictional offline dependencies                                                                                |
+| Pino             | Application and HTTP/MCP operational logs                 | JSON lifecycle events with correlation/run identifiers and stable status codes                                                                                                                                |
+| PostgreSQL audit | Durable business and security traceability                | `agent_runs`, `agent_run_steps`, and `security_events` with redacted summaries and outcomes                                                                                                                   |
 
-LangSmith tracing is disabled by default. The application deliberately uses one explicit, allowlisted invocation trace instead of global automatic LangChain tracing, because automatic tracing may capture raw model inputs or duplicate runs. The current trace sets retry count to `0`, leaves token and estimated-cost fields empty, and infers model-call count as `0` or `1` from whether intent normalization ran; these are not provider-collected usage metrics.
+LangSmith tracing is disabled by default. Agent tracing uses one explicit invocation trace that intentionally includes the exact raw user query, while RAG tracing uses a separate explicit recorder; neither enables global automatic LangChain tracing, which could capture uncontrolled inputs or create duplicate runs. Agent trace outputs include the deterministic guardrail reason and whether the request was blocked before a model call. PostgreSQL audit records, Pino operational logs, and SSE progress events continue to omit raw user queries. The agent trace sets retry count to `0`, leaves token and estimated-cost fields empty, and infers model-call count as `0` or `1` from whether intent normalization ran; these are not provider-collected usage metrics.
 
 ### Prompt versioning
 
-The intent prompt is source-controlled as `hcm-intent-v3`. Its version is included in safe invocation trace metadata, allowing a behavior change to be compared with the prompt and model that produced it. The offline evaluation report currently contains the suite name, case outcomes, and pass/fail summary. Prompt text and hidden reasoning are not placed in telemetry.
+The intent prompt is source-controlled as `hcm-intent-v3`. Its version is included in agent trace metadata, allowing a behavior change to be compared with the prompt and model that produced it. The offline evaluation report currently contains the suite name, case outcomes, and pass/fail summary. Prompt text and hidden reasoning are not placed in telemetry.
 
 ### Evaluation
 
@@ -396,7 +396,7 @@ The bounded runner uses deterministic fake dependencies and covers intent normal
 npm run agent:studio
 ```
 
-`langgraph.json` exports `hcm_agent`, `onboarding`, and `leave`. Open `hcm_agent` first to inspect the end-to-end supervisor: guarding, normalization, routing, both domain subgraphs, and response auditing. Expand its nested domains or open `onboarding` and `leave` independently to focus on employee lookup, onboarding calculation, notification, parallel leave context, proposal, and approval. Every factory delegates to the same graph builders used by the production API and supplies fresh fictional dependencies without starting Express or calling PostgreSQL, RabbitMQ, or OpenAI. Keep automatic LangChain/LangSmith tracing disabled because the project preserves an explicit safe tracing path.
+`langgraph.json` exports `hcm_agent`, `onboarding`, and `leave`. Open `hcm_agent` first to inspect the end-to-end supervisor: guarding, normalization, routing, both domain subgraphs, and response auditing. Expand its nested domains or open `onboarding` and `leave` independently to focus on employee lookup, onboarding calculation, notification, parallel leave context, proposal, and approval. Every factory delegates to the same graph builders used by the production API and supplies fresh fictional dependencies without starting Express or calling PostgreSQL, RabbitMQ, or OpenAI. Keep automatic LangChain/LangSmith tracing disabled because the project uses an explicit trace contract.
 
 ## Data model
 
@@ -980,7 +980,7 @@ npm run agent:studio
 npm run eval:agent
 ```
 
-Studio loads the graph factories configured by `langgraph.json`. The evaluation report shows each scenario and its pass/fail result. When `LANGSMITH_AGENT_TRACING=true` and valid LangSmith settings are present, inspect the safe invocation trace for prompt version, model, selected intent, graph path, node and tool names, authorization result, identifiers, latency, model-call count, and available usage metadata. Global automatic LangChain tracing remains disabled.
+Studio loads the graph factories configured by `langgraph.json`. The evaluation report shows each scenario and its pass/fail result. When `LANGSMITH_AGENT_TRACING=true` and valid LangSmith settings are present, inspect the agent trace for its exact raw query, prompt version, model, selected intent, graph path, node and tool names, authorization result, guardrail reason, pre-model-block status, identifiers, latency, model-call count, and available usage metadata. Global automatic LangChain tracing remains disabled.
 
 Studio registers `hcm_agent`, `onboarding`, and `leave`. Start with `hcm_agent` to see the supervisor and both nested domains. Open `onboarding` or `leave` when you want a simpler domain-only diagram. Enter `{"ownerBindingId":"studio-owner"}` as the input and submit it. The root factory runs a review-only onboarding path, the onboarding factory runs the explicit-notification path, and the leave factory prepares an eligible proposal and pauses at human approval.
 

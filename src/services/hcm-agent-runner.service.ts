@@ -230,6 +230,8 @@ export async function runHcmAgentGraph(
   if (!context.result) throw new Error('GRAPH_RESULT_MISSING');
 
   if (dependencies.traceRecorder) {
+    const modelCallCount =
+      !isTechnicalCommand(safeInput) && nodePath.includes('intent_normalization') ? 1 : 0;
     const failureCode =
       context.result.body.status === 'FAILED'
         ? typeof context.result.body.code === 'string'
@@ -241,15 +243,17 @@ export async function runHcmAgentGraph(
         runId,
         threadId: safeInput.threadId,
         correlationId: safeInput.correlationId,
+        rawQuery: isTechnicalCommand(safeInput) ? '' : safeInput.query,
         promptVersion: HCM_INTENT_PROMPT_VERSION,
         configuredModel: dependencies.configuredModel ?? 'unconfigured',
         normalizedIntent,
         nodePath,
         toolNames,
         authorizationResult,
+        guardrailReasonCode: context.guardrailReasonCode ?? null,
+        blockedBeforeModel: context.guardrailReasonCode !== undefined && modelCallCount === 0,
         retryCount: 0,
-        modelCallCount:
-          !isTechnicalCommand(safeInput) && nodePath.includes('intent_normalization') ? 1 : 0,
+        modelCallCount,
         tokenUsage: null,
         latencyMs: Math.max(0, Date.now() - startedAt),
         costUsd: null,

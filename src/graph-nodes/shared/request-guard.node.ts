@@ -28,6 +28,7 @@ export function createRequestGuardNode(context: HcmAgentExecutionContext, emit: 
     const safety = evaluateRequestSafety(context.input.query);
     if (!safety.isSafe) {
       const outcomeCode = 'UNSAFE_REQUEST_REJECTED';
+      context.guardrailReasonCode = safety.reasonCode;
       context.steps.push({
         stepName: HcmGraphNode.RequestGuard,
         status: 'REJECTED',
