@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import { OpenAiKnowledgeEmbeddings } from '../adapters/openai-knowledge.adapter';
 import { loadEnvironment } from '../config/load-environment';
+import { knowledgeErrorCode } from '../helpers/knowledge-error.helpers';
 import { PinoApplicationLogger } from '../observability/pino-application-logger';
 import { PrismaAgentRunRepository } from '../repositories/agent-run.repository';
 import { PrismaKnowledgeRepository } from '../repositories/knowledge.repository';
@@ -53,7 +54,7 @@ async function indexKnowledge(): Promise<void> {
 }
 
 void indexKnowledge().catch((error) => {
-  const code = error instanceof Error ? error.message : 'KNOWLEDGE_INDEX_FAILED';
+  const code = knowledgeErrorCode(error, 'KNOWLEDGE_INDEX_FAILED');
   process.stderr.write(`${JSON.stringify({ status: 'FAILED', code })}\n`);
   process.exitCode = 1;
 });
