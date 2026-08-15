@@ -4,14 +4,15 @@ import { join } from 'node:path';
 import { KnowledgeDirectoryIndexer } from '../../src/services/knowledge-directory-indexer.service';
 
 describe('KnowledgeDirectoryIndexer', () => {
-  test('discovers files in stable order, skips unchanged indexes, and continues after a file failure', async () => {
+  test('indexes only PDF files in stable order and continues after a file failure', async () => {
     const repositoryRoot = await mkdtemp(join(tmpdir(), 'knowledge-indexer-'));
     const directory = join(repositoryRoot, 'knowledge-documents');
     await mkdir(join(directory, 'nested'), { recursive: true });
     await Promise.all([
-      writeFile(join(directory, 'zeta.txt'), 'changed source'),
-      writeFile(join(directory, 'alpha.md'), 'unchanged source'),
-      writeFile(join(directory, 'nested', 'beta.markdown'), 'updated source'),
+      writeFile(join(directory, 'alpha.pdf'), 'unchanged source'),
+      writeFile(join(directory, 'nested', 'beta.pdf'), 'updated source'),
+      writeFile(join(directory, 'ignored.md'), 'unsupported'),
+      writeFile(join(directory, 'ignored.txt'), 'unsupported'),
       writeFile(join(directory, 'nested', 'ignored.docx'), 'unsupported'),
       mkdir(join(directory, 'broken.pdf')),
     ]);
@@ -28,14 +29,14 @@ describe('KnowledgeDirectoryIndexer', () => {
       chunkCount: 1,
     }));
     const findActiveIndexBySourcePath = jest.fn(async (sourcePath: string) =>
-      sourcePath === 'knowledge-documents/alpha.md'
+      sourcePath === 'knowledge-documents/alpha.pdf'
         ? {
             documentId: 'existing-alpha',
             contentHash: 'same',
             embeddingModel: 'embedding-test',
             chunkingVersion: 'chunking-test',
           }
-        : sourcePath === 'knowledge-documents/nested/beta.markdown'
+        : sourcePath === 'knowledge-documents/nested/beta.pdf'
           ? {
               documentId: 'existing-beta',
               contentHash: 'stale',
@@ -55,32 +56,24 @@ describe('KnowledgeDirectoryIndexer', () => {
     const results = await indexer.indexDirectory(directory);
 
     expect(results).toEqual([
-      expect.objectContaining({ sourcePath: 'knowledge-documents/alpha.md', status: 'SKIPPED' }),
+      expect.objectContaining({ sourcePath: 'knowledge-documents/alpha.pdf', status: 'SKIPPED' }),
       expect.objectContaining({
         sourcePath: 'knowledge-documents/broken.pdf',
         status: 'FAILED',
         code: 'KNOWLEDGE_FILE_READ_FAILED',
       }),
       expect.objectContaining({
-        sourcePath: 'knowledge-documents/nested/beta.markdown',
+        sourcePath: 'knowledge-documents/nested/beta.pdf',
         status: 'UPDATED',
         documentId: 'existing-beta',
       }),
-      expect.objectContaining({
-        sourcePath: 'knowledge-documents/zeta.txt',
-        status: 'INDEXED',
-        documentId: 'created-zeta.txt',
-      }),
     ]);
-    expect(ingest).toHaveBeenCalledTimes(2);
-    expect(ingest.mock.calls.map(([input]) => input.originalFileName)).toEqual([
-      'beta.markdown',
-      'zeta.txt',
-    ]);
+    expect(ingest).toHaveBeenCalledTimes(1);
+    expect(ingest.mock.calls.map(([input]) => input.originalFileName)).toEqual(['beta.pdf']);
     expect(ingest.mock.calls[0]?.[0]).toMatchObject({
       documentId: 'existing-beta',
-      sourcePath: 'knowledge-documents/nested/beta.markdown',
+      sourcePath: 'knowledge-documents/nested/beta.pdf',
     });
-    expect(described).toHaveBeenCalledTimes(3);
+    expect(described).toHaveBeenCalledTimes(2);
   });
 });

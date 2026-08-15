@@ -16,12 +16,7 @@ const CHUNK_SIZE = 1_600;
 const CHUNK_OVERLAP = 200;
 const CHUNKING_VERSION = 'char-1600-overlap-200-v1';
 
-const allowedMediaTypes = new Map([
-  ['.pdf', 'application/pdf'],
-  ['.txt', 'text/plain'],
-  ['.md', 'text/markdown'],
-  ['.markdown', 'text/markdown'],
-]);
+const PDF_MEDIA_TYPE = 'application/pdf';
 
 type ExtractedPage = { pageNumber: number; text: string };
 
@@ -39,29 +34,18 @@ async function extractPages(input: {
   buffer: Buffer;
 }): Promise<ExtractedPage[]> {
   const extension = extname(input.originalFileName).toLowerCase();
-  if (allowedMediaTypes.get(extension) !== input.mediaType) {
+  if (extension !== '.pdf' || input.mediaType !== PDF_MEDIA_TYPE) {
     throw new Error('KNOWLEDGE_FILE_TYPE_UNSUPPORTED');
   }
 
-  if (input.mediaType === 'application/pdf') {
-    const parser = new PDFParse({ data: new Uint8Array(input.buffer) });
-    try {
-      const result = await parser.getText({ first: MAX_PDF_PAGES });
-      if (result.total > MAX_PDF_PAGES) throw new Error('KNOWLEDGE_EXTRACTION_LIMIT_EXCEEDED');
-      return result.pages.map((page) => ({ pageNumber: page.num, text: normalizeText(page.text) }));
-    } finally {
-      await parser.destroy();
-    }
-  }
-
-  let text: string;
+  const parser = new PDFParse({ data: new Uint8Array(input.buffer) });
   try {
-    text = new TextDecoder('utf-8', { fatal: true }).decode(input.buffer);
-  } catch {
-    throw new Error('KNOWLEDGE_TEXT_ENCODING_INVALID');
+    const result = await parser.getText({ first: MAX_PDF_PAGES });
+    if (result.total > MAX_PDF_PAGES) throw new Error('KNOWLEDGE_EXTRACTION_LIMIT_EXCEEDED');
+    return result.pages.map((page) => ({ pageNumber: page.num, text: normalizeText(page.text) }));
+  } finally {
+    await parser.destroy();
   }
-  if (text.includes('\u0000')) throw new Error('KNOWLEDGE_TEXT_BINARY_REJECTED');
-  return [{ pageNumber: 1, text: normalizeText(text) }];
 }
 
 function chunkPages(pages: ExtractedPage[]): Array<{

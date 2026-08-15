@@ -1,14 +1,9 @@
 import { extname, relative, sep } from 'node:path';
 
-const mediaTypes = new Map([
-  ['.pdf', 'application/pdf'],
-  ['.txt', 'text/plain'],
-  ['.md', 'text/markdown'],
-  ['.markdown', 'text/markdown'],
-]);
+const PDF_MEDIA_TYPE = 'application/pdf';
 
 export function knowledgeMediaType(filePath: string): string | undefined {
-  return mediaTypes.get(extname(filePath).toLowerCase());
+  return extname(filePath).toLowerCase() === '.pdf' ? PDF_MEDIA_TYPE : undefined;
 }
 
 export function normalizedSourcePath(repositoryRoot: string, filePath: string): string {
