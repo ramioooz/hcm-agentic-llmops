@@ -1,3 +1,5 @@
+import { LeaveErrorCode } from '../enums/error.enum';
+import { ApplicationError } from '../errors/application.error';
 import type { LeaveBalanceRecord } from '../types/leave-balance-record';
 import type { LeavePolicyRecord } from '../types/leave-policy-record';
 
@@ -6,7 +8,7 @@ const dayMilliseconds = 86_400_000;
 function parseDateOnly(value: string): Date {
   const date = new Date(`${value}T00:00:00.000Z`);
   if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
-    throw new Error('INVALID_LEAVE_DATES');
+    throw new ApplicationError(LeaveErrorCode.InvalidDates);
   }
   return date;
 }
@@ -19,7 +21,7 @@ function isWorkingDay(date: Date): boolean {
 export function countWorkingDays(startDate: string, endDate: string): number {
   const start = parseDateOnly(startDate);
   const end = parseDateOnly(endDate);
-  if (end < start) throw new Error('INVALID_LEAVE_DATES');
+  if (end < start) throw new ApplicationError(LeaveErrorCode.InvalidDates);
   let count = 0;
   for (let cursor = start.getTime(); cursor <= end.getTime(); cursor += dayMilliseconds) {
     if (isWorkingDay(new Date(cursor))) count += 1;

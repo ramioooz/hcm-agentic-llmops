@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { SecurityEventType, SecuritySeverity } from '../enums/security.enum';
 import { evaluatePromptInjectionRisk } from '../security/prompt-injection-risk';
 import type { ApplicationLogger } from '../types/application-logger';
 import type { PromptInjectionRisk } from '../types/prompt-injection-risk';
@@ -60,8 +61,8 @@ export class KnowledgeSecurityService {
       correlationId: input.correlationId,
       actorEmployeeCode: input.actorEmployeeCode,
       event: {
-        eventType: 'PROMPT_INJECTION_DETECTED',
-        severity: 'HIGH',
+        eventType: SecurityEventType.PromptInjectionDetected,
+        severity: SecuritySeverity.High,
         details,
       },
     });

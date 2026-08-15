@@ -1,7 +1,9 @@
 import { interrupt } from '@langchain/langgraph';
 import { createHash } from 'node:crypto';
+import { LeaveErrorCode } from '../../enums/error.enum';
 import { HcmAgentRoute } from '../../enums/hcm-agent.enum';
 import { LeaveApprovalDecision, LeaveGraphNode } from '../../enums/leave.enum';
+import { ApplicationError } from '../../errors/application.error';
 import { generateLeaveRequestPdf } from '../../documents/leave-request-pdf';
 import { buildInvocationResult } from '../../helpers/onboarding-agent.helpers';
 import { evaluateLeaveProposal } from '../../services/leave-proposal.service';
@@ -39,7 +41,7 @@ export function createLeaveApprovalNode(
       requestedWorkingDays: pending.requestedWorkingDays,
     });
     if (decision !== LeaveApprovalDecision.Approve && decision !== LeaveApprovalDecision.Reject) {
-      throw new Error('INVALID_APPROVAL_DECISION');
+      throw new ApplicationError(LeaveErrorCode.InvalidApprovalDecision);
     }
     if (decision === LeaveApprovalDecision.Reject) {
       context.steps.push({

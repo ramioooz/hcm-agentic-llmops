@@ -1,3 +1,5 @@
+import { HcmIntentType } from '../../src/enums/hcm-agent.enum';
+import { OnboardingReviewAction } from '../../src/enums/onboarding.enum';
 import { HcmAgentService } from '../../src/services/hcm-agent.service';
 import type { AgentRunRecorder } from '../../src/types/agent-run-recorder';
 import type { EmployeeReader } from '../../src/types/employee-reader';
@@ -65,10 +67,10 @@ function createService(
   } else {
     normalize.mockResolvedValue(
       input.normalizedIntent ?? {
-        intent: 'ONBOARDING_REVIEW',
+        intent: HcmIntentType.OnboardingReview,
         employeeCode: 'EMP-201',
         thresholdDays: 30,
-        requestedAction: 'REVIEW_ONLY',
+        requestedAction: OnboardingReviewAction.ReviewOnly,
         missingFields: [],
       },
     );
@@ -103,7 +105,7 @@ describe('HcmAgentService', () => {
     });
 
     const result = await service.invoke({
-      kind: 'ONBOARDING_REVIEW',
+      kind: HcmIntentType.OnboardingReview,
       targetEmployeeCode: 'EMP-201',
       thresholdDays: 30,
       notificationPolicy: 'SYSTEM_POLICY',
@@ -182,10 +184,10 @@ describe('HcmAgentService', () => {
   it('uses normalized intent for a natural-language onboarding request', async () => {
     const { service, normalize } = createService({
       normalizedIntent: {
-        intent: 'ONBOARDING_REVIEW',
+        intent: HcmIntentType.OnboardingReview,
         employeeCode: 'EMP-201',
         thresholdDays: 14,
-        requestedAction: 'REVIEW_ONLY',
+        requestedAction: OnboardingReviewAction.ReviewOnly,
         missingFields: [],
       },
     });
@@ -211,10 +213,10 @@ describe('HcmAgentService', () => {
   it('resolves an explicit onboarding self-reference to the authenticated actor', async () => {
     const { service, reader } = createService({
       normalizedIntent: {
-        intent: 'ONBOARDING_REVIEW',
+        intent: HcmIntentType.OnboardingReview,
         employeeCode: null,
         thresholdDays: 30,
-        requestedAction: 'REVIEW_ONLY',
+        requestedAction: OnboardingReviewAction.ReviewOnly,
         missingFields: [],
       },
     });
@@ -242,10 +244,10 @@ describe('HcmAgentService', () => {
         activeReviewPeriod: { endDate: '2026-10-06' },
       },
       normalizedIntent: {
-        intent: 'ONBOARDING_REVIEW',
+        intent: HcmIntentType.OnboardingReview,
         employeeCode: 'EMP-201',
         thresholdDays: 90,
-        requestedAction: 'REVIEW_ONLY',
+        requestedAction: OnboardingReviewAction.ReviewOnly,
         missingFields: [],
       },
     });
@@ -268,10 +270,10 @@ describe('HcmAgentService', () => {
   it('uses a normalized missing employee field rather than guessing an employee', async () => {
     const { service, reader } = createService({
       normalizedIntent: {
-        intent: 'ONBOARDING_REVIEW',
+        intent: HcmIntentType.OnboardingReview,
         employeeCode: null,
         thresholdDays: 30,
-        requestedAction: 'REVIEW_ONLY',
+        requestedAction: OnboardingReviewAction.ReviewOnly,
         missingFields: ['employeeId'],
       },
     });
@@ -292,10 +294,10 @@ describe('HcmAgentService', () => {
   it('does not look up a hallucinated employee code that differs from the query', async () => {
     const { service, reader } = createService({
       normalizedIntent: {
-        intent: 'ONBOARDING_REVIEW',
+        intent: HcmIntentType.OnboardingReview,
         employeeCode: 'EMP-201',
         thresholdDays: 30,
-        requestedAction: 'REVIEW_ONLY',
+        requestedAction: OnboardingReviewAction.ReviewOnly,
         missingFields: [],
       },
     });
@@ -319,10 +321,10 @@ describe('HcmAgentService', () => {
   it('downgrades a hallucinated notification action to review only', async () => {
     const { service } = createService({
       normalizedIntent: {
-        intent: 'ONBOARDING_REVIEW',
+        intent: HcmIntentType.OnboardingReview,
         employeeCode: 'EMP-201',
         thresholdDays: 30,
-        requestedAction: 'NOTIFY_MANAGER',
+        requestedAction: OnboardingReviewAction.NotifyManager,
         missingFields: [],
       },
     });
@@ -349,10 +351,10 @@ describe('HcmAgentService', () => {
   ])('does not treat informational wording as permission: %s', async (query) => {
     const { service } = createService({
       normalizedIntent: {
-        intent: 'ONBOARDING_REVIEW',
+        intent: HcmIntentType.OnboardingReview,
         employeeCode: 'EMP-201',
         thresholdDays: 30,
-        requestedAction: 'NOTIFY_MANAGER',
+        requestedAction: OnboardingReviewAction.NotifyManager,
         missingFields: [],
       },
     });
@@ -423,10 +425,10 @@ describe('HcmAgentService', () => {
   it('returns need-more-information when the employee ID is missing', async () => {
     const { service, reader, normalize } = createService({
       normalizedIntent: {
-        intent: 'ONBOARDING_REVIEW',
+        intent: HcmIntentType.OnboardingReview,
         employeeCode: null,
         thresholdDays: 30,
-        requestedAction: 'REVIEW_ONLY',
+        requestedAction: OnboardingReviewAction.ReviewOnly,
         missingFields: ['employeeId'],
       },
     });
@@ -454,7 +456,7 @@ describe('HcmAgentService', () => {
   it('returns unsupported for a capability outside the onboarding domain', async () => {
     const { service } = createService({
       normalizedIntent: {
-        intent: 'UNSUPPORTED',
+        intent: HcmIntentType.Unsupported,
         employeeCode: null,
         thresholdDays: null,
         requestedAction: null,
@@ -545,10 +547,10 @@ describe('HcmAgentService', () => {
   ])('preserves explicit notification intent for "%s"', async (notificationPhrase) => {
     const { service, recorder } = createService({
       normalizedIntent: {
-        intent: 'ONBOARDING_REVIEW',
+        intent: HcmIntentType.OnboardingReview,
         employeeCode: 'EMP-201',
         thresholdDays: 30,
-        requestedAction: 'NOTIFY_MANAGER',
+        requestedAction: OnboardingReviewAction.NotifyManager,
         missingFields: [],
       },
     });
@@ -665,10 +667,10 @@ describe('HcmAgentService', () => {
   it('denies an employee actor from requesting a manager notification for themself', async () => {
     const { service } = createService({
       normalizedIntent: {
-        intent: 'ONBOARDING_REVIEW',
+        intent: HcmIntentType.OnboardingReview,
         employeeCode: 'EMP-201',
         thresholdDays: 30,
-        requestedAction: 'NOTIFY_MANAGER',
+        requestedAction: OnboardingReviewAction.NotifyManager,
         missingFields: [],
       },
     });
@@ -689,10 +691,10 @@ describe('HcmAgentService', () => {
     const { service, send } = createService({
       record: { ...employee, activeReviewPeriod: { endDate: '2026-09-21' } },
       normalizedIntent: {
-        intent: 'ONBOARDING_REVIEW',
+        intent: HcmIntentType.OnboardingReview,
         employeeCode: 'EMP-201',
         thresholdDays: 30,
-        requestedAction: 'NOTIFY_MANAGER',
+        requestedAction: OnboardingReviewAction.NotifyManager,
         missingFields: [],
       },
     });
@@ -718,10 +720,10 @@ describe('HcmAgentService', () => {
   it('returns a stable internal error when the notification adapter fails', async () => {
     const { service, send } = createService({
       normalizedIntent: {
-        intent: 'ONBOARDING_REVIEW',
+        intent: HcmIntentType.OnboardingReview,
         employeeCode: 'EMP-201',
         thresholdDays: 30,
-        requestedAction: 'NOTIFY_MANAGER',
+        requestedAction: OnboardingReviewAction.NotifyManager,
         missingFields: [],
       },
     });
@@ -825,7 +827,7 @@ describe('HcmAgentService', () => {
       correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
       promptVersion: 'hcm-intent-v3',
       configuredModel: 'gpt-5.4-mini',
-      normalizedIntent: 'ONBOARDING_REVIEW',
+      normalizedIntent: HcmIntentType.OnboardingReview,
       nodePath: [
         'request_guard',
         'intent_normalization',

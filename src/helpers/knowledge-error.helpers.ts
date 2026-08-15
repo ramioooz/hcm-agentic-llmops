@@ -1,11 +1,17 @@
-const STABLE_ERROR_CODE = /^[A-Z0-9_]+$/;
+import type { ApplicationErrorCode } from '../types/application-error-code';
+import { ApplicationError } from '../errors/application.error';
+import { resolveApplicationErrorCode } from './application-error.helpers';
 
-export function knowledgeErrorCode(error: unknown, fallbackCode: string): string {
-  return error instanceof Error && STABLE_ERROR_CODE.test(error.message)
-    ? error.message
-    : fallbackCode;
+export function knowledgeErrorCode(
+  error: unknown,
+  fallbackCode: ApplicationErrorCode,
+): ApplicationErrorCode {
+  return resolveApplicationErrorCode(error, fallbackCode);
 }
 
-export function knowledgeError(error: unknown, fallbackCode: string): Error {
-  return new Error(knowledgeErrorCode(error, fallbackCode));
+export function knowledgeError(
+  error: unknown,
+  fallbackCode: ApplicationErrorCode,
+): ApplicationError {
+  return new ApplicationError(knowledgeErrorCode(error, fallbackCode), { cause: error });
 }

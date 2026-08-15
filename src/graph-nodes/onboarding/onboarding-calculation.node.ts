@@ -1,3 +1,4 @@
+import { AgentErrorCode, CommonErrorCode } from '../../enums/error.enum';
 import { HcmAgentRoute, HcmIntentType } from '../../enums/hcm-agent.enum';
 import { OnboardingGraphNode, OnboardingReviewAction } from '../../enums/onboarding.enum';
 import { createOnboardingCalculationTool } from '../../tools/onboarding.tools';
@@ -6,6 +7,7 @@ import type { HcmAgentExecutionContext } from '../../types/hcm-agent-execution-c
 import type { HcmAgentGraphDependencies } from '../../types/hcm-agent-graph-dependencies';
 import type { OnboardingReviewResult } from '../../types/onboarding-review-result';
 import { buildFailureResult, emitToolEvent, safeErrorCode } from '../../helpers/hcm-agent.helpers';
+import { ApplicationError } from '../../errors/application.error';
 
 export function createOnboardingCalculationNode(
   dependencies: HcmAgentGraphDependencies,
@@ -15,7 +17,7 @@ export function createOnboardingCalculationNode(
   const calculate = createOnboardingCalculationTool(dependencies.employees);
   return async () => {
     if (!context.lookup || context.intent?.intent !== HcmIntentType.OnboardingReview) {
-      throw new Error('GRAPH_LOOKUP_MISSING');
+      throw new ApplicationError(AgentErrorCode.GraphLookupMissing);
     }
     try {
       context.review = (await calculate.invoke({
@@ -52,9 +54,9 @@ export function createOnboardingCalculationNode(
     } catch (error) {
       const code = safeErrorCode(error);
       const response =
-        code === 'EMPLOYEE_INACTIVE'
+        code === CommonErrorCode.EmployeeInactive
           ? ([409, 'The employee is not active.'] as const)
-          : code === 'ONBOARDING_REVIEW_NOT_FOUND'
+          : code === CommonErrorCode.OnboardingReviewNotFound
             ? ([404, 'The employee does not have an active onboarding review period.'] as const)
             : ([500, 'The workflow could not be completed.'] as const);
       context.steps.push({

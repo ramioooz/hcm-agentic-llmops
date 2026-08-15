@@ -1,4 +1,6 @@
 import { MemorySaver } from '@langchain/langgraph';
+import { HcmIntentType } from '../../src/enums/hcm-agent.enum';
+import { OnboardingReviewAction } from '../../src/enums/onboarding.enum';
 import { HcmAgentService } from '../../src/services/hcm-agent.service';
 import type { AgentRunRecorder } from '../../src/types/agent-run-recorder';
 import type { EmployeeReader } from '../../src/types/employee-reader';
@@ -44,16 +46,16 @@ function createConversationService(
   const normalize = jest.fn<Promise<HcmIntent>, [string]>(async (query) => {
     if (query === 'Review the onboarding status') {
       return {
-        intent: 'ONBOARDING_REVIEW',
+        intent: HcmIntentType.OnboardingReview,
         employeeCode: null,
         thresholdDays: 30,
-        requestedAction: 'REVIEW_ONLY',
+        requestedAction: OnboardingReviewAction.ReviewOnly,
         missingFields: ['employeeId'],
       };
     }
 
     return {
-      intent: 'UNSUPPORTED',
+      intent: HcmIntentType.Unsupported,
       employeeCode: null,
       thresholdDays: null,
       requestedAction: null,

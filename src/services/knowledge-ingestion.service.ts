@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { extname } from 'node:path';
 import { PDFParse } from 'pdf-parse';
+import { KnowledgeErrorCode } from '../enums/error.enum';
+import { ApplicationError } from '../errors/application.error';
 import type {
   KnowledgeEmbeddingProvider,
   KnowledgeRepository,
@@ -36,13 +38,15 @@ async function extractPages(input: {
 }): Promise<ExtractedPage[]> {
   const extension = extname(input.originalFileName).toLowerCase();
   if (extension !== '.pdf' || input.mediaType !== PDF_MEDIA_TYPE) {
-    throw new Error('KNOWLEDGE_FILE_TYPE_UNSUPPORTED');
+    throw new ApplicationError(KnowledgeErrorCode.FileTypeUnsupported);
   }
 
   const parser = new PDFParse({ data: new Uint8Array(input.buffer) });
   try {
     const result = await parser.getText({ first: MAX_PDF_PAGES });
-    if (result.total > MAX_PDF_PAGES) throw new Error('KNOWLEDGE_EXTRACTION_LIMIT_EXCEEDED');
+    if (result.total > MAX_PDF_PAGES) {
+      throw new ApplicationError(KnowledgeErrorCode.ExtractionLimitExceeded);
+    }
     return result.pages.map((page) => ({ pageNumber: page.num, text: normalizeText(page.text) }));
   } finally {
     await parser.destroy();
@@ -62,7 +66,9 @@ function chunkPages(pages: ExtractedPage[]): Array<{
       if (!content) continue;
       chunks.push({ chunkIndex, pageNumber: page.pageNumber, content });
       chunkIndex += 1;
-      if (chunks.length > MAX_CHUNKS) throw new Error('KNOWLEDGE_EXTRACTION_LIMIT_EXCEEDED');
+      if (chunks.length > MAX_CHUNKS) {
+        throw new ApplicationError(KnowledgeErrorCode.ExtractionLimitExceeded);
+      }
     }
   }
   return chunks;
@@ -101,18 +107,22 @@ export class KnowledgeIngestionService {
     correlationId: string;
   }): Promise<KnowledgeVersionResult> {
     if (input.buffer.length === 0 || input.buffer.length > MAX_KNOWLEDGE_FILE_BYTES) {
-      throw new Error('KNOWLEDGE_FILE_SIZE_INVALID');
+      throw new ApplicationError(KnowledgeErrorCode.FileSizeInvalid);
     }
     const title = input.title.trim();
-    if (!title || title.length > 200) throw new Error('KNOWLEDGE_TITLE_INVALID');
+    if (!title || title.length > 200) {
+      throw new ApplicationError(KnowledgeErrorCode.TitleInvalid);
+    }
     const { contentHash } = this.describeIndex(input.buffer);
 
     try {
       const pages = await extractPages(input);
       const extractedCharacters = pages.reduce((total, page) => total + page.text.length, 0);
-      if (extractedCharacters === 0) throw new Error('KNOWLEDGE_TEXT_EMPTY');
+      if (extractedCharacters === 0) {
+        throw new ApplicationError(KnowledgeErrorCode.TextEmpty);
+      }
       if (extractedCharacters > MAX_EXTRACTED_CHARACTERS) {
-        throw new Error('KNOWLEDGE_EXTRACTION_LIMIT_EXCEEDED');
+        throw new ApplicationError(KnowledgeErrorCode.ExtractionLimitExceeded);
       }
       const chunks = chunkPages(pages);
       for (const chunk of chunks) {
@@ -127,7 +137,7 @@ export class KnowledgeIngestionService {
             pageNumber: chunk.pageNumber,
           },
         });
-        if (!risk.safe) throw new Error('KNOWLEDGE_DOCUMENT_UNSAFE');
+        if (!risk.safe) throw new ApplicationError(KnowledgeErrorCode.DocumentUnsafe);
       }
       let embeddings: number[][];
       try {
@@ -135,9 +145,11 @@ export class KnowledgeIngestionService {
           chunks.map((chunk) => chunk.content),
         );
       } catch (error) {
-        throw knowledgeError(error, 'KNOWLEDGE_EMBEDDING_FAILED');
+        throw knowledgeError(error, KnowledgeErrorCode.EmbeddingFailed);
       }
-      if (embeddings.length !== chunks.length) throw new Error('EMBEDDING_COUNT_MISMATCH');
+      if (embeddings.length !== chunks.length) {
+        throw new ApplicationError(KnowledgeErrorCode.EmbeddingCountMismatch);
+      }
 
       try {
         return await this.dependencies.repository.publishVersion({
@@ -153,7 +165,7 @@ export class KnowledgeIngestionService {
           chunks: chunks.map((chunk, index) => ({ ...chunk, embedding: embeddings[index] ?? [] })),
         });
       } catch (error) {
-        throw knowledgeError(error, 'KNOWLEDGE_DATABASE_WRITE_FAILED');
+        throw knowledgeError(error, KnowledgeErrorCode.DatabaseWriteFailed);
       }
     } finally {
       input.buffer.fill(0);

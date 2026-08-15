@@ -1,4 +1,4 @@
-import type { OnboardingReviewAction } from './onboarding-review-action';
+import type { OnboardingReviewAction } from '../enums/onboarding.enum';
 
 export type OnboardingReviewResult = {
   daysRemaining: number;

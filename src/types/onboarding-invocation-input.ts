@@ -1,3 +1,5 @@
+import type { HcmIntentType } from '../enums/hcm-agent.enum';
+
 export type UserOnboardingCommand = {
   kind?: 'USER_QUERY';
   query: string;
@@ -9,7 +11,7 @@ export type UserOnboardingCommand = {
 };
 
 export type TechnicalOnboardingCommand = {
-  kind: 'ONBOARDING_REVIEW';
+  kind: HcmIntentType.OnboardingReview;
   targetEmployeeCode: string;
   thresholdDays: number;
   notificationPolicy: 'NONE' | 'EXPLICIT_REQUEST' | 'SYSTEM_POLICY';

@@ -1,5 +1,8 @@
+import { CommonErrorCode, LeaveErrorCode } from '../../enums/error.enum';
 import { HcmAgentRoute, HcmIntentType } from '../../enums/hcm-agent.enum';
 import { LeaveGraphNode } from '../../enums/leave.enum';
+import { ApplicationError } from '../../errors/application.error';
+import { resolveApplicationErrorCode } from '../../helpers/application-error.helpers';
 import { buildInvocationResult } from '../../helpers/onboarding-agent.helpers';
 import { evaluateLeaveProposal } from '../../services/leave-proposal.service';
 import type { HcmAgentExecutionContext } from '../../types/hcm-agent-execution-context';
@@ -15,7 +18,7 @@ export function createLeaveProposalNode(context: HcmAgentExecutionContext, today
       !context.leavePolicy ||
       !context.leaveBalance
     ) {
-      throw new Error('LEAVE_CONTEXT_MISSING');
+      throw new ApplicationError(LeaveErrorCode.ContextMissing);
     }
     try {
       const proposal = evaluateLeaveProposal({
@@ -61,12 +64,12 @@ export function createLeaveProposalNode(context: HcmAgentExecutionContext, today
         outcomeCode: proposal.eligible ? 'LEAVE_PROPOSAL_ELIGIBLE' : 'LEAVE_PROPOSAL_INELIGIBLE',
       };
     } catch (error) {
-      const code = error instanceof Error ? error.message : 'INTERNAL_ERROR';
-      const isInvalidDates = code === 'INVALID_LEAVE_DATES';
+      const code = resolveApplicationErrorCode(error, CommonErrorCode.InternalError);
+      const isInvalidDates = code === LeaveErrorCode.InvalidDates;
       context.result = buildFailureResult(
         context,
         isInvalidDates ? 400 : 500,
-        isInvalidDates ? code : 'INTERNAL_ERROR',
+        isInvalidDates ? code : CommonErrorCode.InternalError,
         isInvalidDates
           ? 'Provide a valid leave date range.'
           : 'The workflow could not be completed.',
@@ -75,7 +78,7 @@ export function createLeaveProposalNode(context: HcmAgentExecutionContext, today
         route: HcmAgentRoute.Respond,
         pendingLeaveApproval: null,
         lastNode: LeaveGraphNode.Proposal,
-        outcomeCode: isInvalidDates ? code : 'INTERNAL_ERROR',
+        outcomeCode: isInvalidDates ? code : CommonErrorCode.InternalError,
       };
     }
   };

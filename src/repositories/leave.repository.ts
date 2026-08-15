@@ -1,4 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
+import { CommonErrorCode, LeaveErrorCode } from '../enums/error.enum';
+import { ApplicationError } from '../errors/application.error';
 import type { LeaveReader } from '../types/leave-reader';
 import type { LeaveApprovalStore } from '../types/leave-approval-store';
 
@@ -110,7 +112,7 @@ export class PrismaLeaveRepository implements LeaveReader, LeaveApprovalStore {
       },
     });
     if (request.status !== 'SUBMITTED' || !request.documentPdf) {
-      throw new Error('LEAVE_REQUEST_PERSISTENCE_FAILED');
+      throw new ApplicationError(LeaveErrorCode.RequestPersistenceFailed);
     }
     return {
       id: request.id,
@@ -139,11 +141,11 @@ export class PrismaLeaveRepository implements LeaveReader, LeaveApprovalStore {
         },
       }),
     ]);
-    if (!actor) throw new Error('AUTHENTICATION_REQUIRED');
+    if (!actor) throw new ApplicationError(CommonErrorCode.AuthenticationRequired);
     if (!request || request.status !== 'SUBMITTED' || !request.documentPdf) return null;
-    if (actor.status !== 'ACTIVE') throw new Error('EMPLOYEE_INACTIVE');
+    if (actor.status !== 'ACTIVE') throw new ApplicationError(CommonErrorCode.EmployeeInactive);
     if (actor.accessRole !== 'HR' && actor.employeeCode !== request.employee.employeeCode) {
-      throw new Error('AUTHORIZATION_DENIED');
+      throw new ApplicationError(CommonErrorCode.AuthorizationDenied);
     }
     return {
       id: request.id,

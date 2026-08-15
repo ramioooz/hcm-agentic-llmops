@@ -1,9 +1,9 @@
-import { HcmAgentRoute, HcmGraphNode, HcmWorker } from '../enums/hcm-agent.enum';
+import { HcmAgentRoute, HcmGraphNode, HcmIntentType, HcmWorker } from '../enums/hcm-agent.enum';
 import type { HcmIntent } from '../types/hcm-intent';
 
 export function routeHcmIntent(intent: HcmIntent): HcmWorker {
-  if (intent.intent === 'ONBOARDING_REVIEW') return HcmWorker.Onboarding;
-  if (intent.intent === 'LEAVE_REQUEST') return HcmWorker.Leave;
+  if (intent.intent === HcmIntentType.OnboardingReview) return HcmWorker.Onboarding;
+  if (intent.intent === HcmIntentType.LeaveRequest) return HcmWorker.Leave;
   return HcmWorker.Unsupported;
 }
 

@@ -2,6 +2,9 @@ import {
   onboardingTriggerEventSchema,
   type OnboardingTriggerEvent,
 } from '../contracts/onboarding-trigger-event';
+import { CommonErrorCode, TriggerErrorCode } from '../enums/error.enum';
+import { ApplicationError } from '../errors/application.error';
+import { resolveApplicationErrorCode } from '../helpers/application-error.helpers';
 import type {
   AmqpConfirmChannel,
   AmqpConnection,
@@ -26,9 +29,7 @@ function deliveryAttempt(message: AmqpMessage): number {
 }
 
 function stableErrorCode(error: unknown): string {
-  if (typeof error !== 'object' || error === null || !('code' in error)) return 'INTERNAL_ERROR';
-  const code = (error as { code?: unknown }).code;
-  return typeof code === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(code) ? code : 'INTERNAL_ERROR';
+  return resolveApplicationErrorCode(error, CommonErrorCode.InternalError);
 }
 
 export class RabbitMqOnboardingTransport implements OnboardingEventPublisher {
@@ -156,7 +157,7 @@ export class RabbitMqOnboardingTransport implements OnboardingEventPublisher {
   }
 
   private requireChannel(): AmqpConfirmChannel {
-    if (!this.channel) throw new Error('RABBITMQ_NOT_STARTED');
+    if (!this.channel) throw new ApplicationError(TriggerErrorCode.RabbitMqNotStarted);
     return this.channel;
   }
 }

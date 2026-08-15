@@ -1,5 +1,7 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
+import { KnowledgeErrorCode } from '../enums/error.enum';
+import { resolveApplicationErrorCode } from '../helpers/application-error.helpers';
 import { resolveSafeCorrelationId } from '../security/correlation-id';
 import { KnowledgeQueryService } from '../services/knowledge-query.service';
 import type { EmployeeReader } from '../types/employee-reader';
@@ -101,10 +103,12 @@ export class KnowledgeController implements HttpController {
         }),
       );
     } catch (error) {
-      const unsafe = error instanceof Error && error.message === 'UNSAFE_KNOWLEDGE_QUERY';
+      const unsafe =
+        resolveApplicationErrorCode(error, KnowledgeErrorCode.QueryFailed) ===
+        KnowledgeErrorCode.UnsafeQuery;
       response.status(unsafe ? 403 : 500).json({
         status: 'FAILED',
-        code: unsafe ? 'UNSAFE_KNOWLEDGE_QUERY' : 'KNOWLEDGE_QUERY_FAILED',
+        code: unsafe ? KnowledgeErrorCode.UnsafeQuery : KnowledgeErrorCode.QueryFailed,
         message: unsafe
           ? 'The knowledge query contains unsafe instructions and was rejected.'
           : 'The knowledge query could not be completed.',

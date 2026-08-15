@@ -1,4 +1,6 @@
 import { Router, type Request, type Response } from 'express';
+import { CommonErrorCode } from '../enums/error.enum';
+import { resolveApplicationErrorCode } from '../helpers/application-error.helpers';
 import { resolveSafeCorrelationId } from '../security/correlation-id';
 import type { LeaveApprovalStore } from '../types/leave-approval-store';
 import type { ApplicationLogger } from '../types/application-logger';
@@ -64,13 +66,13 @@ export class LeaveRequestController implements HttpController {
       );
       response.status(200).send(document.documentPdf);
     } catch (error) {
-      const code = error instanceof Error ? error.message : 'INTERNAL_ERROR';
+      const code = resolveApplicationErrorCode(error, CommonErrorCode.InternalError);
       const httpStatus =
-        code === 'AUTHENTICATION_REQUIRED'
+        code === CommonErrorCode.AuthenticationRequired
           ? 401
-          : code === 'AUTHORIZATION_DENIED'
+          : code === CommonErrorCode.AuthorizationDenied
             ? 403
-            : code === 'EMPLOYEE_INACTIVE'
+            : code === CommonErrorCode.EmployeeInactive
               ? 409
               : 500;
       const rejected = httpStatus < 500;
@@ -78,18 +80,18 @@ export class LeaveRequestController implements HttpController {
         event: rejected ? 'leave.document.rejected' : 'leave.document.failed',
         correlationId,
         status: 'FAILED',
-        code: rejected ? code : 'INTERNAL_ERROR',
+        code: rejected ? code : CommonErrorCode.InternalError,
         httpStatus,
       });
       response.status(httpStatus).json({
         status: 'FAILED',
-        code: rejected ? code : 'INTERNAL_ERROR',
+        code: rejected ? code : CommonErrorCode.InternalError,
         message:
-          code === 'AUTHENTICATION_REQUIRED'
+          code === CommonErrorCode.AuthenticationRequired
             ? 'Identity was not found.'
-            : code === 'AUTHORIZATION_DENIED'
+            : code === CommonErrorCode.AuthorizationDenied
               ? 'You are not authorized to access this document.'
-              : code === 'EMPLOYEE_INACTIVE'
+              : code === CommonErrorCode.EmployeeInactive
                 ? 'The employee is not active.'
                 : 'The document could not be retrieved.',
         correlationId,

@@ -1,5 +1,7 @@
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
+import { CommonErrorCode, LeaveErrorCode } from '../enums/error.enum';
+import { ApplicationError } from '../errors/application.error';
 import type { EmployeeReader } from '../types/employee-reader';
 import type { LeaveReader } from '../types/leave-reader';
 
@@ -14,13 +16,13 @@ async function authorizeLeaveRead(
     employees.findByEmployeeCode(actorEmployeeCode),
     employees.findByEmployeeCode(targetEmployeeCode),
   ]);
-  if (!actor) throw new Error('AUTHENTICATION_REQUIRED');
-  if (!target) throw new Error('EMPLOYEE_NOT_FOUND');
+  if (!actor) throw new ApplicationError(CommonErrorCode.AuthenticationRequired);
+  if (!target) throw new ApplicationError(CommonErrorCode.EmployeeNotFound);
   if (actor.status !== 'ACTIVE' || target.status !== 'ACTIVE') {
-    throw new Error('EMPLOYEE_INACTIVE');
+    throw new ApplicationError(CommonErrorCode.EmployeeInactive);
   }
   if (actor.accessRole !== 'HR' && actor.employeeCode !== target.employeeCode) {
-    throw new Error('AUTHORIZATION_DENIED');
+    throw new ApplicationError(CommonErrorCode.AuthorizationDenied);
   }
 }
 
@@ -29,7 +31,7 @@ export function createLeavePolicyTool(employees: EmployeeReader, leaves: LeaveRe
     async ({ actorEmployeeCode, targetEmployeeCode }) => {
       await authorizeLeaveRead(employees, actorEmployeeCode, targetEmployeeCode);
       const policy = await leaves.findAnnualPolicy();
-      if (!policy) throw new Error('LEAVE_POLICY_NOT_FOUND');
+      if (!policy) throw new ApplicationError(LeaveErrorCode.PolicyNotFound);
       return policy;
     },
     {
@@ -45,7 +47,7 @@ export function createLeaveBalanceTool(employees: EmployeeReader, leaves: LeaveR
     async ({ actorEmployeeCode, targetEmployeeCode, year }) => {
       await authorizeLeaveRead(employees, actorEmployeeCode, targetEmployeeCode);
       const balance = await leaves.findAnnualBalance(targetEmployeeCode, year);
-      if (!balance) throw new Error('LEAVE_BALANCE_NOT_FOUND');
+      if (!balance) throw new ApplicationError(LeaveErrorCode.BalanceNotFound);
       return balance;
     },
     {

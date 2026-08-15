@@ -1,5 +1,4 @@
-import { OnboardingReviewAction as OnboardingReviewActionValue } from '../enums/onboarding.enum';
-import type { OnboardingReviewAction } from '../types/onboarding-review-action';
+import { OnboardingReviewAction } from '../enums/onboarding.enum';
 import type { OnboardingReviewResult } from '../types/onboarding-review-result';
 
 type OnboardingReviewInput = {
@@ -40,6 +39,6 @@ export function evaluateOnboardingReview(input: OnboardingReviewInput): Onboardi
   return {
     daysRemaining,
     withinThreshold: daysRemaining >= 0 && daysRemaining <= input.thresholdDays,
-    action: input.requestedAction ?? OnboardingReviewActionValue.ReviewOnly,
+    action: input.requestedAction ?? OnboardingReviewAction.ReviewOnly,
   };
 }

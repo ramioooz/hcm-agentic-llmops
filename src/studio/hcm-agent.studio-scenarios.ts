@@ -17,7 +17,7 @@ export type StudioGraphDefinition = {
   runId: string;
 };
 
-const supportedIntent: Extract<HcmIntent, { intent: 'ONBOARDING_REVIEW' }> = {
+const supportedIntent: Extract<HcmIntent, { intent: HcmIntentType.OnboardingReview }> = {
   intent: HcmIntentType.OnboardingReview,
   employeeCode: 'EMP-201',
   thresholdDays: 30,

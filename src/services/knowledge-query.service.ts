@@ -1,4 +1,7 @@
 import { RagTraceBuilder } from '../observability/rag-trace-builder';
+import { KnowledgeErrorCode } from '../enums/error.enum';
+import { ApplicationError } from '../errors/application.error';
+import { resolveApplicationErrorCode } from '../helpers/application-error.helpers';
 import type {
   KnowledgeAnswerGenerator,
   KnowledgeEmbeddingProvider,
@@ -24,11 +27,11 @@ function absoluteUrls(text: string): string[] {
   return text.match(absoluteUrlPattern) ?? [];
 }
 
-function stableFailureCode(error: unknown): string {
-  if (error instanceof Error && error.message === 'UNSAFE_KNOWLEDGE_QUERY') {
-    return error.message;
-  }
-  return 'KNOWLEDGE_QUERY_FAILED';
+function stableFailureCode(error: unknown): KnowledgeErrorCode {
+  const code = resolveApplicationErrorCode(error, KnowledgeErrorCode.QueryFailed);
+  return code === KnowledgeErrorCode.UnsafeQuery
+    ? KnowledgeErrorCode.UnsafeQuery
+    : KnowledgeErrorCode.QueryFailed;
 }
 
 async function runStage<T>(input: {
@@ -81,7 +84,9 @@ export class KnowledgeQueryService {
     securityContext: KnowledgeSecurityContext;
   }): Promise<KnowledgeQueryResult> {
     const query = input.query.trim();
-    if (!query || query.length > 2_000) throw new Error('KNOWLEDGE_QUERY_INVALID');
+    if (!query || query.length > 2_000) {
+      throw new ApplicationError(KnowledgeErrorCode.QueryInvalid);
+    }
 
     const limit = Math.min(8, Math.max(1, input.limit ?? 5));
     const trace = this.createTrace(input, query, limit);
@@ -108,7 +113,7 @@ export class KnowledgeQueryService {
           ...(!result.safe ? { failureCode: result.reasonCode } : {}),
         }),
       });
-      if (!queryRisk.safe) throw new Error('UNSAFE_KNOWLEDGE_QUERY');
+      if (!queryRisk.safe) throw new ApplicationError(KnowledgeErrorCode.UnsafeQuery);
 
       const embedding = await runStage({
         trace,
@@ -254,7 +259,7 @@ export class KnowledgeQueryService {
       await this.submitTrace(
         trace?.build({
           answer: null,
-          resultStatus: failureCode === 'UNSAFE_KNOWLEDGE_QUERY' ? 'REJECTED' : 'FAILED',
+          resultStatus: failureCode === KnowledgeErrorCode.UnsafeQuery ? 'REJECTED' : 'FAILED',
           failureCode,
         }),
       );
@@ -310,7 +315,7 @@ export class KnowledgeQueryService {
         event: 'knowledge.trace.failed',
         correlationId: trace.correlationId,
         status: 'FAILED',
-        code: 'LANGSMITH_RAG_TRACE_FAILED',
+        code: KnowledgeErrorCode.LangSmithTraceFailed,
       });
     }
   }

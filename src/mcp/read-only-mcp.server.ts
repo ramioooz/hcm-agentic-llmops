@@ -1,6 +1,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { CommonErrorCode, KnowledgeErrorCode } from '../enums/error.enum';
 import { OnboardingReviewAction } from '../enums/onboarding.enum';
+import { ApplicationError } from '../errors/application.error';
+import { resolveApplicationErrorCode } from '../helpers/application-error.helpers';
 import { redactSensitiveData } from '../security/pii-redaction';
 import type { KnowledgeQueryService } from '../services/knowledge-query.service';
 import { createSearchKnowledgeDocumentsTool } from '../tools/knowledge.tools';
@@ -19,26 +22,30 @@ function toolResult(payload: McpPayload, isError = false) {
 }
 
 function stableToolError(error: unknown, correlationId: string) {
-  const code = error instanceof Error ? error.message : '';
   const known = {
-    AUTHENTICATION_REQUIRED: 'Authentication is required.',
-    EMPLOYEE_NOT_FOUND: 'The employee was not found.',
-    AUTHORIZATION_DENIED: 'You are not authorized to read that employee onboarding status.',
-    EMPLOYEE_INACTIVE: 'The employee is inactive.',
-    ONBOARDING_REVIEW_NOT_FOUND: 'The employee has no active onboarding review period.',
-    RAG_EXTERNAL_PROCESSING_DISABLED: 'Knowledge processing is disabled by configuration.',
-    KNOWLEDGE_QUERY_INVALID: 'The knowledge query is invalid.',
-    UNSAFE_KNOWLEDGE_QUERY: 'The knowledge query contains unsafe instructions.',
+    [CommonErrorCode.AuthenticationRequired]: 'Authentication is required.',
+    [CommonErrorCode.EmployeeNotFound]: 'The employee was not found.',
+    [CommonErrorCode.AuthorizationDenied]:
+      'You are not authorized to read that employee onboarding status.',
+    [CommonErrorCode.EmployeeInactive]: 'The employee is inactive.',
+    [CommonErrorCode.OnboardingReviewNotFound]:
+      'The employee has no active onboarding review period.',
+    [KnowledgeErrorCode.ExternalProcessingDisabled]:
+      'Knowledge processing is disabled by configuration.',
+    [KnowledgeErrorCode.QueryInvalid]: 'The knowledge query is invalid.',
+    [KnowledgeErrorCode.UnsafeQuery]: 'The knowledge query contains unsafe instructions.',
   } as const;
-  const stableCode = code in known ? (code as keyof typeof known) : 'INTERNAL_ERROR';
+  const code = resolveApplicationErrorCode(error, CommonErrorCode.InternalError);
+  const message = known[code as keyof typeof known];
+  const stableCode = message ? code : CommonErrorCode.InternalError;
   return toolResult(
     {
       status: 'FAILED',
       code: stableCode,
       message:
-        stableCode === 'INTERNAL_ERROR'
+        stableCode === CommonErrorCode.InternalError
           ? 'The MCP tool could not complete the request.'
-          : known[stableCode],
+          : message,
       correlationId,
     },
     true,
@@ -113,7 +120,10 @@ export function createReadOnlyMcpServer(input: {
     },
     async ({ query, documentId, limit }) => {
       if (!input.knowledgeQueries) {
-        return stableToolError(new Error('RAG_EXTERNAL_PROCESSING_DISABLED'), input.correlationId);
+        return stableToolError(
+          new ApplicationError(KnowledgeErrorCode.ExternalProcessingDisabled),
+          input.correlationId,
+        );
       }
       try {
         const search = createSearchKnowledgeDocumentsTool(input.knowledgeQueries, {

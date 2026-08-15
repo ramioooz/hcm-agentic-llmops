@@ -1,3 +1,4 @@
+import type { HcmIntentType } from '../enums/hcm-agent.enum';
 import type { RequestSafetyReasonCode } from './request-safety-reason-code';
 
 export type AgentTrace = {
@@ -7,7 +8,7 @@ export type AgentTrace = {
   rawQuery: string;
   promptVersion: string;
   configuredModel: string;
-  normalizedIntent: 'ONBOARDING_REVIEW' | 'LEAVE_REQUEST' | 'UNSUPPORTED' | null;
+  normalizedIntent: HcmIntentType | null;
   nodePath: string[];
   toolNames: string[];
   authorizationResult: 'AUTHORIZED' | 'DENIED' | 'NOT_EVALUATED';

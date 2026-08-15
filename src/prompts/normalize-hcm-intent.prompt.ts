@@ -1,4 +1,5 @@
 import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { HcmIntentType } from '../enums/hcm-agent.enum';
 import { OnboardingReviewAction } from '../enums/onboarding.enum';
 
 export const HCM_INTENT_PROMPT_VERSION = 'hcm-intent-v3';
@@ -27,7 +28,7 @@ export function buildHcmIntentNormalizationMessages(query: string) {
     new HumanMessage('Check onboarding status for EMP-201 within 14 days.'),
     new AIMessage(
       JSON.stringify({
-        intent: 'ONBOARDING_REVIEW',
+        intent: HcmIntentType.OnboardingReview,
         employeeCode: 'EMP-201',
         thresholdDays: 14,
         requestedAction: OnboardingReviewAction.ReviewOnly,
@@ -39,7 +40,7 @@ export function buildHcmIntentNormalizationMessages(query: string) {
     new HumanMessage('Notify the manager about EMP-201 probation status.'),
     new AIMessage(
       JSON.stringify({
-        intent: 'ONBOARDING_REVIEW',
+        intent: HcmIntentType.OnboardingReview,
         employeeCode: 'EMP-201',
         thresholdDays: 30,
         requestedAction: OnboardingReviewAction.NotifyManager,
@@ -51,7 +52,7 @@ export function buildHcmIntentNormalizationMessages(query: string) {
     new HumanMessage('Review my onboarding status.'),
     new AIMessage(
       JSON.stringify({
-        intent: 'ONBOARDING_REVIEW',
+        intent: HcmIntentType.OnboardingReview,
         employeeCode: null,
         thresholdDays: 30,
         requestedAction: OnboardingReviewAction.ReviewOnly,
@@ -63,7 +64,7 @@ export function buildHcmIntentNormalizationMessages(query: string) {
     new HumanMessage('Review the onboarding status.'),
     new AIMessage(
       JSON.stringify({
-        intent: 'ONBOARDING_REVIEW',
+        intent: HcmIntentType.OnboardingReview,
         employeeCode: null,
         thresholdDays: 30,
         requestedAction: OnboardingReviewAction.ReviewOnly,
@@ -75,7 +76,7 @@ export function buildHcmIntentNormalizationMessages(query: string) {
     new HumanMessage('Request annual leave from 2026-08-14 through 2026-08-18.'),
     new AIMessage(
       JSON.stringify({
-        intent: 'LEAVE_REQUEST',
+        intent: HcmIntentType.LeaveRequest,
         employeeCode: null,
         thresholdDays: null,
         requestedAction: null,
