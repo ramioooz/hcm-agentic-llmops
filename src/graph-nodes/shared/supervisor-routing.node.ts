@@ -1,4 +1,6 @@
+import { AgentErrorCode } from '../../enums/error.enum';
 import { HcmAgentRoute, HcmGraphNode, HcmIntentType, HcmWorker } from '../../enums/hcm-agent.enum';
+import { ApplicationError } from '../../errors/application.error';
 import { buildInvocationResult } from '../../helpers/onboarding-agent.helpers';
 import { routeHcmIntent } from '../../graph-routing/intent.route';
 import type { AgentEventSink } from '../../types/agent-event-sink';
@@ -11,7 +13,7 @@ export function createSupervisorRoutingNode(
 ) {
   return () => {
     const intent = context.intent;
-    if (!intent) throw new Error('GRAPH_INTENT_MISSING');
+    if (!intent) throw new ApplicationError(AgentErrorCode.GraphIntentMissing);
     const worker = routeHcmIntent(intent);
     if (worker === HcmWorker.Unsupported) {
       context.result = buildInvocationResult(200, {

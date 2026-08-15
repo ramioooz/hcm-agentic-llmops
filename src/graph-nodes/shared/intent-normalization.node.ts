@@ -1,5 +1,7 @@
+import { AgentErrorCode } from '../../enums/error.enum';
 import { HcmAgentRoute, HcmGraphNode, HcmIntentType } from '../../enums/hcm-agent.enum';
 import { OnboardingReviewAction } from '../../enums/onboarding.enum';
+import { ApplicationError } from '../../errors/application.error';
 import { enforceIntentConsistency } from '../../security/intent-consistency';
 import type { AgentEventSink } from '../../types/agent-event-sink';
 import type { HcmAgentExecutionContext } from '../../types/hcm-agent-execution-context';
@@ -68,7 +70,9 @@ export function createIntentNormalizationNode(
     }
 
     try {
-      if (!isUserCommand(context.input)) throw new Error('GRAPH_COMMAND_INVALID');
+      if (!isUserCommand(context.input)) {
+        throw new ApplicationError(AgentErrorCode.GraphCommandInvalid);
+      }
       context.intent = resolveAuthenticatedSelfTarget(
         continueNormalizedIntent(
           context.input.query,

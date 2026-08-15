@@ -1,6 +1,9 @@
 import { Command } from '@langchain/langgraph';
+import { AgentErrorCode, CommonErrorCode } from '../enums/error.enum';
 import { HcmIntentType } from '../enums/hcm-agent.enum';
 import { LeaveApprovalDecision } from '../enums/leave.enum';
+import { SecurityEventType, SecuritySeverity } from '../enums/security.enum';
+import { ApplicationError } from '../errors/application.error';
 import { createHcmAgentGraph } from '../graphs/hcm-agent.graph';
 import { buildInvocationResult } from '../helpers/onboarding-agent.helpers';
 import { HCM_INTENT_PROMPT_VERSION } from '../prompts/normalize-hcm-intent.prompt';
@@ -26,7 +29,7 @@ async function recordThreadIdentityMismatch(
 ): Promise<OnboardingInvocationResult> {
   const result = buildInvocationResult(403, {
     status: 'FAILED',
-    code: 'THREAD_IDENTITY_MISMATCH',
+    code: AgentErrorCode.ThreadIdentityMismatch,
     message: 'This conversation belongs to a different employee identity.',
     threadId: input.threadId,
     runId,
@@ -45,10 +48,12 @@ async function recordThreadIdentityMismatch(
       {
         stepName: 'thread_identity_check',
         status: 'REJECTED',
-        outcomeCode: 'THREAD_IDENTITY_MISMATCH',
+        outcomeCode: AgentErrorCode.ThreadIdentityMismatch,
       },
     ],
-    securityEvents: [{ eventType: 'AUTHORIZATION_DENIED', severity: 'HIGH' }],
+    securityEvents: [
+      { eventType: SecurityEventType.AuthorizationDenied, severity: SecuritySeverity.High },
+    ],
   });
   return result;
 }
@@ -113,7 +118,7 @@ export async function runHcmAgentGraph(
     if (event.event === 'tool') {
       toolNames.push(event.data.tool);
       nodePath.push(event.data.tool);
-      if (event.data.outcomeCode === 'AUTHORIZATION_DENIED') {
+      if (event.data.outcomeCode === CommonErrorCode.AuthorizationDenied) {
         authorizationResult = 'DENIED';
       } else if (
         (event.data.tool === 'employee_lookup' ||
@@ -242,7 +247,7 @@ export async function runHcmAgentGraph(
       }
     }
   }
-  if (!context.result) throw new Error('GRAPH_RESULT_MISSING');
+  if (!context.result) throw new ApplicationError(AgentErrorCode.GraphResultMissing);
 
   if (dependencies.traceRecorder) {
     const modelCallCount =
@@ -251,7 +256,7 @@ export async function runHcmAgentGraph(
       context.result.body.status === 'FAILED'
         ? typeof context.result.body.code === 'string'
           ? context.result.body.code
-          : 'INTERNAL_ERROR'
+          : CommonErrorCode.InternalError
         : null;
     try {
       await dependencies.traceRecorder.record({

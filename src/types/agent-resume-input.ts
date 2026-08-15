@@ -1,5 +1,7 @@
+import type { LeaveApprovalDecision } from '../enums/leave.enum';
+
 export type AgentResumeInput = {
-  decision: 'APPROVE' | 'REJECT';
+  decision: LeaveApprovalDecision;
   actorEmployeeCode: string;
   correlationId: string;
   threadId: string;

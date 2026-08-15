@@ -1,3 +1,4 @@
+import { CommonErrorCode, LeaveErrorCode } from '../../enums/error.enum';
 import { HcmAgentRoute, HcmIntentType } from '../../enums/hcm-agent.enum';
 import { LeaveGraphNode } from '../../enums/leave.enum';
 import { SecurityEventType, SecuritySeverity } from '../../enums/security.enum';
@@ -6,33 +7,34 @@ import type { AgentEventSink } from '../../types/agent-event-sink';
 import type { HcmAgentExecutionContext } from '../../types/hcm-agent-execution-context';
 import type { HcmAgentGraphDependencies } from '../../types/hcm-agent-graph-dependencies';
 import { buildFailureResult } from '../../helpers/hcm-agent.helpers';
+import { resolveApplicationErrorCode } from '../../helpers/application-error.helpers';
 
 function safeLeaveError(error: unknown): {
   code: string;
   httpStatus: number;
   message: string;
 } {
-  const code = error instanceof Error ? error.message : 'INTERNAL_ERROR';
-  if (code === 'AUTHENTICATION_REQUIRED') {
+  const code = resolveApplicationErrorCode(error, CommonErrorCode.InternalError);
+  if (code === CommonErrorCode.AuthenticationRequired) {
     return { code, httpStatus: 401, message: 'Identity was not found.' };
   }
-  if (code === 'AUTHORIZATION_DENIED') {
+  if (code === CommonErrorCode.AuthorizationDenied) {
     return { code, httpStatus: 403, message: 'You are not authorized to perform this operation.' };
   }
-  if (code === 'EMPLOYEE_NOT_FOUND') {
+  if (code === CommonErrorCode.EmployeeNotFound) {
     return { code, httpStatus: 404, message: 'The employee was not found.' };
   }
-  if (code === 'EMPLOYEE_INACTIVE') {
+  if (code === CommonErrorCode.EmployeeInactive) {
     return { code, httpStatus: 409, message: 'The employee is not active.' };
   }
-  if (code === 'LEAVE_POLICY_NOT_FOUND' || code === 'LEAVE_BALANCE_NOT_FOUND') {
+  if (code === LeaveErrorCode.PolicyNotFound || code === LeaveErrorCode.BalanceNotFound) {
     return { code, httpStatus: 404, message: 'Annual leave information was not found.' };
   }
-  if (code === 'INVALID_LEAVE_DATES') {
+  if (code === LeaveErrorCode.InvalidDates) {
     return { code, httpStatus: 400, message: 'Provide a valid leave date range.' };
   }
   return {
-    code: 'INTERNAL_ERROR',
+    code: CommonErrorCode.InternalError,
     httpStatus: 500,
     message: 'The workflow could not be completed.',
   };
@@ -105,10 +107,10 @@ export async function loadLeaveContext(
     const failure = safeLeaveError(error);
     context.steps.push({
       stepName: 'leave_context_lookup',
-      status: failure.code === 'AUTHORIZATION_DENIED' ? 'REJECTED' : 'FAILED',
+      status: failure.code === CommonErrorCode.AuthorizationDenied ? 'REJECTED' : 'FAILED',
       outcomeCode: failure.code,
     });
-    if (failure.code === 'AUTHORIZATION_DENIED') {
+    if (failure.code === CommonErrorCode.AuthorizationDenied) {
       context.securityEvents.push({
         eventType: SecurityEventType.AuthorizationDenied,
         severity: SecuritySeverity.Medium,

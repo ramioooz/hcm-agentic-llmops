@@ -1,3 +1,4 @@
+import { AgentErrorCode, CommonErrorCode } from '../../enums/error.enum';
 import { HcmAgentRoute } from '../../enums/hcm-agent.enum';
 import { OnboardingGraphNode } from '../../enums/onboarding.enum';
 import { SecurityEventType, SecuritySeverity } from '../../enums/security.enum';
@@ -6,6 +7,7 @@ import type { AgentEventSink } from '../../types/agent-event-sink';
 import type { HcmAgentExecutionContext } from '../../types/hcm-agent-execution-context';
 import type { HcmAgentGraphDependencies } from '../../types/hcm-agent-graph-dependencies';
 import { buildFailureResult, emitToolEvent, safeErrorCode } from '../../helpers/hcm-agent.helpers';
+import { ApplicationError } from '../../errors/application.error';
 
 export function createEmployeeLookupNode(
   dependencies: HcmAgentGraphDependencies,
@@ -15,7 +17,7 @@ export function createEmployeeLookupNode(
   const lookup = createEmployeeLookupTool(dependencies.employees);
   return async () => {
     const employeeCode = context.intent?.employeeCode;
-    if (!employeeCode) throw new Error('GRAPH_EMPLOYEE_CODE_MISSING');
+    if (!employeeCode) throw new ApplicationError(AgentErrorCode.GraphEmployeeCodeMissing);
     try {
       context.lookup = await lookup.invoke({
         actorEmployeeCode: context.input.actorEmployeeCode,
@@ -42,11 +44,11 @@ export function createEmployeeLookupNode(
     } catch (error) {
       const code = safeErrorCode(error);
       const response =
-        code === 'AUTHENTICATION_REQUIRED'
+        code === CommonErrorCode.AuthenticationRequired
           ? ([401, 'Identity was not found.'] as const)
-          : code === 'EMPLOYEE_NOT_FOUND'
+          : code === CommonErrorCode.EmployeeNotFound
             ? ([404, `Employee ${employeeCode} was not found.`] as const)
-            : code === 'AUTHORIZATION_DENIED'
+            : code === CommonErrorCode.AuthorizationDenied
               ? ([403, 'You are not authorized to perform this operation.'] as const)
               : ([500, 'The workflow could not be completed.'] as const);
       context.steps.push({
@@ -54,7 +56,7 @@ export function createEmployeeLookupNode(
         status: 'FAILED',
         outcomeCode: code,
       });
-      if (code === 'AUTHORIZATION_DENIED') {
+      if (code === CommonErrorCode.AuthorizationDenied) {
         context.securityEvents.push({
           eventType: SecurityEventType.AuthorizationDenied,
           severity: SecuritySeverity.Medium,

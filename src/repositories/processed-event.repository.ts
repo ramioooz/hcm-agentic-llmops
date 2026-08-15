@@ -1,4 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
+import { TriggerErrorCode } from '../enums/error.enum';
+import { ApplicationError } from '../errors/application.error';
 import type {
   ProcessedEventClaim,
   ProcessedEventClaimInput,
@@ -38,7 +40,9 @@ export class PrismaProcessedEventRepository implements ProcessedEventStore {
       where: { eventId: input.eventId },
       select: { type: true, payloadHash: true, status: true },
     });
-    if (!existing) throw new Error('PROCESSED_EVENT_STATE_UNAVAILABLE');
+    if (!existing) {
+      throw new ApplicationError(TriggerErrorCode.ProcessedEventStateUnavailable);
+    }
     if (existing.type !== input.type || existing.payloadHash !== input.payloadHash) {
       return { status: 'CONFLICT' };
     }

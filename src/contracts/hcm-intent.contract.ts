@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { ONBOARDING_REVIEW_ACTION_VALUES } from '../enums/onboarding.enum';
+import { HcmIntentType } from '../enums/hcm-agent.enum';
+import { OnboardingReviewAction } from '../enums/onboarding.enum';
 
 const employeeCode = z
   .string()
@@ -12,10 +13,10 @@ const dateOnly = z
 
 export const hcmIntentStructuredOutputSchema = z
   .object({
-    intent: z.enum(['ONBOARDING_REVIEW', 'LEAVE_REQUEST', 'UNSUPPORTED']),
+    intent: z.enum(HcmIntentType),
     employeeCode,
     thresholdDays: z.number().int().min(1).max(365).nullable(),
-    requestedAction: z.enum(ONBOARDING_REVIEW_ACTION_VALUES).nullable(),
+    requestedAction: z.enum(OnboardingReviewAction).nullable(),
     leaveStartDate: dateOnly,
     leaveEndDate: dateOnly,
     missingFields: z.array(z.enum(['employeeId', 'startDate', 'endDate'])),
@@ -24,10 +25,10 @@ export const hcmIntentStructuredOutputSchema = z
 
 const onboardingIntentSchema = z
   .object({
-    intent: z.literal('ONBOARDING_REVIEW'),
+    intent: z.literal(HcmIntentType.OnboardingReview),
     employeeCode,
     thresholdDays: z.number().int().min(1).max(365),
-    requestedAction: z.enum(ONBOARDING_REVIEW_ACTION_VALUES),
+    requestedAction: z.enum(OnboardingReviewAction),
     missingFields: z.array(z.literal('employeeId')),
   })
   .strict()
@@ -43,7 +44,7 @@ const onboardingIntentSchema = z
 
 const leaveIntentSchema = z
   .object({
-    intent: z.literal('LEAVE_REQUEST'),
+    intent: z.literal(HcmIntentType.LeaveRequest),
     employeeCode,
     thresholdDays: z.null(),
     requestedAction: z.null(),
@@ -71,7 +72,7 @@ const leaveIntentSchema = z
 
 const unsupportedIntentSchema = z
   .object({
-    intent: z.literal('UNSUPPORTED'),
+    intent: z.literal(HcmIntentType.Unsupported),
     employeeCode: z.null(),
     thresholdDays: z.null(),
     requestedAction: z.null(),

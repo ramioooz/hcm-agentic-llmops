@@ -1,5 +1,6 @@
-import type { HcmIntent } from '../types/hcm-intent';
+import { HcmIntentType } from '../enums/hcm-agent.enum';
 import { OnboardingReviewAction } from '../enums/onboarding.enum';
+import type { HcmIntent } from '../types/hcm-intent';
 
 const employeeCodePattern = /\bEMP-\d+\b/gi;
 const isoDatePattern = /\b\d{4}-\d{2}-\d{2}\b/g;
@@ -59,7 +60,7 @@ function resolveThresholdDays(query: string): number {
 }
 
 export function enforceIntentConsistency(query: string, intent: HcmIntent): HcmIntent {
-  if (intent.intent === 'UNSUPPORTED') {
+  if (intent.intent === HcmIntentType.Unsupported) {
     const explicitDates: string[] = query.match(isoDatePattern) ?? [];
     const explicitEmployeeCodes: string[] = query.match(employeeCodePattern) ?? [];
     const [leaveStartDate, leaveEndDate] = explicitDates;
@@ -71,7 +72,7 @@ export function enforceIntentConsistency(query: string, intent: HcmIntent): HcmI
       leaveEndDate !== undefined
     ) {
       return {
-        intent: 'LEAVE_REQUEST',
+        intent: HcmIntentType.LeaveRequest,
         employeeCode: null,
         thresholdDays: null,
         requestedAction: null,
@@ -83,7 +84,7 @@ export function enforceIntentConsistency(query: string, intent: HcmIntent): HcmI
     return intent;
   }
 
-  if (intent.intent === 'LEAVE_REQUEST') {
+  if (intent.intent === HcmIntentType.LeaveRequest) {
     const explicitDates: string[] = query.match(isoDatePattern) ?? [];
     const employeeCode =
       intent.employeeCode !== null && hasExplicitEmployeeCode(query, intent.employeeCode)

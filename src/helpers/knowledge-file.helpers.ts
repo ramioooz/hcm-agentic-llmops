@@ -1,4 +1,6 @@
 import { extname, relative, sep } from 'node:path';
+import { KnowledgeErrorCode } from '../enums/error.enum';
+import { ApplicationError } from '../errors/application.error';
 
 const PDF_MEDIA_TYPE = 'application/pdf';
 
@@ -9,7 +11,7 @@ export function knowledgeMediaType(filePath: string): string | undefined {
 export function normalizedSourcePath(repositoryRoot: string, filePath: string): string {
   const sourcePath = relative(repositoryRoot, filePath).split(sep).join('/');
   if (!sourcePath || sourcePath === '..' || sourcePath.startsWith('../')) {
-    throw new Error('KNOWLEDGE_SOURCE_PATH_INVALID');
+    throw new ApplicationError(KnowledgeErrorCode.SourcePathInvalid);
   }
   return sourcePath;
 }

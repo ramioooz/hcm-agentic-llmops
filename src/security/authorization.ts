@@ -1,3 +1,5 @@
+import { CommonErrorCode } from '../enums/error.enum';
+import { ApplicationError } from '../errors/application.error';
 import type { AuthorizationRequest } from '../types/authorization-request';
 
 export function assertEmployeeReadAccess(request: AuthorizationRequest): void {
@@ -8,6 +10,6 @@ export function assertEmployeeReadAccess(request: AuthorizationRequest): void {
       request.targetManagerEmployeeId === request.actorEmployeeId);
 
   if (!canRead) {
-    throw new Error('AUTHORIZATION_DENIED');
+    throw new ApplicationError(CommonErrorCode.AuthorizationDenied);
   }
 }

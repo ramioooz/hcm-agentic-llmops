@@ -1,3 +1,5 @@
+import type { HcmIntentType } from '../enums/hcm-agent.enum';
+import type { OnboardingReviewAction } from '../enums/onboarding.enum';
 import type { InvocationBody } from './invocation-body';
 
 export type AgentProgressEvent =
@@ -17,8 +19,8 @@ export type AgentProgressEvent =
       data: {
         runId: string;
         status: 'normalized' | 'accepted';
-        intent: 'ONBOARDING_REVIEW' | 'LEAVE_REQUEST' | 'UNSUPPORTED';
-        requestedAction: 'REVIEW_ONLY' | 'NOTIFY_MANAGER' | null;
+        intent: HcmIntentType;
+        requestedAction: OnboardingReviewAction | null;
       };
     }
   | {

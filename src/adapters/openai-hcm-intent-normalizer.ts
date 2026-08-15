@@ -1,4 +1,5 @@
 import { hcmIntentSchema, hcmIntentStructuredOutputSchema } from '../contracts/hcm-intent.contract';
+import { HcmIntentType } from '../enums/hcm-agent.enum';
 import { buildHcmIntentNormalizationMessages } from '../prompts/normalize-hcm-intent.prompt';
 import type { HcmIntent } from '../types/hcm-intent';
 import type { HcmIntentNormalizer } from '../types/hcm-intent-normalizer';
@@ -32,7 +33,7 @@ export class OpenAiHcmIntentNormalizer implements HcmIntentNormalizer {
       await this.structuredOutputModel.invoke(buildHcmIntentNormalizationMessages(query)),
     );
 
-    if (output.intent === 'ONBOARDING_REVIEW') {
+    if (output.intent === HcmIntentType.OnboardingReview) {
       return hcmIntentSchema.parse({
         intent: output.intent,
         employeeCode: output.employeeCode,
@@ -42,7 +43,7 @@ export class OpenAiHcmIntentNormalizer implements HcmIntentNormalizer {
       });
     }
 
-    if (output.intent === 'LEAVE_REQUEST') {
+    if (output.intent === HcmIntentType.LeaveRequest) {
       return hcmIntentSchema.parse({
         intent: output.intent,
         employeeCode: output.employeeCode,

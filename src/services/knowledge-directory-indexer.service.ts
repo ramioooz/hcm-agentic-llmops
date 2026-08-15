@@ -1,5 +1,7 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
+import { KnowledgeErrorCode } from '../enums/error.enum';
+import { ApplicationError } from '../errors/application.error';
 import {
   knowledgeMediaType,
   knowledgeTitle,
@@ -80,20 +82,20 @@ export class KnowledgeDirectoryIndexer {
     for (const file of files) {
       try {
         if (file.size === 0 || file.size > MAX_KNOWLEDGE_FILE_BYTES) {
-          throw new Error('KNOWLEDGE_FILE_SIZE_INVALID');
+          throw new ApplicationError(KnowledgeErrorCode.FileSizeInvalid);
         }
         let buffer: Buffer;
         try {
           buffer = await readFile(file.absolutePath);
         } catch {
-          throw new Error('KNOWLEDGE_FILE_READ_FAILED');
+          throw new ApplicationError(KnowledgeErrorCode.FileReadFailed);
         }
         const identity = await this.dependencies.ingestion.describeIndex(buffer);
         let active: KnowledgeActiveIndex | null;
         try {
           active = await this.dependencies.repository.findActiveIndexBySourcePath(file.sourcePath);
         } catch (error) {
-          throw knowledgeError(error, 'KNOWLEDGE_DATABASE_READ_FAILED');
+          throw knowledgeError(error, KnowledgeErrorCode.DatabaseReadFailed);
         }
         if (
           active &&
@@ -130,7 +132,7 @@ export class KnowledgeDirectoryIndexer {
         results.push({
           sourcePath: file.sourcePath,
           status: 'FAILED',
-          code: knowledgeErrorCode(error, 'KNOWLEDGE_INDEX_FAILED'),
+          code: knowledgeErrorCode(error, KnowledgeErrorCode.IndexFailed),
         });
       }
     }

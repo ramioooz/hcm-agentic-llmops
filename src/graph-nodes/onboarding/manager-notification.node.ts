@@ -1,3 +1,4 @@
+import { AgentErrorCode, CommonErrorCode } from '../../enums/error.enum';
 import { HcmAgentRoute } from '../../enums/hcm-agent.enum';
 import { OnboardingGraphNode, OnboardingReviewAction } from '../../enums/onboarding.enum';
 import { SecurityEventType, SecuritySeverity } from '../../enums/security.enum';
@@ -6,6 +7,7 @@ import type { AgentEventSink } from '../../types/agent-event-sink';
 import type { HcmAgentExecutionContext } from '../../types/hcm-agent-execution-context';
 import type { HcmAgentGraphDependencies } from '../../types/hcm-agent-graph-dependencies';
 import { buildFailureResult, emitToolEvent, safeErrorCode } from '../../helpers/hcm-agent.helpers';
+import { ApplicationError } from '../../errors/application.error';
 
 export function createManagerNotificationNode(
   dependencies: HcmAgentGraphDependencies,
@@ -14,7 +16,9 @@ export function createManagerNotificationNode(
 ) {
   const notify = createManagerNotificationTool(dependencies.employees, dependencies.notifications);
   return async () => {
-    if (!context.lookup || !context.review) throw new Error('GRAPH_REVIEW_MISSING');
+    if (!context.lookup || !context.review) {
+      throw new ApplicationError(AgentErrorCode.GraphReviewMissing);
+    }
     try {
       const result = await notify.invoke({
         actorEmployeeCode: context.lookup.actor.employeeCode,
@@ -44,7 +48,7 @@ export function createManagerNotificationNode(
         status: 'FAILED',
         outcomeCode: code,
       });
-      if (code === 'AUTHORIZATION_DENIED') {
+      if (code === CommonErrorCode.AuthorizationDenied) {
         context.securityEvents.push({
           eventType: SecurityEventType.AuthorizationDenied,
           severity: SecuritySeverity.Medium,
@@ -59,7 +63,7 @@ export function createManagerNotificationNode(
         context.result = buildFailureResult(
           context,
           500,
-          'INTERNAL_ERROR',
+          CommonErrorCode.InternalError,
           'The workflow could not be completed.',
         );
       }

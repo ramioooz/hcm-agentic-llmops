@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ONBOARDING_REVIEW_ACTION_VALUES, OnboardingReviewAction } from '../enums/onboarding.enum';
+import { OnboardingReviewAction } from '../enums/onboarding.enum';
 
 const safeIdentifier = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -15,7 +15,7 @@ export const onboardingTriggerEventSchema = z
       .object({
         employeeCode: z.string().regex(/^EMP-\d+$/),
         thresholdDays: z.number().int().min(0).max(365).default(30),
-        action: z.enum(ONBOARDING_REVIEW_ACTION_VALUES).default(OnboardingReviewAction.ReviewOnly),
+        action: z.enum(OnboardingReviewAction).default(OnboardingReviewAction.ReviewOnly),
         threadId: z.string().regex(uuidV4).optional(),
       })
       .strict(),

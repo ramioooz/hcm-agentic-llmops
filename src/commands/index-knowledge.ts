@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import { OpenAiKnowledgeEmbeddings } from '../adapters/openai-knowledge.adapter';
 import { loadEnvironment } from '../config/load-environment';
+import { KnowledgeErrorCode } from '../enums/error.enum';
+import { ApplicationError } from '../errors/application.error';
 import { knowledgeErrorCode } from '../helpers/knowledge-error.helpers';
 import { PinoApplicationLogger } from '../observability/pino-application-logger';
 import { PrismaAgentRunRepository } from '../repositories/agent-run.repository';
@@ -14,7 +16,7 @@ import { KnowledgeSecurityService } from '../services/knowledge-security.service
 async function indexKnowledge(): Promise<void> {
   const environment = loadEnvironment();
   if (!environment.ragExternalProcessingEnabled) {
-    throw new Error('RAG_EXTERNAL_PROCESSING_DISABLED');
+    throw new ApplicationError(KnowledgeErrorCode.ExternalProcessingDisabled);
   }
   const database = new PrismaClient();
   try {
@@ -54,7 +56,7 @@ async function indexKnowledge(): Promise<void> {
 }
 
 void indexKnowledge().catch((error) => {
-  const code = knowledgeErrorCode(error, 'KNOWLEDGE_INDEX_FAILED');
+  const code = knowledgeErrorCode(error, KnowledgeErrorCode.IndexFailed);
   process.stderr.write(`${JSON.stringify({ status: 'FAILED', code })}\n`);
   process.exitCode = 1;
 });

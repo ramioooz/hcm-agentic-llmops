@@ -2,6 +2,7 @@ import {
   LangSmithAgentTraceRecorder,
   type LangSmithRun,
 } from '../../src/observability/langsmith-agent-trace-recorder';
+import { HcmIntentType } from '../../src/enums/hcm-agent.enum';
 import type { AgentTrace } from '../../src/types/agent-trace';
 
 const safeTrace = {
@@ -10,7 +11,7 @@ const safeTrace = {
   correlationId: '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0',
   promptVersion: 'hcm-intent-v1',
   configuredModel: 'gpt-5.4-mini',
-  normalizedIntent: 'ONBOARDING_REVIEW',
+  normalizedIntent: HcmIntentType.OnboardingReview,
   nodePath: ['request_guard', 'intent_normalization', 'employee_lookup'],
   toolNames: ['employee_lookup'],
   authorizationResult: 'AUTHORIZED',
@@ -59,7 +60,7 @@ describe('LangSmithAgentTraceRecorder', () => {
         rawQuery: 'Review EMP-201 onboarding status.',
       },
       outputs: {
-        normalizedIntent: 'ONBOARDING_REVIEW',
+        normalizedIntent: HcmIntentType.OnboardingReview,
         nodePath: ['request_guard', 'intent_normalization', 'employee_lookup'],
         toolNames: ['employee_lookup'],
         authorizationResult: 'AUTHORIZED',

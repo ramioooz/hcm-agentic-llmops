@@ -1,9 +1,10 @@
 import { z } from 'zod';
+import { LeaveApprovalDecision } from '../enums/leave.enum';
 
 const agentResumeSchema = z
   .object({
     threadId: z.string().uuid(),
-    decision: z.enum(['APPROVE', 'REJECT']),
+    decision: z.enum(LeaveApprovalDecision),
   })
   .strict();
 

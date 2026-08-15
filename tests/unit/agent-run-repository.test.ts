@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { SecurityEventType, SecuritySeverity } from '../../src/enums/security.enum';
 import { PrismaAgentRunRepository } from '../../src/repositories/agent-run.repository';
 import type { AgentInvocationRecord } from '../../src/types/agent-invocation-record';
 
@@ -90,8 +91,8 @@ describe('PrismaAgentRunRepository', () => {
       ],
       securityEvents: [
         {
-          eventType: 'AUTHORIZATION_DENIED',
-          severity: 'MEDIUM',
+          eventType: SecurityEventType.AuthorizationDenied,
+          severity: SecuritySeverity.Medium,
           details: { targetEmployeeCode: 'EMP-201' },
         },
       ],
@@ -102,8 +103,8 @@ describe('PrismaAgentRunRepository', () => {
       correlationId: 'corr-security-001',
       actorEmployeeCode: 'EMP-200',
       event: {
-        eventType: 'PROMPT_INJECTION_DETECTED',
-        severity: 'HIGH',
+        eventType: SecurityEventType.PromptInjectionDetected,
+        severity: SecuritySeverity.High,
         details: {
           source: 'RETRIEVED_EVIDENCE',
           reasonCode: 'INSTRUCTION_OVERRIDE',

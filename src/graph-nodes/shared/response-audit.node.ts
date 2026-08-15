@@ -1,4 +1,6 @@
+import { AgentErrorCode, CommonErrorCode } from '../../enums/error.enum';
 import { HcmAgentRoute, HcmGraphNode } from '../../enums/hcm-agent.enum';
+import { ApplicationError } from '../../errors/application.error';
 import { buildInvocationResult } from '../../helpers/onboarding-agent.helpers';
 import type { AgentEventSink } from '../../types/agent-event-sink';
 import type { HcmAgentExecutionContext } from '../../types/hcm-agent-execution-context';
@@ -12,7 +14,9 @@ export function createResponseAuditNode(
 ) {
   return async () => {
     if (!context.result) {
-      if (!context.lookup || !context.review) throw new Error('GRAPH_RESULT_CONTEXT_MISSING');
+      if (!context.lookup || !context.review) {
+        throw new ApplicationError(AgentErrorCode.GraphResultContextMissing);
+      }
       const employee = context.lookup.employee;
       context.result = buildInvocationResult(200, {
         status: 'COMPLETED',
@@ -38,7 +42,7 @@ export function createResponseAuditNode(
       context.result = buildFailureResult(
         context,
         500,
-        'INTERNAL_ERROR',
+        CommonErrorCode.InternalError,
         'The workflow could not be completed.',
       );
     }

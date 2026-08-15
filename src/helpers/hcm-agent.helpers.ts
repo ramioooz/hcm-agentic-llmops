@@ -1,6 +1,9 @@
+import { AgentErrorCode, CommonErrorCode } from '../enums/error.enum';
 import { HcmIntentType } from '../enums/hcm-agent.enum';
-import { OnboardingReviewAction as OnboardingReviewActionValue } from '../enums/onboarding.enum';
+import { OnboardingReviewAction } from '../enums/onboarding.enum';
 import { redactSensitiveData } from '../security/pii-redaction';
+import { ApplicationError } from '../errors/application.error';
+import { resolveApplicationErrorCode } from './application-error.helpers';
 import type { AgentInvocationRecord } from '../types/agent-invocation-record';
 import type { AgentEventSink } from '../types/agent-event-sink';
 import type { HcmAgentExecutionContext } from '../types/hcm-agent-execution-context';
@@ -12,7 +15,6 @@ import type {
   UserOnboardingCommand,
 } from '../types/onboarding-invocation-input';
 import type { OnboardingInvocationResult } from '../types/onboarding-invocation-result';
-import type { OnboardingReviewAction } from '../types/onboarding-review-action';
 import { buildInvocationResult } from './onboarding-agent.helpers';
 
 export function isTechnicalCommand(
@@ -26,16 +28,16 @@ export function isUserCommand(input: OnboardingInvocationInput): input is UserOn
 }
 
 export function safeErrorCode(error: unknown): string {
-  const code = error instanceof Error ? error.message : '';
+  const code = resolveApplicationErrorCode(error, CommonErrorCode.InternalError);
   return [
-    'AUTHENTICATION_REQUIRED',
-    'EMPLOYEE_NOT_FOUND',
-    'AUTHORIZATION_DENIED',
-    'EMPLOYEE_INACTIVE',
-    'ONBOARDING_REVIEW_NOT_FOUND',
-  ].includes(code)
+    CommonErrorCode.AuthenticationRequired,
+    CommonErrorCode.EmployeeNotFound,
+    CommonErrorCode.AuthorizationDenied,
+    CommonErrorCode.EmployeeInactive,
+    CommonErrorCode.OnboardingReviewNotFound,
+  ].includes(code as CommonErrorCode)
     ? code
-    : 'INTERNAL_ERROR';
+    : CommonErrorCode.InternalError;
 }
 
 export function emitNodeEvent(
@@ -81,7 +83,7 @@ function toRunStatus(result: OnboardingInvocationResult): AgentInvocationRecord[
     result.body.status === 'NEED_MORE_INFORMATION' ||
     result.body.status === 'AWAITING_APPROVAL' ||
     result.body.status === 'REJECTED' ||
-    result.body.code === 'UNSAFE_REQUEST_REJECTED'
+    result.body.code === AgentErrorCode.UnsafeRequestRejected
   ) {
     return 'REJECTED';
   }
@@ -92,7 +94,7 @@ export async function recordAgentResult(
   dependencies: HcmAgentGraphDependencies,
   context: HcmAgentExecutionContext,
 ): Promise<void> {
-  if (!context.result) throw new Error('GRAPH_RESULT_MISSING');
+  if (!context.result) throw new ApplicationError(AgentErrorCode.GraphResultMissing);
   const intent = context.intent;
   await dependencies.recorder.recordInvocation({
     runId: context.runId,
@@ -205,9 +207,9 @@ export function pendingState(intent: HcmIntent): {
     pendingIntent: HcmIntentType.OnboardingReview,
     pendingThresholdDays: intent.thresholdDays,
     pendingRequestedAction:
-      intent.requestedAction === OnboardingReviewActionValue.NotifyManager
-        ? OnboardingReviewActionValue.NotifyManager
-        : OnboardingReviewActionValue.ReviewOnly,
+      intent.requestedAction === OnboardingReviewAction.NotifyManager
+        ? OnboardingReviewAction.NotifyManager
+        : OnboardingReviewAction.ReviewOnly,
     pendingMissingFields: intent.missingFields,
   };
 }

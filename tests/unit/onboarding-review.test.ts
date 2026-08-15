@@ -1,3 +1,4 @@
+import { OnboardingReviewAction } from '../../src/enums/onboarding.enum';
 import { evaluateOnboardingReview } from '../../src/services/onboarding-review.service';
 
 describe('evaluateOnboardingReview', () => {
@@ -11,7 +12,7 @@ describe('evaluateOnboardingReview', () => {
     expect(result).toEqual({
       daysRemaining: 14,
       withinThreshold: true,
-      action: 'REVIEW_ONLY',
+      action: OnboardingReviewAction.ReviewOnly,
     });
   });
 
@@ -20,10 +21,10 @@ describe('evaluateOnboardingReview', () => {
       reviewEndDate: '2026-08-21',
       today: '2026-08-07',
       thresholdDays: 30,
-      requestedAction: 'REVIEW_ONLY',
+      requestedAction: OnboardingReviewAction.ReviewOnly,
     });
 
-    expect(result.action).toBe('REVIEW_ONLY');
+    expect(result.action).toBe(OnboardingReviewAction.ReviewOnly);
   });
 
   it('preserves an explicit notification request', () => {
@@ -31,10 +32,10 @@ describe('evaluateOnboardingReview', () => {
       reviewEndDate: '2026-08-21',
       today: '2026-08-07',
       thresholdDays: 30,
-      requestedAction: 'NOTIFY_MANAGER',
+      requestedAction: OnboardingReviewAction.NotifyManager,
     });
 
-    expect(result.action).toBe('NOTIFY_MANAGER');
+    expect(result.action).toBe(OnboardingReviewAction.NotifyManager);
   });
 
   it('rejects invalid dates and thresholds', () => {

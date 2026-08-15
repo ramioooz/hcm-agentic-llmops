@@ -1,4 +1,6 @@
 import { MemorySaver } from '@langchain/langgraph';
+import { HcmIntentType } from '../../src/enums/hcm-agent.enum';
+import { LeaveApprovalDecision } from '../../src/enums/leave.enum';
 import { HcmAgentService } from '../../src/services/hcm-agent.service';
 import type { EmployeeRecord } from '../../src/types/employee-record';
 
@@ -67,7 +69,7 @@ describe('leave approval', () => {
       recorder: { recordInvocation: jest.fn().mockResolvedValue(undefined) },
       normalizer: {
         normalize: jest.fn().mockResolvedValue({
-          intent: 'LEAVE_REQUEST',
+          intent: HcmIntentType.LeaveRequest,
           employeeCode: null,
           thresholdDays: null,
           requestedAction: null,
@@ -96,13 +98,13 @@ describe('leave approval', () => {
     expect(submitApproved).not.toHaveBeenCalled();
 
     const approved = await service.resume({
-      decision: 'APPROVE',
+      decision: LeaveApprovalDecision.Approve,
       actorEmployeeCode: 'EMP-201',
       correlationId: 'c7c8a9e8-8b91-43f1-97cc-c08a7940326c',
       threadId,
     });
     const repeated = await service.resume({
-      decision: 'APPROVE',
+      decision: LeaveApprovalDecision.Approve,
       actorEmployeeCode: 'EMP-201',
       correlationId: 'fd39c750-e697-4474-98c7-e0c3a5713a4d',
       threadId,

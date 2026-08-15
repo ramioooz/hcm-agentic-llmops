@@ -20,11 +20,15 @@ function isApplicationErrorCode(value: string): value is ApplicationErrorCode {
   return applicationErrorCodes.has(value);
 }
 
-export function resolveApplicationErrorCode<TFallback extends ApplicationErrorCode>(
+export function resolveApplicationErrorCode(
   error: unknown,
-  fallbackCode: TFallback,
-): ApplicationErrorCode | TFallback {
+  fallbackCode: ApplicationErrorCode,
+): ApplicationErrorCode {
   if (error instanceof ApplicationError) return error.code;
   if (error instanceof Error && isApplicationErrorCode(error.message)) return error.message;
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    const code = (error as { code?: unknown }).code;
+    if (typeof code === 'string' && isApplicationErrorCode(code)) return code;
+  }
   return fallbackCode;
 }

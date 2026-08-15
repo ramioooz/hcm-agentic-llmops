@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Prisma, type PrismaClient } from '@prisma/client';
+import { KnowledgeErrorCode } from '../enums/error.enum';
+import { ApplicationError } from '../errors/application.error';
 import type {
   KnowledgeRepository,
   KnowledgeVersionInput,
@@ -11,7 +13,7 @@ const EMBEDDING_DIMENSIONS = 1_536;
 
 function vectorLiteral(values: number[]): string {
   if (values.length !== EMBEDDING_DIMENSIONS || values.some((value) => !Number.isFinite(value))) {
-    throw new Error('EMBEDDING_DIMENSION_MISMATCH');
+    throw new ApplicationError(KnowledgeErrorCode.EmbeddingDimensionMismatch);
   }
   return `[${values.join(',')}]`;
 }
@@ -66,7 +68,7 @@ export class PrismaKnowledgeRepository implements KnowledgeRepository {
         FOR UPDATE
       `;
       const current = rows[0];
-      if (!current) throw new Error('KNOWLEDGE_DOCUMENT_NOT_FOUND');
+      if (!current) throw new ApplicationError(KnowledgeErrorCode.DocumentNotFound);
       const maximumRows = await transaction.$queryRaw<Array<{ maximum: number | null }>>`
         SELECT MAX("index_version")::integer AS "maximum"
         FROM "knowledge_chunks"
@@ -101,7 +103,9 @@ export class PrismaKnowledgeRepository implements KnowledgeRepository {
         activeIndexVersion: preparation.indexVersion,
       },
     });
-    if (activated.count !== 1) throw new Error('KNOWLEDGE_VERSION_ACTIVATION_CONFLICT');
+    if (activated.count !== 1) {
+      throw new ApplicationError(KnowledgeErrorCode.VersionActivationConflict);
+    }
 
     return {
       documentId,

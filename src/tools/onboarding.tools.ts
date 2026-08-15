@@ -1,5 +1,7 @@
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
+import { CommonErrorCode } from '../enums/error.enum';
+import { ApplicationError } from '../errors/application.error';
 import { assertEmployeeReadAccess } from '../security/authorization';
 import type { AccessRole } from '../types/access-role';
 import type { AuthorizedEmployeeLookup } from '../types/authorized-employee-lookup';
@@ -17,9 +19,9 @@ async function loadAuthorizedEmployee(
   targetEmployeeCode: string,
 ): Promise<AuthorizedEmployeeLookup> {
   const actor = await employees.findByEmployeeCode(actorEmployeeCode);
-  if (!actor) throw new Error('AUTHENTICATION_REQUIRED');
+  if (!actor) throw new ApplicationError(CommonErrorCode.AuthenticationRequired);
   const employee = await employees.findByEmployeeCode(targetEmployeeCode);
-  if (!employee) throw new Error('EMPLOYEE_NOT_FOUND');
+  if (!employee) throw new ApplicationError(CommonErrorCode.EmployeeNotFound);
   assertEmployeeReadAccess({
     actorRole: actor.accessRole,
     actorEmployeeId: actor.employeeCode,
@@ -38,7 +40,7 @@ function assertNotificationAccess(input: {
     input.actorRole === 'HR' ||
     (input.actorRole === 'MANAGER' && input.targetManagerEmployeeCode === input.actorEmployeeCode);
   if (!allowed) {
-    throw new Error('AUTHORIZATION_DENIED');
+    throw new ApplicationError(CommonErrorCode.AuthorizationDenied);
   }
 }
 
@@ -63,8 +65,12 @@ export function createOnboardingCalculationTool(employees: EmployeeReader) {
         actorEmployeeCode,
         targetEmployeeCode,
       );
-      if (employee.status !== 'ACTIVE') throw new Error('EMPLOYEE_INACTIVE');
-      if (!employee.activeReviewPeriod) throw new Error('ONBOARDING_REVIEW_NOT_FOUND');
+      if (employee.status !== 'ACTIVE') {
+        throw new ApplicationError(CommonErrorCode.EmployeeInactive);
+      }
+      if (!employee.activeReviewPeriod) {
+        throw new ApplicationError(CommonErrorCode.OnboardingReviewNotFound);
+      }
       return evaluateOnboardingReview({
         reviewEndDate: employee.activeReviewPeriod.endDate,
         today,

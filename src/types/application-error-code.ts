@@ -7,8 +7,4 @@ import type {
 } from '../enums/error.enum';
 
 export type ApplicationErrorCode =
-  | CommonErrorCode
-  | AgentErrorCode
-  | KnowledgeErrorCode
-  | LeaveErrorCode
-  | TriggerErrorCode;
+  CommonErrorCode | AgentErrorCode | KnowledgeErrorCode | LeaveErrorCode | TriggerErrorCode;

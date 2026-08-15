@@ -1,31 +1,33 @@
+import { HcmIntentType } from '../../src/enums/hcm-agent.enum';
+import { OnboardingReviewAction } from '../../src/enums/onboarding.enum';
 import { enforceIntentConsistency } from '../../src/security/intent-consistency';
 import type { HcmIntent } from '../../src/types/hcm-intent';
 
 const normalizedNotification: HcmIntent = {
-  intent: 'ONBOARDING_REVIEW',
+  intent: HcmIntentType.OnboardingReview,
   employeeCode: 'EMP-201',
   thresholdDays: 30,
-  requestedAction: 'NOTIFY_MANAGER',
+  requestedAction: OnboardingReviewAction.NotifyManager,
   missingFields: [],
 };
 
 describe('enforceIntentConsistency', () => {
   it('removes an employee code that was not explicitly present in the query', () => {
     expect(enforceIntentConsistency('Review EMP-202 onboarding.', normalizedNotification)).toEqual({
-      intent: 'ONBOARDING_REVIEW',
+      intent: HcmIntentType.OnboardingReview,
       employeeCode: null,
       thresholdDays: 30,
-      requestedAction: 'REVIEW_ONLY',
+      requestedAction: OnboardingReviewAction.ReviewOnly,
       missingFields: ['employeeId'],
     });
   });
 
   it('matches the normalized employee code case-insensitively', () => {
     expect(enforceIntentConsistency('Review emp-201 onboarding.', normalizedNotification)).toEqual({
-      intent: 'ONBOARDING_REVIEW',
+      intent: HcmIntentType.OnboardingReview,
       employeeCode: 'EMP-201',
       thresholdDays: 30,
-      requestedAction: 'REVIEW_ONLY',
+      requestedAction: OnboardingReviewAction.ReviewOnly,
       missingFields: [],
     });
   });
@@ -80,7 +82,7 @@ describe('enforceIntentConsistency', () => {
     'I need you to send a message to her manager about EMP-201.',
   ])('retains notification for explicit wording: %s', (query) => {
     expect(enforceIntentConsistency(query, normalizedNotification).requestedAction).toBe(
-      'NOTIFY_MANAGER',
+      OnboardingReviewAction.NotifyManager,
     );
   });
 
@@ -99,21 +101,21 @@ describe('enforceIntentConsistency', () => {
     'Review EMP-201 and create a notification.',
   ])('downgrades informational, negated, or recipient-free wording: %s', (query) => {
     expect(enforceIntentConsistency(query, normalizedNotification).requestedAction).toBe(
-      'REVIEW_ONLY',
+      OnboardingReviewAction.ReviewOnly,
     );
   });
 
   it('corrects a false unsupported result for an explicit annual leave date range', () => {
     expect(
       enforceIntentConsistency('Request annual leave from 2026-08-14 through 2026-08-18', {
-        intent: 'UNSUPPORTED',
+        intent: HcmIntentType.Unsupported,
         employeeCode: null,
         thresholdDays: null,
         requestedAction: null,
         missingFields: [],
       }),
     ).toEqual({
-      intent: 'LEAVE_REQUEST',
+      intent: HcmIntentType.LeaveRequest,
       employeeCode: null,
       thresholdDays: null,
       requestedAction: null,

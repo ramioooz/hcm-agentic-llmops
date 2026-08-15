@@ -1,5 +1,7 @@
+import type { SecurityEventType, SecuritySeverity } from '../enums/security.enum';
+
 export type SecurityEventRecord = {
-  eventType: 'AUTHORIZATION_DENIED' | 'UNSAFE_REQUEST_REJECTED' | 'PROMPT_INJECTION_DETECTED';
-  severity: 'LOW' | 'MEDIUM' | 'HIGH';
+  eventType: SecurityEventType;
+  severity: SecuritySeverity;
   details?: Record<string, unknown>;
 };

@@ -1,16 +1,22 @@
 import { createHash } from 'node:crypto';
 import type { OnboardingTriggerEvent } from '../contracts/onboarding-trigger-event';
+import { CommonErrorCode, TriggerErrorCode } from '../enums/error.enum';
+import { HcmIntentType } from '../enums/hcm-agent.enum';
 import { OnboardingReviewAction } from '../enums/onboarding.enum';
+import { ApplicationError } from '../errors/application.error';
 import { resolveSafeCorrelationId } from '../security/correlation-id';
 import type { AgentInvoker } from '../types/agent-invoker';
 import type { ProcessedEventStore } from '../types/processed-event-store';
 
 export type TechnicalTriggerType = 'SCHEDULE' | 'WEBHOOK' | 'RABBITMQ';
 
-export class TriggerProcessingError extends Error {
-  public constructor(
-    public readonly code: 'EVENT_ID_CONFLICT' | 'WORKFLOW_FAILED' | 'INTERNAL_ERROR',
-  ) {
+type TriggerProcessingErrorCode =
+  | TriggerErrorCode.EventIdConflict
+  | TriggerErrorCode.WorkflowFailed
+  | CommonErrorCode.InternalError;
+
+export class TriggerProcessingError extends ApplicationError<TriggerProcessingErrorCode> {
+  public constructor(code: TriggerProcessingErrorCode) {
     super(code);
     this.name = 'TriggerProcessingError';
   }
@@ -44,7 +50,7 @@ export class OnboardingTriggerProcessor {
     });
 
     if (claim.status === 'CONFLICT') {
-      throw new TriggerProcessingError('EVENT_ID_CONFLICT');
+      throw new TriggerProcessingError(TriggerErrorCode.EventIdConflict);
     }
     if (claim.status !== 'CLAIMED') {
       return { status: 'DUPLICATE' };
@@ -52,7 +58,7 @@ export class OnboardingTriggerProcessor {
 
     try {
       const result = await this.dependencies.agent.invoke({
-        kind: 'ONBOARDING_REVIEW',
+        kind: HcmIntentType.OnboardingReview,
         targetEmployeeCode: input.event.data.employeeCode,
         thresholdDays: input.event.data.thresholdDays,
         notificationPolicy:
@@ -71,9 +77,9 @@ export class OnboardingTriggerProcessor {
       if (result.httpStatus >= 500) {
         await this.dependencies.events.fail({
           eventId: input.event.eventId,
-          errorCode: 'WORKFLOW_FAILED',
+          errorCode: TriggerErrorCode.WorkflowFailed,
         });
-        throw new TriggerProcessingError('WORKFLOW_FAILED');
+        throw new TriggerProcessingError(TriggerErrorCode.WorkflowFailed);
       }
 
       await this.dependencies.events.complete({
@@ -86,9 +92,9 @@ export class OnboardingTriggerProcessor {
       if (error instanceof TriggerProcessingError) throw error;
       await this.dependencies.events.fail({
         eventId: input.event.eventId,
-        errorCode: 'INTERNAL_ERROR',
+        errorCode: CommonErrorCode.InternalError,
       });
-      throw new TriggerProcessingError('INTERNAL_ERROR');
+      throw new TriggerProcessingError(CommonErrorCode.InternalError);
     }
   }
 }

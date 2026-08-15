@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
 import { onboardingTriggerEventSchema } from '../contracts/onboarding-trigger-event';
+import { TriggerErrorCode } from '../enums/error.enum';
 import { TriggerProcessingError } from '../services/onboarding-trigger-processor';
 import type { OnboardingTriggerHandler } from '../types/onboarding-trigger-handler';
 import type { HttpController } from './http-controller';
@@ -61,10 +62,10 @@ export class WebhookTriggerController implements HttpController {
       response.status(200).json(outcome);
     } catch (error) {
       const conflict =
-        error instanceof TriggerProcessingError && error.code === 'EVENT_ID_CONFLICT';
+        error instanceof TriggerProcessingError && error.code === TriggerErrorCode.EventIdConflict;
       response.status(conflict ? 409 : 500).json({
         status: 'FAILED',
-        code: conflict ? 'EVENT_ID_CONFLICT' : 'TRIGGER_PROCESSING_FAILED',
+        code: conflict ? TriggerErrorCode.EventIdConflict : 'TRIGGER_PROCESSING_FAILED',
         message: conflict
           ? 'The event identifier is already associated with different content.'
           : 'The trigger could not be processed.',
