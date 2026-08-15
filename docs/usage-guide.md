@@ -1,6 +1,6 @@
 # Local usage guide
 
-The main README contains the complete [Manual Testing with Insomnia and CLI](../README.md#manual-testing-with-insomnia-and-cli) playbook. This guide keeps the shorter setup and interface reference.
+The main README contains the complete [Manual Testing with Insomnia and CLI](../README.md#17-manual-testing-with-insomnia-and-cli) playbook. This guide keeps the shorter setup and interface reference.
 
 ## MCP Inspector
 
@@ -38,7 +38,7 @@ The web Inspector can use transport `streamable-http`, server URL `http://localh
 
 ## HR policy documents
 
-`knowledge-documents/fictional-employee-policy.pdf` is the repository-managed source document. Run `npm run knowledge:index` after adding or changing a supported PDF, TXT, Markdown, or `.markdown` file. The command stores only extracted chunks and embeddings in PostgreSQL/pgvector; queries never rescan the directory.
+`knowledge-documents/fictional-employee-policy.pdf` and `knowledge-documents/fictional-home-office-policy.pdf` are the repository-managed source documents. Run `npm run knowledge:index` after adding or changing a PDF in that directory. PDF is the only accepted knowledge format, so every returned source can identify a physical page. The command stores only extracted chunks and embeddings in PostgreSQL/pgvector; queries never rescan the directory.
 
 The command prints one bounded JSON line per source file and a summary. A second unchanged run reports `SKIPPED`; a changed source publishes a side-by-side active version. `source_path` is the stable repository-relative identity, so a rename intentionally creates a new document identity. Removed files are not pruned automatically.
 

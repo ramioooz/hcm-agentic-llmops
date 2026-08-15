@@ -8,7 +8,59 @@ The central design rule is simple: **the model interprets language, while applic
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## What the system does
+## Contents
+
+1. [What the system does](#1-what-the-system-does)
+2. [Implemented capabilities](#2-implemented-capabilities)
+3. [Architecture](#3-architecture)
+   1. [Main dependency direction](#31-main-dependency-direction)
+4. [Where the LLM is used](#4-where-the-llm-is-used)
+5. [Agent workflow](#5-agent-workflow)
+   1. [Onboarding behavior](#51-onboarding-behavior)
+   2. [Leave behavior](#52-leave-behavior)
+   3. [Multi-turn state](#53-multi-turn-state)
+   4. [JSON and SSE](#54-json-and-sse)
+6. [Directory-based HR-policy RAG](#6-directory-based-hr-policy-rag)
+7. [Prompt-injection protection](#7-prompt-injection-protection)
+8. [Read-only MCP](#8-read-only-mcp)
+9. [Triggers and automation](#9-triggers-and-automation)
+10. [Security model](#10-security-model)
+11. [Guardrails used in this LLMOps system](#11-guardrails-used-in-this-llmops-system)
+12. [LLMOps, tracing, and evaluation](#12-llmops-tracing-and-evaluation)
+    1. [Prompt versioning](#121-prompt-versioning)
+    2. [Evaluation](#122-evaluation)
+    3. [Studio](#123-studio)
+13. [Data model](#13-data-model)
+14. [HTTP and MCP interfaces](#14-http-and-mcp-interfaces)
+15. [Repository structure](#15-repository-structure)
+16. [Getting started](#16-getting-started)
+    1. [Prerequisites](#161-prerequisites)
+    2. [Local API with Docker infrastructure](#162-local-api-with-docker-infrastructure)
+    3. [Full Docker Compose stack](#163-full-docker-compose-stack)
+    4. [Optional RAG and LangSmith settings](#164-optional-rag-and-langsmith-settings)
+17. [Manual testing with Insomnia and CLI](#17-manual-testing-with-insomnia-and-cli)
+    1. [Onboarding review](#171-onboarding-review)
+       1. [Review your own status](#1711-review-your-own-status)
+       2. [Manager reviews a direct report](#1712-manager-reviews-a-direct-report)
+       3. [Explicitly notify a manager](#1713-explicitly-notify-a-manager)
+       4. [Stream graph progress](#1714-stream-graph-progress)
+       5. [Continue an ambiguous request](#1715-continue-an-ambiguous-request)
+    2. [Onboarding security failures](#172-onboarding-security-failures)
+       1. [Unauthorized employee access](#1721-unauthorized-employee-access)
+       2. [Prompt-injection and bulk-data attempts](#1722-prompt-injection-and-bulk-data-attempts)
+       3. [Cross-identity thread denial](#1723-cross-identity-thread-denial)
+    3. [Annual-leave approval and PDF](#173-annual-leave-approval-and-pdf)
+    4. [Webhook, RabbitMQ, and scheduler triggers](#174-webhook-rabbitmq-and-scheduler-triggers)
+    5. [HR policy RAG](#175-hr-policy-rag)
+    6. [MCP Inspector](#176-mcp-inspector)
+    7. [Observability, Studio, evaluation, and audit data](#177-observability-studio-evaluation-and-audit-data)
+18. [Testing and quality](#18-testing-and-quality)
+19. [Current boundaries](#19-current-boundaries)
+20. [Further documentation](#20-further-documentation)
+21. [Contributing](#21-contributing)
+22. [License](#22-license)
+
+## 1. What the system does
 
 The API supports two conversational HCM workflows:
 
@@ -25,7 +77,7 @@ It also provides:
 - deterministic prompt-injection controls, tool-boundary authorization, PII-safe operational logs, and explicit opt-in model traces;
 - optional LangSmith traces, LangGraph Studio visualization, and a bounded evaluation runner.
 
-## Implemented capabilities
+## 2. Implemented capabilities
 
 | Area                   | Implemented behavior                                                                                                                                                    |
 | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -35,14 +87,14 @@ It also provides:
 | Onboarding tools       | Authorized employee lookup, deterministic review calculation, and explicit manager notification through a development adapter                                           |
 | Leave workflow         | Parallel policy/balance tools, deterministic working-day calculation, human approval interrupt, revalidation, idempotent submission, and PDF generation                 |
 | Streaming              | JSON by default and safe lifecycle events over SSE when `Accept: text/event-stream` is supplied                                                                         |
-| RAG                    | explicit repository PDF/TXT/Markdown indexing, OpenAI embeddings, active-version pgvector search, grounded answers, and page/chunk sources                              |
+| RAG                    | Explicit repository PDF indexing, OpenAI embeddings, active-version pgvector search, grounded answers, and page/chunk sources                                           |
 | MCP                    | Stateless Streamable HTTP endpoint with exactly two authorized read-only tools                                                                                          |
 | Triggers               | Disabled-by-default schedule, API-key webhook, RabbitMQ publish/consume, bounded retries, dead-lettering, and event idempotency                                         |
 | Security               | Pre-model injection guard, PostgreSQL-derived development identity, authorization at tool boundaries, explicit side effects, and field-aware masking                    |
 | Observability          | Pino operational logs, durable run/step/security audit records, optional LangSmith agent and explicit RAG traces, production-topology Studio scenarios, and evaluations |
 | Engineering foundation | Node.js 22, strict TypeScript, Express controllers, Prisma, Docker Compose, Jest, ESLint, Prettier, and GitHub Actions                                                  |
 
-## Architecture
+## 3. Architecture
 
 The system has several entry points, but they reuse the same application and business boundaries.
 
@@ -142,7 +194,7 @@ flowchart LR
     Leave -.->|"agent trace with raw query"| LangSmith
 ```
 
-### Main dependency direction
+### 3.1. Main dependency direction
 
 ```text
 controller or trigger → application service → HCM graph → domain subgraph → authorized tool → repository
@@ -150,7 +202,7 @@ controller or trigger → application service → HCM graph → domain subgraph 
 
 `server.ts` is the process entry point. It loads validated configuration, starts the composed runtime, and handles shutdown signals. The bootstrap directory is the composition boundary: focused factories create shared infrastructure, agent, knowledge, and trigger modules, while `application-runtime.ts` owns ordered startup and graceful cleanup. Controllers translate HTTP details. `graphs/` contains topology only; node behavior lives in `graph-nodes/`, pure route decisions in `graph-routing/`, checkpoint schemas in `graph-state/`, and deterministic calculations in services.
 
-## Where the LLM is used
+## 4. Where the LLM is used
 
 The application has three explicit model boundaries.
 
@@ -172,7 +224,7 @@ The model does **not** perform these operations:
 
 Agent-route raw user queries are sent to OpenAI only after the deterministic guard accepts them. They are not stored in checkpoints, Pino logs, or PostgreSQL audit summaries. When agent tracing is enabled, the exact query is intentionally sent to LangSmith as trace input; explicit RAG tracing is a separate trace contract documented below.
 
-## Agent workflow
+## 5. Agent workflow
 
 ```mermaid
 flowchart TD
@@ -214,7 +266,7 @@ flowchart TD
     TechnicalIntake --> Supervisor
 ```
 
-### Onboarding behavior
+### 5.1. Onboarding behavior
 
 The workflow loads the target employee and active `onboarding_review_periods` record, authorizes the actor, and calculates `daysRemaining` and `withinThreshold`. A review-only request never sends a notification. The notification tool runs only when the request explicitly asks for it and the review end date is inside the threshold; the scheduled workflow is a separate explicit system policy.
 
@@ -225,13 +277,13 @@ Development authorization is derived from PostgreSQL:
 - HR may review any employee;
 - every protected tool checks authorization at its own boundary.
 
-### Leave behavior
+### 5.2. Leave behavior
 
 The supervisor routes annual-leave intent to a worker that starts policy and balance lookups together. TypeScript then counts Monday–Friday working days, checks notice, maximum consecutive days, and available balance. An eligible proposal pauses at `interrupt()` before any request is written.
 
 The same development identity must resume the thread with `APPROVE` or `REJECT`. Approval reloads policy and balance, recalculates eligibility, creates exactly one `SUBMITTED` row keyed by the approval thread, and stores a deterministic PDF. Rejection creates no request. Employees and managers may submit only for themselves; HR may submit for any employee.
 
-### Multi-turn state
+### 5.3. Multi-turn state
 
 Each invocation returns three different identifiers:
 
@@ -243,7 +295,7 @@ Each invocation returns three different identifiers:
 
 `PostgresSaver` checkpoints continuation-safe graph state after LangGraph super-steps. The service also binds a thread to its initiating `X-Employee-Id`; another identity cannot resume it. Raw queries, returned employee records, and secrets are kept out of checkpoint state.
 
-### JSON and SSE
+### 5.4. JSON and SSE
 
 `POST /api/v1/agent/invoke` returns JSON by default. With `Accept: text/event-stream`, the same workflow emits these safe event types with a status inside each event's data:
 
@@ -257,15 +309,15 @@ Each invocation returns three different identifiers:
 
 Progress events include trace identifiers and stable outcome metadata, not raw queries or employee records.
 
-## Directory-based HR-policy RAG
+## 6. Directory-based HR-policy RAG
 
-Repository files move through an explicit lifecycle: `knowledge-documents/` -> `npm run knowledge:index` -> extraction, guard, chunking, and embedding -> PostgreSQL/pgvector -> query. Source files remain in the repository; query and MCP retrieval use only PostgreSQL active versions and never scan the directory.
+Repository PDF files move through an explicit lifecycle: `knowledge-documents/` -> `npm run knowledge:index` -> extraction, guard, chunking, and embedding -> PostgreSQL/pgvector -> query. Source files remain in the repository; query and MCP retrieval use only PostgreSQL active versions and never scan the directory. PDF is intentionally the only accepted knowledge format so every citation can identify a physical page as well as a chunk.
 
 `knowledge_documents.source_path` is a nullable unique repository-relative identity. The index command discovers supported files in stable lexical order and compares content hash, embedding model, and chunking version with the active row. It reports `INDEXED`, `UPDATED`, `SKIPPED`, or `FAILED` for each source; an unchanged second run is `SKIPPED`. It does not prune database records when a source file is removed.
 
 `RAG_EXTERNAL_PROCESSING_ENABLED=true` is the default. Adapter construction at startup makes no network call; model calls occur only for an explicit index, knowledge query, or read-only MCP knowledge search. Unsafe repository documents are rejected before embedding and active-version publication. When `LANGSMITH_RAG_TRACING=true`, the explicit RAG trace sends the raw question and generated answer to LangSmith but never complete retrieved chunk text.
 
-## Prompt-Injection Protection
+## 7. Prompt-Injection Protection
 
 The system protects two different input paths:
 
@@ -294,7 +346,7 @@ Security evidence contains the safe source, reason code, correlation ID, optiona
 
 Relevant implementation locations are `src/security/request-safety.ts`, `src/security/prompt-injection-risk.ts`, `src/services/knowledge-security.service.ts`, `src/services/knowledge-ingestion.service.ts`, `src/services/knowledge-query.service.ts`, and `src/adapters/openai-knowledge.adapter.ts`.
 
-## Read-only MCP
+## 8. Read-only MCP
 
 `POST /mcp` uses the official TypeScript MCP SDK and a new stateless Streamable HTTP transport for each request. It exposes exactly two tools:
 
@@ -307,7 +359,7 @@ Every MCP call requires `X-Employee-Id`, resolves the canonical employee and rol
 
 See [the MCP Inspector guide](docs/usage-guide.md#mcp-inspector) for discovery and invocation steps.
 
-## Triggers and automation
+## 9. Triggers and automation
 
 All trigger adapters reuse the same onboarding graph and authorized tools.
 
@@ -323,7 +375,7 @@ Technical commands already contain a typed onboarding intent, so schedule, webho
 
 `processed_events` atomically claims event IDs and stores only a SHA-256 payload hash plus delivery metadata. Completed duplicates do not repeat the graph or side effects; reusing an event ID with different content is rejected. Failed deliveries are retried up to the configured bound and then dead-lettered.
 
-## Security model
+## 10. Security model
 
 Security is layered around the non-deterministic components rather than delegated to them.
 
@@ -347,7 +399,7 @@ Samira Noor        → S***** N***
 
 The header-based identity mechanism and fictional seeded roles are intentionally development-only. Production deployments need a trusted identity provider and mapping from authenticated principals to employee records.
 
-## Guardrails Used in This LLMOps System
+## 11. Guardrails Used in This LLMOps System
 
 | Guardrail type                            | What it controls                                                                                                                             | Enforcement location                                                                           |
 | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -365,7 +417,7 @@ The header-based identity mechanism and fictional seeded roles are intentionally
 
 These controls are implemented in application code and adapters; they are not delegated to the LLM. The [architecture guide](docs/architecture.md) explains the trust boundaries, and the manual checks below show both accepted and rejected paths.
 
-## LLMOps, tracing, and evaluation
+## 12. LLMOps, tracing, and evaluation
 
 The project separates four kinds of operational evidence:
 
@@ -378,11 +430,11 @@ The project separates four kinds of operational evidence:
 
 LangSmith tracing is disabled by default. Agent tracing uses one explicit invocation trace that intentionally includes the exact raw user query, while RAG tracing uses a separate explicit recorder; neither enables global automatic LangChain tracing, which could capture uncontrolled inputs or create duplicate runs. Agent trace outputs include the deterministic guardrail reason and whether the request was blocked before a model call. PostgreSQL audit records, Pino operational logs, and SSE progress events continue to omit raw user queries. The agent trace sets retry count to `0`, leaves token and estimated-cost fields empty, and infers model-call count as `0` or `1` from whether intent normalization ran; these are not provider-collected usage metrics.
 
-### Prompt versioning
+### 12.1. Prompt versioning
 
 The intent prompt is source-controlled as `hcm-intent-v3`. Its version is included in agent trace metadata, allowing a behavior change to be compared with the prompt and model that produced it. The offline evaluation report currently contains the suite name, case outcomes, and pass/fail summary. Prompt text and hidden reasoning are not placed in telemetry.
 
-### Evaluation
+### 12.2. Evaluation
 
 ```bash
 npm run eval:agent
@@ -390,7 +442,7 @@ npm run eval:agent
 
 The bounded runner uses deterministic fake dependencies and covers intent normalization, missing data, unsupported and unsafe requests, authorization denial, explicit notification, and tool failure. It reports case-level outcomes and a pass/fail summary without making a live OpenAI call. Live invocation traces separately record complete-run latency and the inferred model-call indicator described above. Evaluation results are uploaded only when `LANGSMITH_EVALUATION_UPLOAD=true` and LangSmith is configured.
 
-### Studio
+### 12.3. Studio
 
 ```bash
 npm run agent:studio
@@ -398,7 +450,7 @@ npm run agent:studio
 
 `langgraph.json` exports `hcm_agent`, `onboarding`, and `leave`. Open `hcm_agent` first to inspect the end-to-end supervisor: guarding, normalization, routing, both domain subgraphs, and response auditing. Expand its nested domains or open `onboarding` and `leave` independently to focus on employee lookup, onboarding calculation, notification, parallel leave context, proposal, and approval. Every factory delegates to the same graph builders used by the production API and supplies fresh fictional dependencies without starting Express or calling PostgreSQL, RabbitMQ, or OpenAI. Keep automatic LangChain/LangSmith tracing disabled because the project uses an explicit trace contract.
 
-## Data model
+## 13. Data model
 
 The application owns eleven domain, audit, delivery, and knowledge tables.
 
@@ -524,7 +576,7 @@ LangGraph `PostgresSaver` creates and manages its own checkpoint tables during A
 
 See [docs/data-model.md](docs/data-model.md) for seed records, PII classification, and migration behavior.
 
-## HTTP and MCP interfaces
+## 14. HTTP and MCP interfaces
 
 | Method and path                                       | Purpose                                                |
 | ----------------------------------------------------- | ------------------------------------------------------ |
@@ -541,9 +593,9 @@ See [docs/data-model.md](docs/data-model.md) for seed records, PII classificatio
 
 Employee-facing protected routes use `X-Employee-Id`; the webhook uses its configured Bearer API key instead. `X-Correlation-Id` and `X-Thread-Id` are optional UUID v4 headers on supported agent paths; generated values are returned when absent.
 
-The complete copyable workflow, security, RAG, trigger, observability, and MCP checks are in [Manual Testing with Insomnia and CLI](#manual-testing-with-insomnia-and-cli). Supporting contract details remain available in [docs/api-examples.md](docs/api-examples.md) and [docs/usage-guide.md](docs/usage-guide.md).
+The complete copyable workflow, security, RAG, trigger, observability, and MCP checks are in [Manual Testing with Insomnia and CLI](#17-manual-testing-with-insomnia-and-cli). Supporting contract details remain available in [docs/api-examples.md](docs/api-examples.md) and [docs/usage-guide.md](docs/usage-guide.md).
 
-## Repository structure
+## 15. Repository structure
 
 ```text
 src/
@@ -574,22 +626,23 @@ src/
 └── server.ts        Process entry point and signal handling
 
 prisma/              Schema, controlled migrations, and fictional seed data
+knowledge-documents/ Repository-managed PDF corpus for explicit RAG indexing
 tests/unit/           Focused critical unit tests with fake external dependencies
 docs/                 Architecture, data model, API examples, and usage guides
 langgraph.json        Studio graph configuration
 docker-compose.yml    PostgreSQL/pgvector, RabbitMQ, and API services
 ```
 
-## Getting started
+## 16. Getting started
 
-### Prerequisites
+### 16.1. Prerequisites
 
 - Node.js 22 or newer
 - npm
 - Docker Desktop with Docker Compose
 - an OpenAI API key
 
-### Local API with Docker infrastructure
+### 16.2. Local API with Docker infrastructure
 
 ```bash
 npm install
@@ -624,7 +677,17 @@ curl http://localhost:3000/health
 curl http://localhost:3000/ready
 ```
 
-### Full Docker Compose stack
+Representative responses, in the same order:
+
+```json
+{ "status": "ok" }
+```
+
+```json
+{ "status": "ready" }
+```
+
+### 16.3. Full Docker Compose stack
 
 ```bash
 docker compose up -d --build
@@ -635,7 +698,7 @@ Run the seed command after the first startup, or whenever the fictional developm
 
 The containerized API listens on `http://localhost:3300` by default. `PORT=3000` is the port inside the API process; `API_PORT=3300` is only the host-side Docker Compose mapping.
 
-### Optional RAG and LangSmith settings
+### 16.4. Optional RAG and LangSmith settings
 
 External RAG processing defaults to enabled. It performs no network call until an explicit index, knowledge query, or MCP search action; set it to `false` to disable those actions:
 
@@ -655,7 +718,7 @@ Do not enable global automatic LangChain tracing aliases; the application reject
 
 For migration, seed, Docker, RabbitMQ, RAG, Studio, and MCP details, see [docs/usage-guide.md](docs/usage-guide.md).
 
-## Manual Testing with Insomnia and CLI
+## 17. Manual Testing with Insomnia and CLI
 
 This section is the primary manual verification playbook for the implemented system. The examples use the local API by default:
 
@@ -678,9 +741,9 @@ The seeded fictional identities are:
 
 Use the actual values returned by earlier responses in place of `THREAD_ID`, `LEAVE_REQUEST_ID`, and `DOCUMENT_ID`. Placeholder credentials such as `YOUR_WEBHOOK_API_KEY` must match the local `.env`; never paste real secrets into committed files.
 
-### Onboarding review
+### 17.1. Onboarding review
 
-#### Review your own status
+#### 17.1.1. Review your own status
 
 The word `my` explicitly targets the authenticated actor. It does not require the model to invent an employee identifier.
 
@@ -695,7 +758,28 @@ curl --request POST \
 
 Expected: HTTP `200`, application status `COMPLETED`, and `data.employeeCode` equal to `EMP-201`.
 
-#### Manager reviews a direct report
+Representative response:
+
+```json
+{
+  "status": "COMPLETED",
+  "message": "Employee onboarding review completed.",
+  "threadId": "<generated-thread-id>",
+  "runId": "<generated-run-id>",
+  "correlationId": "4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0",
+  "data": {
+    "employeeCode": "EMP-201",
+    "fullName": "Samira Noor",
+    "reviewEndDate": "<seed-relative-date>",
+    "daysRemaining": 14,
+    "withinThreshold": true,
+    "action": "REVIEW_ONLY",
+    "actionPerformed": false
+  }
+}
+```
+
+#### 17.1.2. Manager reviews a direct report
 
 ```bash
 curl --request POST \
@@ -708,7 +792,28 @@ curl --request POST \
 
 Expected: HTTP `200`, `COMPLETED`, and onboarding data for `EMP-202`. The manager relationship is loaded from PostgreSQL rather than trusted from a request header.
 
-#### Explicitly notify a manager
+Representative response:
+
+```json
+{
+  "status": "COMPLETED",
+  "message": "Employee onboarding review completed.",
+  "threadId": "<generated-thread-id>",
+  "runId": "<generated-run-id>",
+  "correlationId": "6bc6c23f-04e7-4cc2-95c2-ce731a216d90",
+  "data": {
+    "employeeCode": "EMP-202",
+    "fullName": "Yousef Haddad",
+    "reviewEndDate": "<seed-relative-date>",
+    "daysRemaining": 45,
+    "withinThreshold": false,
+    "action": "REVIEW_ONLY",
+    "actionPerformed": false
+  }
+}
+```
+
+#### 17.1.3. Explicitly notify a manager
 
 ```bash
 curl --request POST \
@@ -720,7 +825,28 @@ curl --request POST \
 
 Expected for the seeded in-threshold review: HTTP `200`, `COMPLETED`, `action: NOTIFY_MANAGER`, and `actionPerformed: true`. The development notification adapter runs only because the request explicitly authorizes the side effect and the threshold condition is satisfied.
 
-#### Stream graph progress
+Representative response:
+
+```json
+{
+  "status": "COMPLETED",
+  "message": "Employee onboarding review completed.",
+  "threadId": "<generated-thread-id>",
+  "runId": "<generated-run-id>",
+  "correlationId": "<generated-correlation-id>",
+  "data": {
+    "employeeCode": "EMP-201",
+    "fullName": "Samira Noor",
+    "reviewEndDate": "<seed-relative-date>",
+    "daysRemaining": 14,
+    "withinThreshold": true,
+    "action": "NOTIFY_MANAGER",
+    "actionPerformed": true
+  }
+}
+```
+
+#### 17.1.4. Stream graph progress
 
 ```bash
 curl --no-buffer --request POST \
@@ -733,7 +859,23 @@ curl --no-buffer --request POST \
 
 Expected: HTTP `200` and Server-Sent Events in the `run`, `intent`, `node`, `tool`, and final `response` families. Progress events expose lifecycle metadata, not the raw query or employee record.
 
-#### Continue an ambiguous request
+Representative abbreviated stream:
+
+```text
+event: run
+data: {"threadId":"<generated-thread-id>","runId":"<generated-run-id>","correlationId":"<generated-correlation-id>","status":"started","triggerType":"HTTP"}
+
+event: intent
+data: {"runId":"<generated-run-id>","status":"normalized","intent":"ONBOARDING_REVIEW","requestedAction":"REVIEW_ONLY"}
+
+event: tool
+data: {"runId":"<generated-run-id>","status":"completed","tool":"onboarding_calculation","outcomeCode":"REVIEW_EVALUATED"}
+
+event: response
+data: {"runId":"<generated-run-id>","status":"completed","httpStatus":200,"body":{"status":"COMPLETED","message":"Employee onboarding review completed.","threadId":"<generated-thread-id>","runId":"<generated-run-id>","correlationId":"<generated-correlation-id>","data":{"employeeCode":"EMP-201","action":"REVIEW_ONLY","actionPerformed":false}}}
+```
+
+#### 17.1.5. Continue an ambiguous request
 
 Start a conversation without identifying the employee:
 
@@ -745,7 +887,22 @@ curl --include --request POST \
   --data '{"query":"Review the onboarding status"}'
 ```
 
-Expected: HTTP `200`, `NEED_MORE_INFORMATION`, `missingFields: ["employeeId"]`, and a `threadId` in the body and `X-Thread-Id` response header. Resume with the returned value:
+Expected: HTTP `200`, `NEED_MORE_INFORMATION`, `missingFields: ["employeeId"]`, and a `threadId` in the body and `X-Thread-Id` response header.
+
+Representative first response:
+
+```json
+{
+  "status": "NEED_MORE_INFORMATION",
+  "message": "Please provide the employee ID.",
+  "missingFields": ["employeeId"],
+  "threadId": "<generated-thread-id>",
+  "runId": "<generated-run-id>",
+  "correlationId": "<generated-correlation-id>"
+}
+```
+
+Resume with the returned value:
 
 ```bash
 curl --request POST \
@@ -758,9 +915,30 @@ curl --request POST \
 
 Expected: HTTP `200` and `COMPLETED`. The `threadId` remains stable, while the second request receives a new `runId` and `correlationId`.
 
-### Onboarding security failures
+Representative continuation response:
 
-#### Unauthorized employee access
+```json
+{
+  "status": "COMPLETED",
+  "message": "Employee onboarding review completed.",
+  "threadId": "THREAD_ID",
+  "runId": "<new-run-id>",
+  "correlationId": "<new-correlation-id>",
+  "data": {
+    "employeeCode": "EMP-201",
+    "fullName": "Samira Noor",
+    "reviewEndDate": "<seed-relative-date>",
+    "daysRemaining": 14,
+    "withinThreshold": true,
+    "action": "REVIEW_ONLY",
+    "actionPerformed": false
+  }
+}
+```
+
+### 17.2. Onboarding security failures
+
+#### 17.2.1. Unauthorized employee access
 
 ```bash
 curl --request POST \
@@ -772,7 +950,20 @@ curl --request POST \
 
 Expected: HTTP `403` with code `AUTHORIZATION_DENIED`. The protected employee record is not returned to the model or caller.
 
-#### Prompt-injection and bulk-data attempts
+Representative response:
+
+```json
+{
+  "status": "FAILED",
+  "code": "AUTHORIZATION_DENIED",
+  "message": "You are not authorized to perform this operation.",
+  "threadId": "<generated-thread-id>",
+  "runId": "<generated-run-id>",
+  "correlationId": "<generated-correlation-id>"
+}
+```
+
+#### 17.2.2. Prompt-injection and bulk-data attempts
 
 ```bash
 curl --request POST \
@@ -792,7 +983,20 @@ curl --request POST \
 
 Expected for both: HTTP `403` with code `UNSAFE_REQUEST_REJECTED`. The deterministic guard runs before OpenAI and employee tools. Durable security evidence contains a safe reason code, not the raw request.
 
-#### Cross-identity thread denial
+Representative response for each request:
+
+```json
+{
+  "status": "FAILED",
+  "code": "UNSAFE_REQUEST_REJECTED",
+  "message": "The request was rejected because it contains unsafe instructions.",
+  "threadId": "<generated-thread-id>",
+  "runId": "<generated-run-id>",
+  "correlationId": "<generated-correlation-id>"
+}
+```
+
+#### 17.2.3. Cross-identity thread denial
 
 Create an ambiguous thread as `EMP-200`, copy its returned thread ID, then try to resume it as `EMP-201`:
 
@@ -807,7 +1011,20 @@ curl --request POST \
 
 Expected: HTTP `403` with code `THREAD_IDENTITY_MISMATCH`.
 
-### Annual-leave approval and PDF
+Representative response:
+
+```json
+{
+  "status": "FAILED",
+  "code": "THREAD_IDENTITY_MISMATCH",
+  "message": "This conversation belongs to a different employee identity.",
+  "threadId": "THREAD_ID",
+  "runId": "<generated-run-id>",
+  "correlationId": "<generated-correlation-id>"
+}
+```
+
+### 17.3. Annual-leave approval and PDF
 
 Create a proposal:
 
@@ -824,6 +1041,19 @@ curl --request POST \
 
 Expected: HTTP `202`, `AWAITING_APPROVAL`, and a `threadId`. No leave-request row exists yet.
 
+Representative response:
+
+```json
+{
+  "status": "AWAITING_APPROVAL",
+  "code": "LEAVE_APPROVAL_REQUIRED",
+  "message": "Approve or reject the leave request proposal before creation.",
+  "threadId": "<generated-thread-id>",
+  "runId": "<generated-run-id>",
+  "correlationId": "<generated-correlation-id>"
+}
+```
+
 Approve using that thread:
 
 ```bash
@@ -835,6 +1065,40 @@ curl --request POST \
 ```
 
 Expected: `SUBMITTED`, one `leaveRequestId`, and a document URL. Repeat the same approval command: it must return the same leave request without creating a duplicate.
+
+Representative first-approval response (HTTP `201`):
+
+```json
+{
+  "status": "COMPLETED",
+  "message": "The approved leave request was submitted.",
+  "threadId": "THREAD_ID",
+  "runId": "<generated-run-id>",
+  "correlationId": "<generated-correlation-id>",
+  "data": {
+    "leaveRequestId": "lr_<deterministic-id>",
+    "leaveRequestStatus": "SUBMITTED",
+    "documentUrl": "/api/v1/leave-requests/lr_<deterministic-id>/document"
+  }
+}
+```
+
+Representative repeated-approval response (HTTP `200`):
+
+```json
+{
+  "status": "COMPLETED",
+  "message": "The approved leave request was already submitted.",
+  "threadId": "THREAD_ID",
+  "runId": "<new-run-id>",
+  "correlationId": "<new-correlation-id>",
+  "data": {
+    "leaveRequestId": "lr_<same-deterministic-id>",
+    "leaveRequestStatus": "SUBMITTED",
+    "documentUrl": "/api/v1/leave-requests/lr_<same-deterministic-id>/document"
+  }
+}
+```
 
 For rejection, create a separate proposal and resume its new thread with:
 
@@ -848,6 +1112,19 @@ curl --request POST \
 
 Expected: `REJECTED` and no leave-request row.
 
+Representative response:
+
+```json
+{
+  "status": "REJECTED",
+  "code": "LEAVE_REQUEST_REJECTED",
+  "message": "The leave request proposal was rejected; no request was created.",
+  "threadId": "THREAD_ID",
+  "runId": "<generated-run-id>",
+  "correlationId": "<generated-correlation-id>"
+}
+```
+
 Download an approved document:
 
 ```bash
@@ -859,7 +1136,18 @@ curl --include \
 
 Expected: HTTP `200`, `Content-Type: application/pdf`, and `Cache-Control: no-store`. With `--include`, the saved file contains headers before the PDF; omit `--include` and use `--output leave-request.pdf` when saving a clean document.
 
-### Webhook, RabbitMQ, and scheduler triggers
+Representative response headers followed by binary PDF content:
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/pdf
+Content-Disposition: inline; filename="leave-request-lr_<deterministic-id>.pdf"
+Cache-Control: no-store
+
+%PDF-1.4 ...
+```
+
+### 17.4. Webhook, RabbitMQ, and scheduler triggers
 
 Send an authenticated webhook with a unique event ID:
 
@@ -873,6 +1161,23 @@ curl --request POST \
 
 Expected: HTTP `200` and a completed trigger outcome. Repeating the identical event returns `DUPLICATE` without repeating a side effect.
 
+Representative first response:
+
+```json
+{
+  "status": "COMPLETED",
+  "runId": "<generated-run-id>"
+}
+```
+
+Representative duplicate response:
+
+```json
+{
+  "status": "DUPLICATE"
+}
+```
+
 Verify invalid credentials:
 
 ```bash
@@ -885,6 +1190,16 @@ curl --request POST \
 
 Expected: HTTP `401` with code `WEBHOOK_UNAUTHORIZED`.
 
+Representative response:
+
+```json
+{
+  "status": "FAILED",
+  "code": "WEBHOOK_UNAUTHORIZED",
+  "message": "A valid bearer credential is required."
+}
+```
+
 Publish through RabbitMQ in development:
 
 ```bash
@@ -896,11 +1211,27 @@ curl --request POST \
 
 Expected: HTTP `202` after publisher confirmation. Inspect RabbitMQ Management at `http://localhost:15672`. The consumer uses manual acknowledgement, at most `RABBITMQ_MAX_ATTEMPTS` attempts (`3` by default), and dead-letters exhausted deliveries to `hcm.onboarding.review.dlq.v1`.
 
+Representative response:
+
+```json
+{
+  "status": "ACCEPTED",
+  "eventId": "event-onboarding-002"
+}
+```
+
 The schedule is disabled by default. Set `SCHEDULER_ENABLED=true` to run the onboarding scan daily at 09:00 `Asia/Dubai`. A scheduled notification is an explicit configured system policy, not a side effect inferred from a user request.
 
-### HR policy RAG
+### 17.5. HR policy RAG
 
-After the database is ready, index the repository-managed policies. The command recursively scans the project-root [`knowledge-documents/`](knowledge-documents/) directory for `.pdf`, `.txt`, `.md`, and `.markdown` files. For every supported file, it validates the file, extracts and checks its text, splits it into bounded chunks, creates embeddings, and stores the versioned chunks and vectors in PostgreSQL/pgvector. The original source files remain in `knowledge-documents/` and are not copied into the database.
+After the database is ready, index the repository-managed policies. The command recursively scans the project-root [`knowledge-documents/`](knowledge-documents/) directory for `.pdf` files only. For every PDF, it validates the file, extracts and checks each physical page, splits the text into bounded chunks, creates embeddings, and stores the versioned chunks and vectors in PostgreSQL/pgvector. The original PDFs remain in `knowledge-documents/` and are not copied into the database.
+
+The included fictional corpus contains:
+
+| Source PDF                                                                                 | Pages | Main topics                                                               |
+| ------------------------------------------------------------------------------------------ | ----: | ------------------------------------------------------------------------- |
+| [`fictional-employee-policy.pdf`](knowledge-documents/fictional-employee-policy.pdf)       |     4 | Contracts, flexible work, leave, development support, and business travel |
+| [`fictional-home-office-policy.pdf`](knowledge-documents/fictional-home-office-policy.pdf) |     3 | Home-office allowance, remote-work security, reimbursement, and assets    |
 
 ```bash
 npm run knowledge:index
@@ -909,10 +1240,44 @@ npm run knowledge:index
 
 The first command prepares every supported document found in that directory and prints an `INDEXED` JSON line with its `documentId`. The second reports `SKIPPED` when the source, embedding model, and chunking version are unchanged. Add or change files in `knowledge-documents/`, then rerun the command to create or activate their latest index versions. Keep the printed ID for a scoped query.
 
+Representative first-run output:
+
+```json
+{"sourcePath":"knowledge-documents/fictional-employee-policy.pdf","status":"INDEXED","documentId":"<employee-policy-document-id>","activeIndexVersion":1,"chunkCount":5}
+{"sourcePath":"knowledge-documents/fictional-home-office-policy.pdf","status":"INDEXED","documentId":"<home-office-policy-document-id>","activeIndexVersion":1,"chunkCount":3}
+{"status":"SUMMARY","INDEXED":2}
+```
+
+Representative unchanged second-run output:
+
+```json
+{"sourcePath":"knowledge-documents/fictional-employee-policy.pdf","status":"SKIPPED","documentId":"<employee-policy-document-id>"}
+{"sourcePath":"knowledge-documents/fictional-home-office-policy.pdf","status":"SKIPPED","documentId":"<home-office-policy-document-id>"}
+{"status":"SUMMARY","SKIPPED":2}
+```
+
 Query page 1 contract duration:
 
 ```bash
 curl --request POST --url http://localhost:3000/api/v1/knowledge/query --header 'Content-Type: application/json' --header 'X-Employee-Id: EMP-201' --data '{"query":"When is a fixed-term agreement reviewed?","limit":5}'
+```
+
+Representative response:
+
+```json
+{
+  "status": "ANSWERED",
+  "answer": "A fixed-term agreement is reviewed 60 days before its stated end date.",
+  "sources": [
+    {
+      "documentId": "<employee-policy-document-id>",
+      "documentTitle": "Fictional Employee Policy",
+      "chunkId": "<page-1-chunk-id>",
+      "chunkIndex": 0,
+      "pageNumber": 1
+    }
+  ]
+}
 ```
 
 Query page 2 flexible work:
@@ -921,10 +1286,84 @@ Query page 2 flexible work:
 curl --request POST --url http://localhost:3000/api/v1/knowledge/query --header 'Content-Type: application/json' --header 'X-Employee-Id: EMP-201' --data '{"query":"How many approved remote days are allowed each week?","limit":5}'
 ```
 
+Representative response:
+
+```json
+{
+  "status": "ANSWERED",
+  "answer": "Eligible employees may work remotely up to two approved days each week.",
+  "sources": [
+    {
+      "documentId": "<employee-policy-document-id>",
+      "documentTitle": "Fictional Employee Policy",
+      "chunkId": "<page-2-chunk-id>",
+      "chunkIndex": 1,
+      "pageNumber": 2
+    }
+  ]
+}
+```
+
 Query the pages 3-4 cross-topic policy:
 
 ```bash
 curl --request POST --url http://localhost:3000/api/v1/knowledge/query --header 'Content-Type: application/json' --header 'X-Employee-Id: EMP-201' --data '{"query":"What approval is needed for development purchases and international travel?","limit":8}'
+```
+
+Representative response:
+
+```json
+{
+  "status": "ANSWERED",
+  "answer": "Development support is available for approved courses, certifications, or memberships. International travel requires both manager approval and People Operations approval before booking.",
+  "sources": [
+    {
+      "documentId": "<employee-policy-document-id>",
+      "documentTitle": "Fictional Employee Policy",
+      "chunkId": "<page-3-chunk-id>",
+      "chunkIndex": 2,
+      "pageNumber": 3
+    },
+    {
+      "documentId": "<employee-policy-document-id>",
+      "documentTitle": "Fictional Employee Policy",
+      "chunkId": "<page-4-chunk-id>",
+      "chunkIndex": 3,
+      "pageNumber": 4
+    }
+  ]
+}
+```
+
+Query across both indexed PDFs. This request needs the weekly remote-work allowance from the employee handbook and the equipment allowance from the home-office policy:
+
+```bash
+curl --request POST --url http://localhost:3000/api/v1/knowledge/query --header 'Content-Type: application/json' --header 'X-Employee-Id: EMP-201' --data '{"query":"How many remote-working days are allowed each week, and what home-office equipment allowance is available?","limit":8}'
+```
+
+Representative cross-document response:
+
+```json
+{
+  "status": "ANSWERED",
+  "answer": "Eligible employees may work remotely up to two approved days each week. An employee with an approved flexible-work arrangement may claim up to AED 1,500 once every 24 months for approved home-office equipment.",
+  "sources": [
+    {
+      "documentId": "<employee-policy-document-id>",
+      "documentTitle": "Fictional Employee Policy",
+      "chunkId": "<employee-policy-page-2-chunk-id>",
+      "chunkIndex": 1,
+      "pageNumber": 2
+    },
+    {
+      "documentId": "<home-office-policy-document-id>",
+      "documentTitle": "Fictional Home Office Policy",
+      "chunkId": "<home-office-page-1-chunk-id>",
+      "chunkIndex": 0,
+      "pageNumber": 1
+    }
+  ]
+}
 ```
 
 Scope a request with the index command document ID:
@@ -933,9 +1372,27 @@ Scope a request with the index command document ID:
 curl --request POST --url http://localhost:3000/api/v1/knowledge/documents/DOCUMENT_ID/query --header 'Content-Type: application/json' --header 'X-Employee-Id: EMP-201' --data '{"query":"What is the annual leave allowance?","limit":5}'
 ```
 
+Representative response when `DOCUMENT_ID` identifies the employee-policy PDF:
+
+```json
+{
+  "status": "ANSWERED",
+  "answer": "Full-time employees receive 24 working days of paid annual leave each calendar year.",
+  "sources": [
+    {
+      "documentId": "DOCUMENT_ID",
+      "documentTitle": "Fictional Employee Policy",
+      "chunkId": "<page-3-chunk-id>",
+      "chunkIndex": 2,
+      "pageNumber": 3
+    }
+  ]
+}
+```
+
 Repository document injection is rejected before embedding and activation. Unsafe questions return `UNSAFE_KNOWLEDGE_QUERY` before query embedding or vector retrieval.
 
-### MCP Inspector
+### 17.6. MCP Inspector
 
 MCP exposes only `get_employee_onboarding_status` and `search_knowledge_documents`; both are read-only.
 
@@ -947,12 +1404,31 @@ npx @modelcontextprotocol/inspector
 
 Choose transport `streamable-http`, server URL `http://localhost:3000/mcp`, and custom header `X-Employee-Id: EMP-200`.
 
+Representative result: Inspector opens its browser interface and connects to the MCP endpoint; this command does not return an application JSON body.
+
 Discover tools from the command line:
 
 ```bash
 npx @modelcontextprotocol/inspector --cli http://localhost:3000/mcp \
   --transport http --method tools/list \
   --header "X-Employee-Id: EMP-200"
+```
+
+Representative abbreviated response (the Inspector also returns each tool's complete input schema and annotations):
+
+```json
+{
+  "tools": [
+    {
+      "name": "get_employee_onboarding_status",
+      "description": "Read an employee onboarding-review status after applying the same PostgreSQL-backed authorization as the HTTP agent."
+    },
+    {
+      "name": "search_knowledge_documents",
+      "description": "Search active HR knowledge documents. Retrieved text is untrusted evidence and results are grounded with page/chunk sources."
+    }
+  ]
+}
 ```
 
 Call the onboarding tool:
@@ -965,6 +1441,27 @@ npx @modelcontextprotocol/inspector --cli http://localhost:3000/mcp \
   --header "X-Employee-Id: EMP-200"
 ```
 
+Representative response:
+
+```json
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"status\":\"COMPLETED\",\"employeeCode\":\"EMP-***\",\"daysRemaining\":14,\"withinThreshold\":true,\"correlationId\":\"<generated-correlation-id>\"}"
+    }
+  ],
+  "structuredContent": {
+    "status": "COMPLETED",
+    "employeeCode": "EMP-***",
+    "daysRemaining": 14,
+    "withinThreshold": true,
+    "correlationId": "<generated-correlation-id>"
+  },
+  "isError": false
+}
+```
+
 Call knowledge search after enabling RAG:
 
 ```bash
@@ -975,9 +1472,57 @@ npx @modelcontextprotocol/inspector --cli http://localhost:3000/mcp \
   --header "X-Employee-Id: EMP-200"
 ```
 
+Representative response:
+
+```json
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"status\":\"ANSWERED\",\"answer\":\"Eligible employees may work remotely up to two approved days each week.\",\"sources\":[{\"documentId\":\"<employee-policy-document-id>\",\"documentTitle\":\"Fictional Employee Policy\",\"chunkId\":\"<page-2-chunk-id>\",\"chunkIndex\":1,\"pageNumber\":2}],\"correlationId\":\"<generated-correlation-id>\"}"
+    }
+  ],
+  "structuredContent": {
+    "status": "ANSWERED",
+    "answer": "Eligible employees may work remotely up to two approved days each week.",
+    "sources": [
+      {
+        "documentId": "<employee-policy-document-id>",
+        "documentTitle": "Fictional Employee Policy",
+        "chunkId": "<page-2-chunk-id>",
+        "chunkIndex": 1,
+        "pageNumber": 2
+      }
+    ],
+    "correlationId": "<generated-correlation-id>"
+  },
+  "isError": false
+}
+```
+
 Verify tool authorization by changing the onboarding call to `targetEmployeeCode=EMP-202` and the identity header to `EMP-201`. Expected: a stable authorization error with no employee data.
 
-### Observability, Studio, evaluation, and audit data
+Representative authorization-error response:
+
+```json
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"status\":\"FAILED\",\"code\":\"AUTHORIZATION_DENIED\",\"message\":\"You are not authorized to read that employee onboarding status.\",\"correlationId\":\"<generated-correlation-id>\"}"
+    }
+  ],
+  "structuredContent": {
+    "status": "FAILED",
+    "code": "AUTHORIZATION_DENIED",
+    "message": "You are not authorized to read that employee onboarding status.",
+    "correlationId": "<generated-correlation-id>"
+  },
+  "isError": true
+}
+```
+
+### 17.7. Observability, Studio, evaluation, and audit data
 
 Start the graph visualization and run the bounded local evaluation suite:
 
@@ -1023,7 +1568,7 @@ npm run format:check
 npm run build
 ```
 
-## Testing and quality
+## 18. Testing and quality
 
 The automated suite focuses on important deterministic behavior and uses fake models, queues, embeddings, checkpointers, PDF generators, and loggers. CI does not make live OpenAI or LangSmith calls.
 
@@ -1039,7 +1584,7 @@ npm run build
 
 Integration and end-to-end coverage are intentionally limited in this release. Live OpenAI, LangSmith, PostgreSQL checkpoint, RabbitMQ, SSE, RAG, Studio, and MCP behavior is verified through the documented manual flows.
 
-## Current boundaries
+## 19. Current boundaries
 
 - `X-Employee-Id` is a development identity, not production SSO, OAuth, or JWT authentication.
 - Manager notifications use a development adapter rather than an external notification provider.
@@ -1050,7 +1595,7 @@ Integration and end-to-end coverage are intentionally limited in this release. L
 - Automated tests are focused unit tests; broad integration, end-to-end, load, and fault-injection suites are not included.
 - Production deployment still requires managed secrets, trusted identity, infrastructure hardening, scaling, alerting, and recovery procedures.
 
-## Further documentation
+## 20. Further documentation
 
 - [Architecture guide](docs/architecture.md)
 - [Data model](docs/data-model.md)
@@ -1059,10 +1604,10 @@ Integration and end-to-end coverage are intentionally limited in this release. L
 - [Security policy](SECURITY.md)
 - [Contribution guide](CONTRIBUTING.md)
 
-## Contributing
+## 21. Contributing
 
 Issues and focused pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for branch, verification, documentation, and review expectations. Report security concerns through [SECURITY.md](SECURITY.md).
 
-## License
+## 22. License
 
 Agentic LLMOps for HCM is available under the [MIT License](LICENSE).

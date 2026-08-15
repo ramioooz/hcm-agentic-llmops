@@ -4,7 +4,7 @@ The service is organized around business workflows and stable interfaces between
 
 ## Versioned knowledge retrieval
 
-The knowledge path is isolated behind directory indexing, ingestion, embedding, repository, and grounded-answer interfaces. The explicit `npm run knowledge:index` command discovers supported repository files, applies existing size and extraction ceilings, and never persists source files.
+The knowledge path is isolated behind directory indexing, ingestion, embedding, repository, and grounded-answer interfaces. The explicit `npm run knowledge:index` command discovers repository-managed PDF files, applies existing size, page, and extraction ceilings, and never persists source files. PDF is the only accepted knowledge format, which keeps every source citation tied to a physical page and chunk.
 
 `knowledge_documents` owns the active index version and content hash. `knowledge_chunks` stores document/index version, embedding model, chunking version, page/chunk coordinates, extracted text, and a 1,536-dimensional vector. Reindexing writes a complete inactive version before a conditional update atomically activates it. Retrieval joins only the active version, optionally scopes to one document, and caps results at eight chunks.
 
