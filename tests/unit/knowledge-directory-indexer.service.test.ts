@@ -2,6 +2,17 @@ import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { KnowledgeDirectoryIndexer } from '../../src/services/knowledge-directory-indexer.service';
+import { KnowledgeIngestionService } from '../../src/services/knowledge-ingestion.service';
+
+jest.mock('pdf-parse', () => ({
+  PDFParse: jest.fn().mockImplementation((input: { data: Uint8Array }) => ({
+    getText: async () => ({
+      total: 1,
+      pages: [{ num: 1, text: Buffer.from(input.data).toString('utf8') }],
+    }),
+    destroy: async () => undefined,
+  })),
+}));
 
 describe('KnowledgeDirectoryIndexer', () => {
   test('indexes only PDF files in stable order and continues after a file failure', async () => {
@@ -75,5 +86,86 @@ describe('KnowledgeDirectoryIndexer', () => {
       sourcePath: 'knowledge-documents/nested/beta.pdf',
     });
     expect(described).toHaveBeenCalledTimes(2);
+  });
+
+  test('reports safe operation-specific failures and continues indexing later files', async () => {
+    const repositoryRoot = await mkdtemp(join(tmpdir(), 'knowledge-indexer-diagnostics-'));
+    const directory = join(repositoryRoot, 'knowledge-documents');
+    await mkdir(directory, { recursive: true });
+    await Promise.all(
+      ['alpha.pdf', 'beta.pdf', 'gamma.pdf', 'omega.pdf'].map((fileName) =>
+        writeFile(join(directory, fileName), fileName),
+      ),
+    );
+
+    const rawReadFailure = 'database host and credential detail';
+    const rawEmbeddingFailure = 'provider response included sensitive detail';
+    const rawWriteFailure = 'database write included connection detail';
+    const findActiveIndexBySourcePath = jest.fn(async (sourcePath: string) => {
+      if (sourcePath.endsWith('/alpha.pdf')) throw new Error(rawReadFailure);
+      return null;
+    });
+    const embedDocuments = jest.fn(async (documents: string[]) => {
+      if (documents.some((document) => document.includes('beta.pdf'))) {
+        throw new Error(rawEmbeddingFailure);
+      }
+      return documents.map(() => Array<number>(1_536).fill(0));
+    });
+    const publishVersion = jest.fn(async (input: { originalFileName: string }) => {
+      if (input.originalFileName === 'gamma.pdf') throw new Error(rawWriteFailure);
+      return {
+        documentId: `created-${input.originalFileName}`,
+        activeIndexVersion: 1,
+        contentHash: 'published',
+        chunkCount: 1,
+      };
+    });
+    const ingestion = new KnowledgeIngestionService({
+      repository: {
+        findActiveIndexBySourcePath,
+        publishVersion,
+        searchActiveChunks: jest.fn(),
+      },
+      embeddings: { embedDocuments },
+      embeddingModel: 'embedding-test',
+      security: { inspect: async () => ({ safe: true as const }) },
+    });
+    const indexer = new KnowledgeDirectoryIndexer({
+      repositoryRoot,
+      actorEmployeeCode: 'EMP-100',
+      correlationId: 'test-correlation',
+      repository: { findActiveIndexBySourcePath },
+      ingestion,
+    });
+
+    const results = await indexer.indexDirectory(directory);
+
+    expect(results).toEqual([
+      {
+        sourcePath: 'knowledge-documents/alpha.pdf',
+        status: 'FAILED',
+        code: 'KNOWLEDGE_DATABASE_READ_FAILED',
+      },
+      {
+        sourcePath: 'knowledge-documents/beta.pdf',
+        status: 'FAILED',
+        code: 'KNOWLEDGE_EMBEDDING_FAILED',
+      },
+      {
+        sourcePath: 'knowledge-documents/gamma.pdf',
+        status: 'FAILED',
+        code: 'KNOWLEDGE_DATABASE_WRITE_FAILED',
+      },
+      {
+        sourcePath: 'knowledge-documents/omega.pdf',
+        status: 'INDEXED',
+        documentId: 'created-omega.pdf',
+        activeIndexVersion: 1,
+        chunkCount: 1,
+      },
+    ]);
+    expect(JSON.stringify(results)).not.toContain(rawReadFailure);
+    expect(JSON.stringify(results)).not.toContain(rawEmbeddingFailure);
+    expect(JSON.stringify(results)).not.toContain(rawWriteFailure);
   });
 });

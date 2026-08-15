@@ -649,6 +649,36 @@ npm install
 cp .env.example .env
 ```
 
+The application validates its environment before startup. Use this table as the canonical runtime reference:
+
+| Variable                          | Requirement or default                               | Scope                  | Purpose                                                                                             |
+| --------------------------------- | ---------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                        | `development`                                        | Application            | Selects `development`, `test`, or `production` runtime behavior.                                    |
+| `PORT`                            | Required; `.env.example` uses `3000`                 | Application            | Port bound by the API process.                                                                      |
+| `DATABASE_URL`                    | Required PostgreSQL URL                              | Application and tools  | Prisma connection used by the API, migrations, seed, and knowledge indexing.                        |
+| `AMQP_URL`                        | Required AMQP URL                                    | Application            | RabbitMQ connection for onboarding event transport.                                                 |
+| `OPENAI_API_KEY`                  | Required, non-empty                                  | Application and index  | Credential for explicit model and embedding calls.                                                  |
+| `OPENAI_MODEL`                    | `gpt-5.4-mini`                                       | Application            | Fixed model used by intent normalization and grounded knowledge answers.                            |
+| `OPENAI_EMBEDDING_MODEL`          | `text-embedding-3-small`                             | Application and index  | Embedding model recorded with each knowledge index version.                                         |
+| `RAG_EXTERNAL_PROCESSING_ENABLED` | `true`                                               | Application and index  | Allows explicit indexing, knowledge queries, and MCP knowledge searches.                            |
+| `WEBHOOK_API_KEY`                 | Required; at least 32 characters                     | Application            | Bearer credential for the webhook trigger.                                                          |
+| `SCHEDULER_ENABLED`               | `false`                                              | Application            | Enables the daily onboarding review schedule when set to `true`.                                    |
+| `AUTOMATION_ACTOR_EMPLOYEE_CODE`  | `EMP-100`                                            | Application and index  | Actor identity recorded for scheduled work and repository knowledge ingestion.                      |
+| `RABBITMQ_PREFETCH`               | `10`; allowed range `1`–`100`                        | Application            | Maximum unacknowledged RabbitMQ deliveries per consumer.                                            |
+| `RABBITMQ_MAX_ATTEMPTS`           | `3`; allowed range `1`–`10`                          | Application            | Delivery attempts before an onboarding event is dead-lettered.                                      |
+| `LANGSMITH_AGENT_TRACING`         | `false`                                              | Application            | Enables the explicit allowlisted agent trace path.                                                  |
+| `LANGSMITH_RAG_TRACING`           | `false`                                              | Application            | Enables explicit RAG traces containing raw questions and answers but not complete retrieved chunks. |
+| `LANGSMITH_API_KEY`               | Required when either explicit tracing flag is `true` | Application and Studio | Credential for explicit trace delivery and the hosted Studio interface.                             |
+| `LANGSMITH_PROJECT`               | `hcm-agentic-llmops`                                 | Application/evaluation | Destination project for explicit traces and optional evaluation uploads.                            |
+| `API_PORT`                        | `3300`                                               | Docker Compose only    | Host port mapped to container port `3000`; it is not read by the application.                       |
+| `LANGSMITH_EVALUATION_UPLOAD`     | Disabled unless exactly `true`                       | Evaluation only        | Uploads the offline evaluation report; also requires `LANGSMITH_API_KEY`.                           |
+| `LANGSMITH_TRACING`               | Must be unset or not `true`                          | Forbidden alias        | Automatic tracing is rejected to prevent capture outside the explicit trace paths.                  |
+| `LANGSMITH_TRACING_V2`            | Must be unset or not `true`                          | Forbidden alias        | Automatic tracing is rejected to prevent capture outside the explicit trace paths.                  |
+| `LANGCHAIN_TRACING`               | Must be unset or not `true`                          | Forbidden alias        | Automatic tracing is rejected to prevent capture outside the explicit trace paths.                  |
+| `LANGCHAIN_TRACING_V2`            | Must be unset or not `true`                          | Forbidden alias        | Automatic tracing is rejected to prevent capture outside the explicit trace paths.                  |
+
+Any forbidden automatic-tracing alias set to `true` makes API startup, Studio graph loading, and evaluation fail fast. Empty values in `.env.example` are placeholders, not usable production values.
+
 Set these local values in `.env`:
 
 ```dotenv
@@ -1224,7 +1254,45 @@ The schedule is disabled by default. Set `SCHEDULER_ENABLED=true` to run the onb
 
 ### 17.5. HR policy RAG
 
-After the database is ready, index the repository-managed policies. The command recursively scans the project-root [`knowledge-documents/`](knowledge-documents/) directory for `.pdf` files only. For every PDF, it validates the file, extracts and checks each physical page, splits the text into bounded chunks, creates embeddings, and stores the versioned chunks and vectors in PostgreSQL/pgvector. The original PDFs remain in `knowledge-documents/` and are not copied into the database.
+After the database is ready, index the repository-managed policies. The command recursively scans the project-root [`knowledge-documents/`](knowledge-documents/) directory for `.pdf` files only and processes their repository-relative paths in stable lexical order. The original PDFs remain in `knowledge-documents/` and are not copied into the database; only extracted chunks, source coordinates, index metadata, and vectors are stored.
+
+Each discovered PDF must satisfy these enforced limits:
+
+| Boundary             | Enforced limit                                               |
+| -------------------- | ------------------------------------------------------------ |
+| Source type          | PDF only                                                     |
+| File size            | Non-empty and no larger than 5 MiB                           |
+| Physical pages       | At most 250                                                  |
+| Normalized text      | At most 500,000 extracted characters                         |
+| Chunking             | Page-aware 1,600-character chunks with 200-character overlap |
+| Chunks per document  | At most 200                                                  |
+| Embedding dimensions | Exactly 1,536 values per chunk                               |
+| Derived title        | Non-empty and no longer than 200 characters                  |
+
+The command hashes the source before extraction and compares its hash, configured embedding model, and chunking version with the active database version. An exact match is `SKIPPED`. A changed source or indexing configuration goes through extraction, normalization, chunking, and deterministic safety inspection before any embedding request. Unsafe instructions stop that file before external processing.
+
+```mermaid
+flowchart TD
+    Discover["Discover and sort repository PDFs"] --> Read["Validate size and read buffer"]
+    Read --> Identity["Hash source and describe model/chunking"]
+    Identity --> Lookup["Read active index metadata"]
+    Lookup --> Same{"Hash, model, and chunking unchanged?"}
+    Same -- Yes --> Skipped["SKIPPED"]
+    Same -- No --> Extract["Extract and normalize physical pages"]
+    Extract --> Chunk["Create page-aware bounded chunks"]
+    Chunk --> Guard["Inspect every chunk"]
+    Guard --> Embed["Create 1,536-dimensional embeddings"]
+    Embed --> Insert["Insert a complete inactive version"]
+    Insert --> Activate["Conditionally activate the new version"]
+    Activate --> Result["INDEXED or UPDATED"]
+    Read -. failure .-> Failed["FAILED with a safe code; continue"]
+    Lookup -. failure .-> Failed
+    Guard -. failure .-> Failed
+    Embed -. failure .-> Failed
+    Insert -. failure .-> Failed
+```
+
+Chunk rows for a replacement are inserted as a new inactive version inside a transaction. Only after every insert succeeds does a conditional document update activate that version. The previously active chunks therefore remain queryable if extraction, inspection, embedding, insertion, or activation fails. Concurrent activation is rejected rather than overwriting a newer version.
 
 The included fictional corpus contains:
 
@@ -1255,6 +1323,28 @@ Representative unchanged second-run output:
 {"sourcePath":"knowledge-documents/fictional-home-office-policy.pdf","status":"SKIPPED","documentId":"<home-office-policy-document-id>"}
 {"status":"SUMMARY","SKIPPED":2}
 ```
+
+Every discovered PDF produces one JSON result with `INDEXED`, `UPDATED`, `SKIPPED`, or `FAILED`, followed by one `SUMMARY` line. A failed file does not stop later files, but any `FAILED` result makes the command exit non-zero. Failure output contains only a stable code: it never prints document text, provider responses, database connection details, API keys, secrets, or stack traces. Removing a PDF from the directory does not prune its database record automatically.
+
+Use the failed file's code to choose the next safe check:
+
+| Code                                    | Meaning and safe operator action                                                                                                          |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `RAG_EXTERNAL_PROCESSING_DISABLED`      | Indexing is disabled. Set `RAG_EXTERNAL_PROCESSING_ENABLED=true` only in an environment approved for external processing.                 |
+| `KNOWLEDGE_FILE_SIZE_INVALID`           | The PDF is empty or larger than 5 MiB. Replace it with a non-empty PDF within the limit.                                                  |
+| `KNOWLEDGE_FILE_READ_FAILED`            | The process could not read the source. Check that the path is a regular readable file and that runtime permissions allow access.          |
+| `KNOWLEDGE_FILE_TYPE_UNSUPPORTED`       | The ingestion input is not a PDF with `application/pdf`; keep repository knowledge sources PDF-only.                                      |
+| `KNOWLEDGE_TEXT_EMPTY`                  | No usable text was extracted. Replace an image-only or empty PDF with a text-searchable PDF.                                              |
+| `KNOWLEDGE_EXTRACTION_LIMIT_EXCEEDED`   | The PDF exceeded 250 pages, 500,000 normalized characters, or 200 chunks. Split it into smaller policy PDFs.                              |
+| `KNOWLEDGE_DOCUMENT_UNSAFE`             | A chunk matched the deterministic unsafe-instruction rules. Review the source offline; do not print its text into application logs.       |
+| `KNOWLEDGE_EMBEDDING_FAILED`            | The embedding operation failed. Verify configured credentials, model access, provider availability, and outbound connectivity.            |
+| `EMBEDDING_COUNT_MISMATCH`              | The provider returned a different number of vectors than requested chunks. Retry only after confirming provider behavior.                 |
+| `KNOWLEDGE_DATABASE_READ_FAILED`        | Active-index metadata could not be read. Check database health, migrations, and connectivity without printing the connection string.      |
+| `KNOWLEDGE_DATABASE_WRITE_FAILED`       | The replacement version could not be published. Check database health, capacity, pgvector, and migrations; the old version stays active.  |
+| `KNOWLEDGE_VERSION_ACTIVATION_CONFLICT` | Another writer activated a version first. Inspect concurrent index jobs, then rerun once only one writer remains.                         |
+| `KNOWLEDGE_INDEX_FAILED`                | An unexpected indexing boundary failed. Use controlled diagnostics and operational telemetry; keep raw content and secrets out of output. |
+
+For a containerized API, run the command inside the service with `docker compose exec api npm run knowledge:index`. For a local Node.js process, run `npm run knowledge:index` from the repository root with a reachable `DATABASE_URL`.
 
 Query page 1 contract duration:
 

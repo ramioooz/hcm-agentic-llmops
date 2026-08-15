@@ -5,6 +5,7 @@ import {
   knowledgeTitle,
   normalizedSourcePath,
 } from '../helpers/knowledge-file.helpers';
+import { knowledgeError, knowledgeErrorCode } from '../helpers/knowledge-error.helpers';
 import { MAX_KNOWLEDGE_FILE_BYTES } from './knowledge-ingestion.service';
 import type { KnowledgeIndexResult } from '../types/knowledge-index-result';
 import type { KnowledgeSourceFile } from '../types/knowledge-source-file';
@@ -63,12 +64,6 @@ async function discoverFiles(input: {
   }
 }
 
-function errorCode(error: unknown): string {
-  return error instanceof Error && /^[A-Z0-9_]+$/.test(error.message)
-    ? error.message
-    : 'KNOWLEDGE_INDEX_FAILED';
-}
-
 export class KnowledgeDirectoryIndexer {
   public constructor(private readonly dependencies: DirectoryIndexerDependencies) {}
 
@@ -94,9 +89,12 @@ export class KnowledgeDirectoryIndexer {
           throw new Error('KNOWLEDGE_FILE_READ_FAILED');
         }
         const identity = await this.dependencies.ingestion.describeIndex(buffer);
-        const active = await this.dependencies.repository.findActiveIndexBySourcePath(
-          file.sourcePath,
-        );
+        let active: KnowledgeActiveIndex | null;
+        try {
+          active = await this.dependencies.repository.findActiveIndexBySourcePath(file.sourcePath);
+        } catch (error) {
+          throw knowledgeError(error, 'KNOWLEDGE_DATABASE_READ_FAILED');
+        }
         if (
           active &&
           active.contentHash === identity.contentHash &&
@@ -129,7 +127,11 @@ export class KnowledgeDirectoryIndexer {
           chunkCount: published.chunkCount,
         });
       } catch (error) {
-        results.push({ sourcePath: file.sourcePath, status: 'FAILED', code: errorCode(error) });
+        results.push({
+          sourcePath: file.sourcePath,
+          status: 'FAILED',
+          code: knowledgeErrorCode(error, 'KNOWLEDGE_INDEX_FAILED'),
+        });
       }
     }
     return results;

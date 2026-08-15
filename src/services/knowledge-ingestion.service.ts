@@ -6,6 +6,7 @@ import type {
   KnowledgeRepository,
   KnowledgeVersionResult,
 } from '../types/knowledge';
+import { knowledgeError } from '../helpers/knowledge-error.helpers';
 import type { KnowledgeSecurityService } from './knowledge-security.service';
 
 export const MAX_KNOWLEDGE_FILE_BYTES = 5 * 1_024 * 1_024;
@@ -128,23 +129,32 @@ export class KnowledgeIngestionService {
         });
         if (!risk.safe) throw new Error('KNOWLEDGE_DOCUMENT_UNSAFE');
       }
-      const embeddings = await this.dependencies.embeddings.embedDocuments(
-        chunks.map((chunk) => chunk.content),
-      );
+      let embeddings: number[][];
+      try {
+        embeddings = await this.dependencies.embeddings.embedDocuments(
+          chunks.map((chunk) => chunk.content),
+        );
+      } catch (error) {
+        throw knowledgeError(error, 'KNOWLEDGE_EMBEDDING_FAILED');
+      }
       if (embeddings.length !== chunks.length) throw new Error('EMBEDDING_COUNT_MISMATCH');
 
-      return await this.dependencies.repository.publishVersion({
-        documentId: input.documentId,
-        title,
-        originalFileName: input.originalFileName,
-        mediaType: input.mediaType,
-        contentHash,
-        sourcePath: input.sourcePath,
-        createdByEmployeeCode: input.createdByEmployeeCode,
-        embeddingModel: this.dependencies.embeddingModel,
-        chunkingVersion: CHUNKING_VERSION,
-        chunks: chunks.map((chunk, index) => ({ ...chunk, embedding: embeddings[index] ?? [] })),
-      });
+      try {
+        return await this.dependencies.repository.publishVersion({
+          documentId: input.documentId,
+          title,
+          originalFileName: input.originalFileName,
+          mediaType: input.mediaType,
+          contentHash,
+          sourcePath: input.sourcePath,
+          createdByEmployeeCode: input.createdByEmployeeCode,
+          embeddingModel: this.dependencies.embeddingModel,
+          chunkingVersion: CHUNKING_VERSION,
+          chunks: chunks.map((chunk, index) => ({ ...chunk, embedding: embeddings[index] ?? [] })),
+        });
+      } catch (error) {
+        throw knowledgeError(error, 'KNOWLEDGE_DATABASE_WRITE_FAILED');
+      }
     } finally {
       input.buffer.fill(0);
     }
