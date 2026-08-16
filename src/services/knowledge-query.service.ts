@@ -1,4 +1,5 @@
 import { RagTraceBuilder } from '../observability/rag-trace-builder';
+import { ragTracingLogMessages } from '../observability/rag-tracing-log-messages';
 import { KnowledgeErrorCode } from '../enums/error.enum';
 import { ApplicationError } from '../errors/application.error';
 import { resolveApplicationErrorCode } from '../helpers/application-error.helpers';
@@ -74,6 +75,7 @@ export class KnowledgeQueryService {
         answerModel: string;
         now?: () => number;
       };
+      tracingUnavailable?: { logger: ApplicationLogger };
     },
   ) {}
 
@@ -87,6 +89,14 @@ export class KnowledgeQueryService {
     if (!query || query.length > 2_000) {
       throw new ApplicationError(KnowledgeErrorCode.QueryInvalid);
     }
+
+    this.dependencies.tracingUnavailable?.logger.warn({
+      event: 'knowledge.trace.skipped',
+      status: 'SKIPPED',
+      code: KnowledgeErrorCode.LangSmithApiKeyMissing,
+      correlationId: input.securityContext.correlationId,
+      message: ragTracingLogMessages.skipped,
+    });
 
     const limit = Math.min(8, Math.max(1, input.limit ?? 5));
     const trace = this.createTrace(input, query, limit);

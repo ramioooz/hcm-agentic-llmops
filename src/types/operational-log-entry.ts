@@ -1,4 +1,14 @@
-export type OperationalLogEntry = {
+type OperationalLogFields = {
+  runId?: string;
+  status?: string;
+  code?: string;
+  message?: string;
+  httpStatus?: number;
+  query?: string;
+  details?: Record<string, unknown>;
+};
+
+type CorrelatedOperationalLogEntry = OperationalLogFields & {
   event:
     | 'agent.invoke.started'
     | 'agent.invoke.rejected'
@@ -15,12 +25,14 @@ export type OperationalLogEntry = {
     | 'leave.document.rejected'
     | 'leave.document.failed'
     | 'knowledge.security.detected'
-    | 'knowledge.trace.failed';
+    | 'knowledge.trace.failed'
+    | 'knowledge.trace.skipped';
   correlationId: string;
-  runId?: string;
-  status?: string;
-  code?: string;
-  httpStatus?: number;
-  query?: string;
-  details?: Record<string, unknown>;
 };
+
+type StartupOperationalLogEntry = OperationalLogFields & {
+  event: 'knowledge.trace.disabled';
+  correlationId?: never;
+};
+
+export type OperationalLogEntry = CorrelatedOperationalLogEntry | StartupOperationalLogEntry;

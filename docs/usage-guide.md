@@ -322,7 +322,7 @@ Rejected requests should have safe run, step, and security-event codes without r
 
 ## Inspect tracing, Studio, and evaluation
 
-Tracing is off by default. Agent traces include exact raw agent queries; RAG traces include raw knowledge questions and generated answers. Use only fictional development data and see the [configuration reference](configuration.md#explicit-versus-automatic-tracing).
+Agent tracing is off by default. RAG tracing is on by default and, when `LANGSMITH_API_KEY` is configured, includes raw knowledge questions and generated answers. If the key is absent, the API continues normally and logs that RAG tracing was skipped without logging the question or employee identity. Use only fictional development data when configuring LangSmith and see the [configuration reference](configuration.md#explicit-versus-automatic-tracing).
 
 ```bash
 # Inspect the production graph topology in LangGraph Studio

@@ -321,10 +321,12 @@ See [manual observability checks](docs/usage-guide.md#inspect-observability-and-
 
 LLMOps means versioning, observing, and evaluating model-backed behavior. It is separate from normal application logging.
 
-LangSmith is disabled by default and uses explicit recorders instead of global automatic LangChain tracing:
+LangSmith uses explicit recorders instead of global automatic LangChain tracing:
 
 - Agent traces include the exact raw query, normalized intent, graph path, tools, authorization, guardrail result, latency, prompt version, and model.
 - RAG traces include the raw question and answer, scope, retrieval metadata, citations, guard outcomes, models, timing, and stable failure code—but not complete retrieved chunks.
+
+RAG tracing is enabled by default. It sends traces only when `LANGSMITH_API_KEY` is configured. Without the key, the API starts and answers knowledge queries normally while emitting safe warnings that tracing is disabled or skipped; those warnings exclude the raw question and employee identity. Agent tracing remains disabled by default and requires the key when enabled.
 
 Enable explicit traces only for approved fictional development data. See [explicit versus automatic tracing](docs/configuration.md#explicit-versus-automatic-tracing).
 

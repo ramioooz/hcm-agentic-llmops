@@ -2,6 +2,50 @@ import { KnowledgeQueryService } from '../../src/services/knowledge-query.servic
 import { KnowledgeSecurityService } from '../../src/services/knowledge-security.service';
 
 describe('KnowledgeQueryService', () => {
+  it('continues the query and safely logs when LangSmith tracing has no API key', async () => {
+    const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
+    const dependencies = {
+      repository: { searchActiveChunks: jest.fn().mockResolvedValue([]) },
+      embeddings: { embedQuery: jest.fn().mockResolvedValue([0.25, 0.75]) },
+      answers: {
+        generate: jest.fn().mockResolvedValue({ answer: '', citedChunkIds: [] }),
+      },
+      security: {
+        inspect: jest.fn().mockResolvedValue({ safe: true as const }),
+        record: jest.fn().mockResolvedValue(undefined),
+      },
+      tracingUnavailable: { logger },
+    };
+    const service = new KnowledgeQueryService(dependencies);
+
+    await expect(
+      service.query({
+        query: 'What is the fictional remote-work allowance?',
+        securityContext: {
+          correlationId: '00000000-0000-4000-8000-000000000045',
+          actorEmployeeCode: 'EMP-201',
+          requestSource: 'HTTP',
+        },
+      }),
+    ).resolves.toEqual({
+      status: 'INSUFFICIENT_EVIDENCE',
+      answer: 'Insufficient evidence in the indexed HR knowledge documents.',
+      sources: [],
+    });
+    expect(logger.warn).toHaveBeenCalledWith({
+      event: 'knowledge.trace.skipped',
+      status: 'SKIPPED',
+      code: 'LANGSMITH_API_KEY_MISSING',
+      correlationId: '00000000-0000-4000-8000-000000000045',
+      message:
+        'The RAG query was not sent to LangSmith because LANGSMITH_API_KEY is not configured.',
+    });
+    expect(JSON.stringify(logger.warn.mock.calls)).not.toContain(
+      'What is the fictional remote-work allowance?',
+    );
+    expect(JSON.stringify(logger.warn.mock.calls)).not.toContain('EMP-201');
+  });
+
   it('returns grounded active-version sources and a stable insufficient-evidence result', async () => {
     const repository = {
       searchActiveChunks: jest

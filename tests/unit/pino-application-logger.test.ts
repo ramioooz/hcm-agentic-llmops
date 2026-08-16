@@ -55,5 +55,23 @@ describe('PinoApplicationLogger', () => {
     expect(JSON.stringify(entry)).not.toContain('underlying service failure');
     expect(JSON.stringify(entry)).not.toContain('nested error detail');
     expect(JSON.stringify(entry)).not.toContain('nested cause detail');
+
+    logger.warn({
+      event: 'knowledge.trace.skipped',
+      correlationId: 'corr-log-002',
+      status: 'SKIPPED',
+      code: 'LANGSMITH_API_KEY_MISSING',
+      message:
+        'The RAG query was not sent to LangSmith because LANGSMITH_API_KEY is not configured.',
+    });
+
+    expect(JSON.parse(writes[1] ?? '')).toMatchObject({
+      event: 'knowledge.trace.skipped',
+      correlationId: 'corr-log-002',
+      status: 'SKIPPED',
+      code: 'LANGSMITH_API_KEY_MISSING',
+      message:
+        'The RAG query was not sent to LangSmith because LANGSMITH_API_KEY is not configured.',
+    });
   });
 });
