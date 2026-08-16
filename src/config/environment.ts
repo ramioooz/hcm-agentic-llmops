@@ -19,6 +19,23 @@ const environmentSchema = z
       .enum(['true', 'false'])
       .default('true')
       .transform((value) => value === 'true'),
+    RAG_CANDIDATE_LIMIT: z
+      .string()
+      .regex(/^\d+$/)
+      .default('8')
+      .transform(Number)
+      .refine((value) => value >= 1 && value <= 100),
+    RAG_MINIMUM_SIMILARITY: z
+      .string()
+      .default('0.50')
+      .transform(Number)
+      .refine((value) => Number.isFinite(value) && value >= -1 && value <= 1),
+    RAG_EVIDENCE_LIMIT: z
+      .string()
+      .regex(/^\d+$/)
+      .default('5')
+      .transform(Number)
+      .refine((value) => value >= 1 && value <= 20),
     WEBHOOK_API_KEY: z.string().min(32),
     SCHEDULER_ENABLED: z
       .enum(['true', 'false'])
@@ -49,6 +66,13 @@ const environmentSchema = z
     LANGSMITH_PROJECT: z.string().min(1).default('hcm-agentic-llmops'),
   })
   .superRefine((environment, context) => {
+    if (environment.RAG_CANDIDATE_LIMIT < environment.RAG_EVIDENCE_LIMIT) {
+      context.addIssue({
+        code: 'custom',
+        path: ['RAG_CANDIDATE_LIMIT'],
+        message: 'must be greater than or equal to RAG_EVIDENCE_LIMIT',
+      });
+    }
     if (environment.LANGSMITH_AGENT_TRACING === 'true' && !environment.LANGSMITH_API_KEY) {
       context.addIssue({
         code: 'custom',
@@ -94,6 +118,9 @@ export function parseEnvironment(
     openAiModel: parsed.data.OPENAI_MODEL,
     openAiEmbeddingModel: parsed.data.OPENAI_EMBEDDING_MODEL,
     ragExternalProcessingEnabled: parsed.data.RAG_EXTERNAL_PROCESSING_ENABLED,
+    ragCandidateLimit: parsed.data.RAG_CANDIDATE_LIMIT,
+    ragMinimumSimilarity: parsed.data.RAG_MINIMUM_SIMILARITY,
+    ragEvidenceLimit: parsed.data.RAG_EVIDENCE_LIMIT,
     webhookApiKey: parsed.data.WEBHOOK_API_KEY,
     schedulerEnabled: parsed.data.SCHEDULER_ENABLED,
     automationActorEmployeeCode: parsed.data.AUTOMATION_ACTOR_EMPLOYEE_CODE,

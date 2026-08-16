@@ -2,6 +2,60 @@ import { KnowledgeQueryService } from '../../src/services/knowledge-query.servic
 import { KnowledgeSecurityService } from '../../src/services/knowledge-security.service';
 
 describe('KnowledgeQueryService', () => {
+  it('delegates server-owned relevance settings and uses repository-qualified evidence', async () => {
+    const evidence = {
+      documentId: 'doc-policy',
+      documentTitle: 'Fictional Flexible Work Policy',
+      chunkId: 'chunk-2',
+      chunkIndex: 2,
+      pageNumber: 3,
+      content: 'Eligible employees may work remotely for two days each week.',
+      score: 0.91,
+    };
+    const repository = { searchActiveChunks: jest.fn().mockResolvedValue([evidence]) };
+    const generate = jest.fn().mockResolvedValue({
+      answer: 'Eligible employees may work remotely for two days each week.',
+      citedChunkIds: ['chunk-2'],
+    });
+    const dependencies = {
+      repository,
+      embeddings: { embedQuery: jest.fn().mockResolvedValue([0.25, 0.75]) },
+      answers: { generate },
+      security: {
+        inspect: jest.fn().mockResolvedValue({ safe: true as const }),
+        record: jest.fn().mockResolvedValue(undefined),
+      },
+      retrieval: {
+        candidateLimit: 8,
+        minimumSimilarity: 0.5,
+        evidenceLimit: 5,
+      },
+    };
+    const service = new KnowledgeQueryService(dependencies);
+
+    await expect(
+      service.query({
+        query: 'How many remote days are allowed?',
+        securityContext: {
+          correlationId: '00000000-0000-4000-8000-000000000046',
+          actorEmployeeCode: 'EMP-201',
+          requestSource: 'HTTP',
+        },
+      }),
+    ).resolves.toMatchObject({ status: 'ANSWERED' });
+
+    expect(repository.searchActiveChunks).toHaveBeenCalledWith({
+      embedding: [0.25, 0.75],
+      candidateLimit: 8,
+      minimumSimilarity: 0.5,
+      evidenceLimit: 5,
+    });
+    expect(generate).toHaveBeenCalledWith({
+      query: 'How many remote days are allowed?',
+      evidence: [evidence],
+    });
+  });
+
   it('continues the query and safely logs when LangSmith tracing has no API key', async () => {
     const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
     const dependencies = {
@@ -13,6 +67,11 @@ describe('KnowledgeQueryService', () => {
       security: {
         inspect: jest.fn().mockResolvedValue({ safe: true as const }),
         record: jest.fn().mockResolvedValue(undefined),
+      },
+      retrieval: {
+        candidateLimit: 8,
+        minimumSimilarity: 0.5,
+        evidenceLimit: 5,
       },
       tracingUnavailable: { logger },
     };
@@ -94,6 +153,11 @@ describe('KnowledgeQueryService', () => {
       repository,
       embeddings: { embedQuery: async () => [0.25, 0.75] },
       answers: { generate },
+      retrieval: {
+        candidateLimit: 8,
+        minimumSimilarity: 0.5,
+        evidenceLimit: 5,
+      },
       security,
       tracing: {
         recorder: { record: recordTrace },
@@ -106,7 +170,6 @@ describe('KnowledgeQueryService', () => {
     const grounded = await service.query({
       query: 'How many remote days are allowed?',
       documentId: 'doc-policy',
-      limit: 3,
       securityContext: {
         correlationId: '00000000-0000-4000-8000-000000000041',
         actorEmployeeCode: 'EMP-201',
@@ -146,7 +209,9 @@ describe('KnowledgeQueryService', () => {
     expect(repository.searchActiveChunks).toHaveBeenNthCalledWith(1, {
       embedding: [0.25, 0.75],
       documentId: 'doc-policy',
-      limit: 3,
+      candidateLimit: 8,
+      minimumSimilarity: 0.5,
+      evidenceLimit: 5,
     });
     expect(grounded).toEqual({
       status: 'ANSWERED',
@@ -195,7 +260,9 @@ describe('KnowledgeQueryService', () => {
       question: 'How many remote days are allowed?',
       answer: 'Eligible employees may work remotely for two days each week.',
       documentId: 'doc-policy',
-      limit: 3,
+      candidateLimit: 8,
+      minimumSimilarity: 0.5,
+      evidenceLimit: 5,
       embeddingModel: 'text-embedding-3-small',
       answerModel: 'gpt-5.4-mini',
       resultStatus: 'ANSWERED',

@@ -109,7 +109,6 @@ export function createReadOnlyMcpServer(input: {
       inputSchema: z.object({
         query: z.string().trim().min(1).max(2_000),
         documentId: z.string().uuid().optional(),
-        limit: z.number().int().min(1).max(8).optional(),
       }),
       annotations: {
         readOnlyHint: true,
@@ -118,7 +117,7 @@ export function createReadOnlyMcpServer(input: {
         openWorldHint: true,
       },
     },
-    async ({ query, documentId, limit }) => {
+    async ({ query, documentId }) => {
       if (!input.knowledgeQueries) {
         return stableToolError(
           new ApplicationError(KnowledgeErrorCode.ExternalProcessingDisabled),
@@ -131,7 +130,7 @@ export function createReadOnlyMcpServer(input: {
           actorEmployeeCode: input.actorEmployeeCode,
           requestSource: 'MCP',
         });
-        const result = await search.invoke({ query, documentId, limit });
+        const result = await search.invoke({ query, documentId });
         return toolResult({ ...result, correlationId: input.correlationId });
       } catch (error) {
         return stableToolError(error, input.correlationId);

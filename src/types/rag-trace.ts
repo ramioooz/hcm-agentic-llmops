@@ -9,7 +9,9 @@ export type RagTrace = {
   question: string;
   answer: string | null;
   documentId?: string;
-  limit: number;
+  candidateLimit: number;
+  minimumSimilarity: number;
+  evidenceLimit: number;
   embeddingModel: string;
   answerModel: string;
   retrievedChunks: Array<{

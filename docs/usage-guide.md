@@ -2,7 +2,7 @@
 
 This is the complete local playbook for starting the service and verifying onboarding, leave, policy knowledge, MCP, triggers, observability, Studio, and evaluation. Start with the shorter [README Quick start](../README.md#quick-start) if you only need to run the API and make one request.
 
-See the [configuration reference](configuration.md) for every environment variable and the [knowledge-indexing guide](knowledge-indexing.md) for PDF limits, version publication, statuses, and stable failure codes.
+See the [configuration reference](configuration.md) for every environment variable, the [knowledge-indexing guide](knowledge-indexing.md) for PDF publication behavior, and [RAG testing and troubleshooting](rag-testing-and-troubleshooting.md) for complete policy-query verification.
 
 ## Runtime and fictional identities
 
@@ -221,10 +221,12 @@ curl --request POST \
   --url http://localhost:3000/api/v1/knowledge/query \
   --header 'Content-Type: application/json' \
   --header 'X-Employee-Id: EMP-201' \
-  --data '{"query":"How many remote-working days are allowed each week, and what home-office equipment allowance is available?","limit":8}'
+  --data '{"query":"How many remote-working days are allowed each week, and what home-office equipment allowance is available?"}'
 ```
 
 Expected: `ANSWERED` with sources from both fictional PDFs. Use `POST /api/v1/knowledge/documents/DOCUMENT_ID/query` to restrict retrieval to one active document.
+
+For full successful and failure examples, expected response bodies, retrieval-setting explanations, MCP checks, LangSmith inspection, and database troubleshooting, use the dedicated [RAG testing and troubleshooting guide](rag-testing-and-troubleshooting.md).
 
 Repository-document injection is rejected before embedding and activation. Unsafe questions return `UNSAFE_KNOWLEDGE_QUERY` before query embedding or retrieval.
 

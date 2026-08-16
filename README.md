@@ -257,12 +257,12 @@ curl --request POST \
   --url http://localhost:3000/api/v1/knowledge/query \
   --header 'Content-Type: application/json' \
   --header 'X-Employee-Id: EMP-201' \
-  --data '{"query":"How many remote-working days are allowed each week?","limit":5}'
+  --data '{"query":"How many remote-working days are allowed each week?"}'
 ```
 
 A grounded result returns `ANSWERED` plus document, page, and chunk sources. Without enough evidence, the API returns `INSUFFICIENT_EVIDENCE` instead of asking the model to guess.
 
-See [repository knowledge indexing](docs/knowledge-indexing.md) for PDF limits, version activation, safe output, status examples, and failure-code troubleshooting.
+See [RAG testing and troubleshooting](docs/rag-testing-and-troubleshooting.md) for complete HTTP and MCP scenarios, expected responses, retrieval settings, LangSmith inspection, and database diagnostics. See [repository knowledge indexing](docs/knowledge-indexing.md) for PDF limits, version activation, and indexing failure codes.
 
 ## Security and guardrails
 
@@ -270,7 +270,7 @@ Security controls surround the model and retrieved content; they are not model i
 
 | Control                              | What it does                                                                                            |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------- |
-| Schema validation                    | Rejects malformed bodies, model output, events, resume decisions, queries, and excessive limits         |
+| Schema validation                    | Rejects malformed bodies, unknown query properties, model output, events, and resume decisions          |
 | Direct request guard                 | Stops known instruction overrides, prompt disclosure, bulk extraction, and security bypass before tools |
 | Canonical development identity       | Resolves `X-Employee-Id` through PostgreSQL and never trusts a request-supplied role                    |
 | Protected-tool authorization         | Rechecks role, ownership, and reporting rules before protected reads or actions                         |
@@ -450,16 +450,17 @@ Live infrastructure paths are documented for manual verification in the [usage g
 
 ## Further documentation
 
-| Document                                         | Use it for                                                     |
-| ------------------------------------------------ | -------------------------------------------------------------- |
-| [Local usage guide](docs/usage-guide.md)         | Manual workflows, triggers, MCP, Studio, and audit checks      |
-| [Configuration reference](docs/configuration.md) | Environment, ports, trace flags, and forbidden aliases         |
-| [Knowledge indexing](docs/knowledge-indexing.md) | PDF limits, version publication, statuses, and troubleshooting |
-| [Architecture guide](docs/architecture.md)       | Detailed composition, graphs, boundaries, and delivery         |
-| [Data model](docs/data-model.md)                 | ER diagram, tables, seed records, identifiers, and migrations  |
-| [API examples](docs/api-examples.md)             | HTTP and MCP request/response contracts                        |
-| [Security policy](SECURITY.md)                   | Supported versions and vulnerability reporting                 |
-| [Contribution guide](CONTRIBUTING.md)            | Branch, verification, documentation, and review expectations   |
+| Document                                               | Use it for                                                          |
+| ------------------------------------------------------ | ------------------------------------------------------------------- |
+| [Local usage guide](docs/usage-guide.md)               | Manual workflows, triggers, MCP, Studio, and audit checks           |
+| [Configuration reference](docs/configuration.md)       | Environment, ports, trace flags, and forbidden aliases              |
+| [Knowledge indexing](docs/knowledge-indexing.md)       | PDF limits, version publication, statuses, and troubleshooting      |
+| [RAG testing](docs/rag-testing-and-troubleshooting.md) | HTTP and MCP scenarios, expected responses, traces, and diagnostics |
+| [Architecture guide](docs/architecture.md)             | Detailed composition, graphs, boundaries, and delivery              |
+| [Data model](docs/data-model.md)                       | ER diagram, tables, seed records, identifiers, and migrations       |
+| [API examples](docs/api-examples.md)                   | HTTP and MCP request/response contracts                             |
+| [Security policy](SECURITY.md)                         | Supported versions and vulnerability reporting                      |
+| [Contribution guide](CONTRIBUTING.md)                  | Branch, verification, documentation, and review expectations        |
 
 ## Contributing
 

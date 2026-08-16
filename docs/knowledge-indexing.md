@@ -2,6 +2,8 @@
 
 The knowledge index turns repository-managed HR policy PDFs into searchable PostgreSQL/pgvector records. Queries search only active database versions; they never scan the source directory at request time.
 
+Use [RAG testing and troubleshooting](rag-testing-and-troubleshooting.md) after indexing for complete query curls, expected responses, MCP checks, retrieval settings, LangSmith inspection, and database diagnostics.
+
 Source files remain under `knowledge-documents/`. The database stores document metadata, extracted chunks, page/chunk coordinates, index-version metadata, and embeddings—not copies of the original PDF files.
 
 ## Run the indexer

@@ -48,7 +48,9 @@ export interface KnowledgeRepository {
   searchActiveChunks(input: {
     embedding: number[];
     documentId?: string;
-    limit: number;
+    candidateLimit: number;
+    minimumSimilarity: number;
+    evidenceLimit: number;
   }): Promise<RetrievedKnowledgeChunk[]>;
 }
 

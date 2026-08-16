@@ -22,7 +22,9 @@ export class RagTraceBuilder {
       source: RagTrace['source'];
       question: string;
       documentId?: string;
-      limit: number;
+      candidateLimit: number;
+      minimumSimilarity: number;
+      evidenceLimit: number;
       embeddingModel: string;
       answerModel: string;
       now?: () => number;
@@ -82,7 +84,9 @@ export class RagTraceBuilder {
       question: this.input.question,
       answer: input.answer,
       ...(this.input.documentId ? { documentId: this.input.documentId } : {}),
-      limit: this.input.limit,
+      candidateLimit: this.input.candidateLimit,
+      minimumSimilarity: this.input.minimumSimilarity,
+      evidenceLimit: this.input.evidenceLimit,
       embeddingModel: this.input.embeddingModel,
       answerModel: this.input.answerModel,
       retrievedChunks: this.retrievedChunks,

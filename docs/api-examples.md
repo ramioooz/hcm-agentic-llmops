@@ -84,10 +84,10 @@ POST /api/v1/knowledge/query
 X-Employee-Id: EMP-201
 Content-Type: application/json
 
-{"query":"How many remote-working days are allowed each week?","limit":5}
+{"query":"How many remote-working days are allowed each week?"}
 ```
 
-The HTTP response is unchanged. The configured LangSmith project receives one `hcm-rag-query` parent run with the raw question and answer, correlation/actor/source context, requested scope, model names, retrieval document/page/chunk/score metadata, citations, status, failure code, and timing. Its reached children are `rag.query_guard`, `rag.query_embedding`, `rag.vector_retrieval`, `rag.evidence_guard`, `rag.grounded_answer`, and `rag.output_validation`. Complete retrieved chunk text is excluded. Filter the project by `hcm-rag-query` to inspect the parent and children; a trace-delivery failure only emits the safe `LANGSMITH_RAG_TRACE_FAILED` operational event and does not alter this HTTP result. If `LANGSMITH_API_KEY` is absent, the query still runs and a safe `knowledge.trace.skipped` warning explains that no LangSmith trace was sent.
+The HTTP response is unchanged. The configured LangSmith project receives one `hcm-rag-query` parent run with the raw question and answer, correlation/actor/source context, requested scope, server-owned candidate/threshold/evidence settings, model names, retrieval document/page/chunk/score metadata, citations, status, failure code, and timing. Its reached children are `rag.query_guard`, `rag.query_embedding`, `rag.vector_retrieval`, `rag.evidence_guard`, `rag.grounded_answer`, and `rag.output_validation`. Complete retrieved chunk text is excluded. Filter the project by `hcm-rag-query` to inspect the parent and children; a trace-delivery failure only emits the safe `LANGSMITH_RAG_TRACE_FAILED` operational event and does not alter this HTTP result. If `LANGSMITH_API_KEY` is absent, the query still runs and a safe `knowledge.trace.skipped` warning explains that no LangSmith trace was sent. Copyable success and failure scenarios are in [RAG testing and troubleshooting](rag-testing-and-troubleshooting.md).
 
 ### Annual-leave proposal
 

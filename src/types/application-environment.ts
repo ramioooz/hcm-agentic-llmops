@@ -7,6 +7,9 @@ export type ApplicationEnvironment = {
   openAiModel: 'gpt-5.4-mini';
   openAiEmbeddingModel: string;
   ragExternalProcessingEnabled: boolean;
+  ragCandidateLimit: number;
+  ragMinimumSimilarity: number;
+  ragEvidenceLimit: number;
   webhookApiKey: string;
   schedulerEnabled: boolean;
   automationActorEmployeeCode: string;
