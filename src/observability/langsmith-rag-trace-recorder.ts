@@ -1,4 +1,5 @@
 import { Client } from 'langsmith';
+import { convertToDottedOrderFormat } from 'langsmith/run_trees';
 import type { RagTrace } from '../types/rag-trace';
 import type { RagTraceRecorder } from '../types/rag-trace-recorder';
 
@@ -14,6 +15,7 @@ type LangSmithRagRun = {
   extra: { metadata: Record<string, unknown> };
   parent_run_id?: string;
   trace_id?: string;
+  dotted_order?: string;
 };
 
 type LangSmithRagClient = {
@@ -27,6 +29,10 @@ export class LangSmithRagTraceRecorder implements RagTraceRecorder {
   ) {}
 
   public async record(trace: RagTrace): Promise<void> {
+    const rootDottedOrder = convertToDottedOrderFormat(
+      trace.startedAtMs,
+      trace.traceId,
+    ).dottedOrder;
     await this.client.createRun({
       id: trace.traceId,
       name: 'hcm-rag-query',
@@ -57,9 +63,15 @@ export class LangSmithRagTraceRecorder implements RagTraceRecorder {
         },
       },
       trace_id: trace.traceId,
+      dotted_order: rootDottedOrder,
     });
 
-    for (const stage of trace.stages) {
+    for (const [index, stage] of trace.stages.entries()) {
+      const stageDottedOrder = convertToDottedOrderFormat(
+        stage.startedAtMs,
+        stage.id,
+        index + 1,
+      ).dottedOrder;
       await this.client.createRun({
         id: stage.id,
         name: stage.name,
@@ -78,6 +90,7 @@ export class LangSmithRagTraceRecorder implements RagTraceRecorder {
         },
         parent_run_id: trace.traceId,
         trace_id: trace.traceId,
+        dotted_order: `${rootDottedOrder}.${stageDottedOrder}`,
       });
     }
   }
