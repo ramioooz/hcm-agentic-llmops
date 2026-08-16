@@ -46,7 +46,9 @@ export class LangSmithRagTraceRecorder implements RagTraceRecorder {
         actorEmployeeCode: trace.actorEmployeeCode,
         source: trace.source,
         documentId: trace.documentId,
-        limit: trace.limit,
+        candidateLimit: trace.candidateLimit,
+        minimumSimilarity: trace.minimumSimilarity,
+        evidenceLimit: trace.evidenceLimit,
       },
       outputs: {
         answer: trace.answer,

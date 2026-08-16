@@ -23,6 +23,9 @@ The remaining values in `.env.example` are usable development defaults unless a 
 | `OPENAI_MODEL`                    | `gpt-5.4-mini`                                                                   | Application            | Model used by intent normalization and grounded knowledge answers.                                  |
 | `OPENAI_EMBEDDING_MODEL`          | `text-embedding-3-small`                                                         | Application and index  | Embedding model recorded with each knowledge index version.                                         |
 | `RAG_EXTERNAL_PROCESSING_ENABLED` | `true`                                                                           | Application and index  | Allows explicit indexing, knowledge queries, and MCP knowledge searches.                            |
+| `RAG_CANDIDATE_LIMIT`             | `8`; allowed range `1`–`100`                                                     | Application            | Maximum nearest pgvector candidates considered before similarity qualification.                     |
+| `RAG_MINIMUM_SIMILARITY`          | `0.50`; allowed range `-1`–`1`                                                   | Application            | Minimum cosine similarity accepted as grounded answer evidence.                                     |
+| `RAG_EVIDENCE_LIMIT`              | `5`; allowed range `1`–`20`                                                      | Application            | Maximum qualified chunks inspected and sent to the grounded-answer model.                           |
 | `WEBHOOK_API_KEY`                 | Required; at least 32 characters                                                 | Application            | Bearer credential for the webhook trigger.                                                          |
 | `SCHEDULER_ENABLED`               | `false`                                                                          | Application            | Enables the daily onboarding review schedule when set to `true`.                                    |
 | `AUTOMATION_ACTOR_EMPLOYEE_CODE`  | `EMP-100`                                                                        | Application and index  | Actor identity recorded for scheduled work and repository knowledge ingestion.                      |
@@ -36,6 +39,8 @@ The remaining values in `.env.example` are usable development defaults unless a 
 | `LANGSMITH_EVALUATION_UPLOAD`     | Disabled unless exactly `true`                                                   | Evaluation only        | Uploads the offline evaluation report; also requires `LANGSMITH_API_KEY`.                           |
 
 `OPENAI_MODEL` is intentionally restricted to the model declared in `src/config/environment.ts`. Empty credential values in `.env.example` are placeholders, not usable deployment values.
+
+`RAG_CANDIDATE_LIMIT` must be greater than or equal to `RAG_EVIDENCE_LIMIT`. These are server-owned retrieval settings and are not accepted from HTTP or MCP callers. See [RAG testing and troubleshooting](rag-testing-and-troubleshooting.md) for the retrieval order, examples, and safe tuning guidance.
 
 ## Explicit versus automatic tracing
 

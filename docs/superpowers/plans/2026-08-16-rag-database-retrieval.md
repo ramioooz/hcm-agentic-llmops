@@ -40,6 +40,7 @@
 ### Task 1: Create and parent the GitHub delivery item
 
 **Interfaces:**
+
 - Consumes: Closed Story #8, `STORY: Add Document Intelligence and Safe Tool Interoperability`.
 - Produces: One task issue linked as a sub-issue of Story #8 and referenced by the final PR.
 
@@ -60,6 +61,7 @@ Use GitHub’s sub-issue hierarchy so the task has Story #8 as its parent. Set A
 ### Task 2: Define server-owned retrieval configuration
 
 **Files:**
+
 - Modify: `src/config/environment.ts`
 - Modify: `src/types/application-environment.ts`
 - Modify: `src/bootstrap/create-knowledge-module.ts`
@@ -67,6 +69,7 @@ Use GitHub’s sub-issue hierarchy so the task has Story #8 as its parent. Set A
 - Modify: `tests/unit/configuration.test.ts`
 
 **Interfaces:**
+
 - Produces:
 
 ```ts
@@ -138,12 +141,14 @@ Run the focused configuration test and expect PASS.
 ### Task 3: Move threshold and final limiting into PostgreSQL
 
 **Files:**
+
 - Modify: `src/types/knowledge.ts`
 - Modify: `src/repositories/knowledge.repository.ts`
 - Modify: `src/services/knowledge-query.service.ts`
 - Test: `tests/unit/knowledge-query.service.test.ts`
 
 **Interfaces:**
+
 - Consumes: `RagRetrievalSettings` injected during composition.
 - Produces:
 
@@ -236,12 +241,14 @@ Run the service test and expect all cases to pass.
 ### Task 4: Remove caller-controlled limits from HTTP, tools, and MCP
 
 **Files:**
+
 - Modify: `src/controllers/knowledge.controller.ts`
 - Modify: `src/tools/knowledge.tools.ts`
 - Modify: `src/mcp/read-only-mcp.server.ts`
 - Modify: `tests/unit/read-only-mcp.server.test.ts`
 
 **Interfaces:**
+
 - HTTP body: `{ query: string }` only.
 - MCP/tool input: `{ query: string; documentId?: string }` only.
 
@@ -280,6 +287,7 @@ Expected: PASS.
 ### Task 5: Make retrieval settings explicit in LangSmith traces
 
 **Files:**
+
 - Modify: `src/types/rag-trace.ts`
 - Modify: `src/observability/rag-trace-builder.ts`
 - Modify: `src/observability/langsmith-rag-trace-recorder.ts`
@@ -287,6 +295,7 @@ Expected: PASS.
 - Modify: `tests/unit/knowledge-query.service.test.ts`
 
 **Interfaces:**
+
 - Replaces: `RagTrace.limit`.
 - Produces:
 
@@ -323,6 +332,7 @@ Expected: PASS.
 ### Task 6: Add dedicated RAG testing and troubleshooting documentation
 
 **Files:**
+
 - Create: `docs/rag-testing-and-troubleshooting.md`
 - Modify: `README.md`
 - Modify: `docs/architecture.md`
@@ -332,6 +342,7 @@ Expected: PASS.
 - Modify: `docs/usage-guide.md`
 
 **Interfaces:**
+
 - Produces: One authoritative guide linked from every existing RAG entry point.
 
 - [ ] **Step 1: Write prerequisites and preparation**
@@ -373,6 +384,7 @@ Expected: no public request examples or outdated architecture claims remain; int
 ### Task 7: Verify, review, and publish the pull request
 
 **Files:**
+
 - Review: every changed file against the task and specification.
 
 - [ ] **Step 1: Generate Prisma client**

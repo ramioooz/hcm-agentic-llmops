@@ -59,6 +59,11 @@ export function createKnowledgeModule(input: {
       apiKey: input.environment.openAiApiKey,
       model: input.environment.openAiModel,
     }),
+    retrieval: {
+      candidateLimit: input.environment.ragCandidateLimit,
+      minimumSimilarity: input.environment.ragMinimumSimilarity,
+      evidenceLimit: input.environment.ragEvidenceLimit,
+    },
     security,
     ...(tracingUnavailable ? { tracingUnavailable: { logger: input.logger } } : {}),
     ...(recorder

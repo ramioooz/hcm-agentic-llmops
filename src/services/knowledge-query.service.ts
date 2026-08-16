@@ -11,6 +11,7 @@ import type {
 } from '../types/knowledge';
 import type { ApplicationLogger } from '../types/application-logger';
 import type { KnowledgeSecurityContext } from '../types/knowledge-security-context';
+import type { RagRetrievalSettings } from '../types/rag-retrieval-settings';
 import type { RagTrace } from '../types/rag-trace';
 import type { RagTraceRecorder } from '../types/rag-trace-recorder';
 import type { RagTraceStage } from '../types/rag-trace-stage';
@@ -21,7 +22,6 @@ const INSUFFICIENT_EVIDENCE: KnowledgeQueryResult = {
   answer: 'Insufficient evidence in the indexed HR knowledge documents.',
   sources: [],
 };
-const MINIMUM_COSINE_SIMILARITY = 0.5;
 const absoluteUrlPattern = /https?:\/\/[^\s<>()"']+/gi;
 
 function absoluteUrls(text: string): string[] {
@@ -67,6 +67,7 @@ export class KnowledgeQueryService {
       repository: Pick<KnowledgeRepository, 'searchActiveChunks'>;
       embeddings: Pick<KnowledgeEmbeddingProvider, 'embedQuery'>;
       answers: KnowledgeAnswerGenerator;
+      retrieval: RagRetrievalSettings;
       security: Pick<KnowledgeSecurityService, 'inspect' | 'record'>;
       tracing?: {
         recorder: RagTraceRecorder;
@@ -82,7 +83,6 @@ export class KnowledgeQueryService {
   public async query(input: {
     query: string;
     documentId?: string;
-    limit?: number;
     securityContext: KnowledgeSecurityContext;
   }): Promise<KnowledgeQueryResult> {
     const query = input.query.trim();
@@ -98,8 +98,7 @@ export class KnowledgeQueryService {
       message: ragTracingLogMessages.skipped,
     });
 
-    const limit = Math.min(8, Math.max(1, input.limit ?? 5));
-    const trace = this.createTrace(input, query, limit);
+    const trace = this.createTrace(input, query);
     const inspectionContext = {
       correlationId: input.securityContext.correlationId,
       actorEmployeeCode: input.securityContext.actorEmployeeCode,
@@ -132,15 +131,18 @@ export class KnowledgeQueryService {
         operation: () => this.dependencies.embeddings.embedQuery(query),
         outputs: (result) => ({ dimensions: result.length }),
       });
-      const retrieved = await runStage({
+      const evidence = await runStage({
         trace,
         name: 'rag.vector_retrieval',
-        inputs: { documentId: input.documentId, limit },
+        inputs: {
+          documentId: input.documentId,
+          ...this.dependencies.retrieval,
+        },
         operation: () =>
           this.dependencies.repository.searchActiveChunks({
             embedding,
             documentId: input.documentId,
-            limit,
+            ...this.dependencies.retrieval,
           }),
         outputs: (chunks) => ({
           chunks: chunks.map((chunk) => ({
@@ -152,11 +154,7 @@ export class KnowledgeQueryService {
           })),
         }),
       });
-      trace?.setRetrievedChunks(retrieved);
-
-      const evidence = retrieved
-        .filter((chunk) => chunk.score >= MINIMUM_COSINE_SIMILARITY)
-        .slice(0, limit);
+      trace?.setRetrievedChunks(evidence);
       if (evidence.length === 0) return this.finish(trace, INSUFFICIENT_EVIDENCE);
 
       const evidenceGuard = trace?.startStage('rag.evidence_guard', {
@@ -283,7 +281,6 @@ export class KnowledgeQueryService {
       securityContext: KnowledgeSecurityContext;
     },
     question: string,
-    limit: number,
   ): RagTraceBuilder | undefined {
     const tracing = this.dependencies.tracing;
     if (!tracing) return undefined;
@@ -293,7 +290,7 @@ export class KnowledgeQueryService {
       source: input.securityContext.requestSource,
       question,
       ...(input.documentId ? { documentId: input.documentId } : {}),
-      limit,
+      ...this.dependencies.retrieval,
       embeddingModel: tracing.embeddingModel,
       answerModel: tracing.answerModel,
       ...(tracing.now ? { now: tracing.now } : {}),

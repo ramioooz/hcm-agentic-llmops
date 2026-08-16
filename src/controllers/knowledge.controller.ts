@@ -7,10 +7,11 @@ import { KnowledgeQueryService } from '../services/knowledge-query.service';
 import type { EmployeeReader } from '../types/employee-reader';
 import type { HttpController } from './http-controller';
 
-const querySchema = z.object({
-  query: z.string().trim().min(1).max(2_000),
-  limit: z.number().int().min(1).max(8).optional(),
-});
+const querySchema = z
+  .object({
+    query: z.string().trim().min(1).max(2_000),
+  })
+  .strict();
 
 export class KnowledgeController implements HttpController {
   public readonly basePath = '/api/v1/knowledge';
@@ -84,7 +85,7 @@ export class KnowledgeController implements HttpController {
       response.status(400).json({
         status: 'FAILED',
         code: 'KNOWLEDGE_QUERY_INVALID',
-        message: 'Provide a query of at most 2,000 characters and an optional limit from 1 to 8.',
+        message: 'Provide a request body containing only a query of at most 2,000 characters.',
       });
       return;
     }

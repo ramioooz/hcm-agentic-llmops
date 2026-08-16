@@ -118,28 +118,44 @@ export class PrismaKnowledgeRepository implements KnowledgeRepository {
   public async searchActiveChunks(input: {
     embedding: number[];
     documentId?: string;
-    limit: number;
+    candidateLimit: number;
+    minimumSimilarity: number;
+    evidenceLimit: number;
   }): Promise<RetrievedKnowledgeChunk[]> {
     const vector = vectorLiteral(input.embedding);
     const documentFilter = input.documentId
       ? Prisma.sql`AND d."id" = ${input.documentId}`
       : Prisma.empty;
     return this.database.$queryRaw<RetrievedKnowledgeChunk[]>(Prisma.sql`
+      WITH candidates AS MATERIALIZED (
+        SELECT
+          d."id" AS "documentId",
+          d."title" AS "documentTitle",
+          c."id" AS "chunkId",
+          c."chunk_index" AS "chunkIndex",
+          c."page_number" AS "pageNumber",
+          c."content",
+          c."embedding" <=> ${vector}::vector AS "distance"
+        FROM "knowledge_chunks" c
+        INNER JOIN "knowledge_documents" d
+          ON d."id" = c."document_id"
+         AND d."active_index_version" = c."index_version"
+        WHERE TRUE ${documentFilter}
+        ORDER BY c."embedding" <=> ${vector}::vector
+        LIMIT ${input.candidateLimit}
+      )
       SELECT
-        d."id" AS "documentId",
-        d."title" AS "documentTitle",
-        c."id" AS "chunkId",
-        c."chunk_index" AS "chunkIndex",
-        c."page_number" AS "pageNumber",
-        c."content",
-        (1 - (c."embedding" <=> ${vector}::vector))::double precision AS "score"
-      FROM "knowledge_chunks" c
-      INNER JOIN "knowledge_documents" d
-        ON d."id" = c."document_id"
-       AND d."active_index_version" = c."index_version"
-      WHERE TRUE ${documentFilter}
-      ORDER BY c."embedding" <=> ${vector}::vector
-      LIMIT ${input.limit}
+        "documentId",
+        "documentTitle",
+        "chunkId",
+        "chunkIndex",
+        "pageNumber",
+        "content",
+        (1 - "distance")::double precision AS "score"
+      FROM candidates
+      WHERE (1 - "distance") >= ${input.minimumSimilarity}
+      ORDER BY "distance"
+      LIMIT ${input.evidenceLimit}
     `);
   }
 }

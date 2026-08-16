@@ -8,11 +8,10 @@ export function createSearchKnowledgeDocumentsTool(
   securityContext: KnowledgeSecurityContext,
 ) {
   return tool(
-    async ({ query, documentId, limit }) =>
+    async ({ query, documentId }) =>
       queries.query({
         query,
         documentId,
-        limit,
         securityContext,
       }),
     {
@@ -22,7 +21,6 @@ export function createSearchKnowledgeDocumentsTool(
       schema: z.object({
         query: z.string().trim().min(1).max(2_000),
         documentId: z.string().uuid().optional(),
-        limit: z.number().int().min(1).max(8).optional(),
       }),
     },
   );
