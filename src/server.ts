@@ -1,5 +1,6 @@
 import { composeApplication } from './bootstrap/compose-application';
 import { loadEnvironment } from './config/load-environment';
+import { formatStartupError } from './helpers/startup-error.helpers';
 
 async function startServer(): Promise<void> {
   const environment = loadEnvironment();
@@ -22,7 +23,10 @@ async function startServer(): Promise<void> {
   process.once('SIGTERM', () => shutdown('SIGTERM'));
 }
 
-void startServer().catch(() => {
-  process.stderr.write('API failed to start.\n');
+void startServer().catch((error: unknown) => {
+  const diagnostic = formatStartupError(error, {
+    includeStack: process.env.NODE_ENV !== 'production',
+  });
+  process.stderr.write(`${diagnostic}\n`);
   process.exitCode = 1;
 });

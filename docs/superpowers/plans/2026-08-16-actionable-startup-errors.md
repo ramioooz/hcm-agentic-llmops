@@ -20,11 +20,13 @@
 ### Task 1: Add the startup diagnostic contract
 
 **Files:**
+
 - Create: `src/enums/application.enum.ts`
 - Create: `src/helpers/startup-error.helpers.ts`
 - Create: `tests/unit/startup-error.helpers.test.ts`
 
 **Interfaces:**
+
 - Produces: `formatStartupError(error: unknown, options: { includeStack: boolean }): string`
 - Produces: `ApplicationStartupErrorCode`
 
@@ -53,10 +55,12 @@ Run the same focused Jest command and expect one passing test.
 ### Task 2: Integrate diagnostics at the process boundary
 
 **Files:**
+
 - Modify: `src/server.ts`
 - Modify: `docs/configuration.md`
 
 **Interfaces:**
+
 - Consumes: `formatStartupError(error, { includeStack })`
 
 - [ ] **Step 1: Update the startup catch**
@@ -74,6 +78,7 @@ With one API process already listening on `PORT`, start a second process and ver
 ### Task 3: Verify and publish
 
 **Files:**
+
 - Review all files changed by Tasks 1 and 2.
 
 - [ ] **Step 1: Run the complete quality suite**
