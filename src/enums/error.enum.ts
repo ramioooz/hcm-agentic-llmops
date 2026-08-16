@@ -47,6 +47,7 @@ export enum KnowledgeErrorCode {
   VersionActivationConflict = 'KNOWLEDGE_VERSION_ACTIVATION_CONFLICT',
   InsufficientEvidence = 'INSUFFICIENT_EVIDENCE',
   UngroundedExternalUrl = 'UNGROUNDED_EXTERNAL_URL',
+  LangSmithApiKeyMissing = 'LANGSMITH_API_KEY_MISSING',
   LangSmithTraceFailed = 'LANGSMITH_RAG_TRACE_FAILED',
 }
 

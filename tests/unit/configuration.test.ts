@@ -26,7 +26,7 @@ describe('parseEnvironment', () => {
       rabbitPrefetch: 10,
       rabbitMaxAttempts: 3,
       langSmithTracing: false,
-      langSmithRagTracing: false,
+      langSmithRagTracing: true,
       langSmithApiKey: undefined,
       langSmithProject: 'hcm-agentic-llmops',
     });
@@ -58,7 +58,7 @@ describe('parseEnvironment', () => {
     ).toThrow('PORT must be a valid port number');
   });
 
-  it('keeps LangSmith tracing disabled without requiring a key', () => {
+  it('defaults RAG tracing to enabled without requiring a key', () => {
     expect(
       parseEnvironment({
         NODE_ENV: 'test',
@@ -70,6 +70,7 @@ describe('parseEnvironment', () => {
       }),
     ).toMatchObject({
       langSmithTracing: false,
+      langSmithRagTracing: true,
       langSmithApiKey: undefined,
       langSmithProject: 'hcm-agentic-llmops',
     });
@@ -90,7 +91,7 @@ describe('parseEnvironment', () => {
     ).toBeUndefined();
   });
 
-  it('requires a LangSmith API key only when tracing is enabled', () => {
+  it('requires a LangSmith API key only when agent tracing is enabled', () => {
     expect(() =>
       parseEnvironment({
         NODE_ENV: 'test',
@@ -102,18 +103,6 @@ describe('parseEnvironment', () => {
         LANGSMITH_AGENT_TRACING: 'true',
       }),
     ).toThrow('LANGSMITH_API_KEY is required when LANGSMITH_AGENT_TRACING=true');
-
-    expect(() =>
-      parseEnvironment({
-        NODE_ENV: 'test',
-        PORT: '3010',
-        DATABASE_URL: 'postgresql://app:secret@localhost:5432/hcm',
-        AMQP_URL: 'amqp://localhost:5672',
-        OPENAI_API_KEY: 'unit-test-key',
-        WEBHOOK_API_KEY: 'unit-test-webhook-key-at-least-32-characters',
-        LANGSMITH_RAG_TRACING: 'true',
-      }),
-    ).toThrow('LANGSMITH_API_KEY is required when LANGSMITH_RAG_TRACING=true');
   });
 
   it.each([

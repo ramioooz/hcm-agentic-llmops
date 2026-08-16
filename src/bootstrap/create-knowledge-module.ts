@@ -4,8 +4,10 @@ import {
   OpenAiKnowledgeEmbeddings,
 } from '../adapters/openai-knowledge.adapter';
 import { KnowledgeController } from '../controllers/knowledge.controller';
+import { KnowledgeErrorCode } from '../enums/error.enum';
 import { createLangSmithRagTraceRecorder } from '../observability/langsmith-rag-trace-recorder';
 import { PinoApplicationLogger } from '../observability/pino-application-logger';
+import { ragTracingLogMessages } from '../observability/rag-tracing-log-messages';
 import { PrismaAgentRunRepository } from '../repositories/agent-run.repository';
 import { PrismaEmployeeRepository } from '../repositories/employee.repository';
 import { PrismaKnowledgeRepository } from '../repositories/knowledge.repository';
@@ -33,12 +35,23 @@ export function createKnowledgeModule(input: {
     apiKey: input.environment.openAiApiKey,
     model: input.environment.openAiEmbeddingModel,
   });
-  const recorder = input.environment.langSmithRagTracing
-    ? createLangSmithRagTraceRecorder({
-        apiKey: input.environment.langSmithApiKey as string,
-        projectName: input.environment.langSmithProject,
-      })
-    : undefined;
+  const tracingUnavailable =
+    input.environment.langSmithRagTracing && !input.environment.langSmithApiKey;
+  if (tracingUnavailable) {
+    input.logger.warn({
+      event: 'knowledge.trace.disabled',
+      status: 'DISABLED',
+      code: KnowledgeErrorCode.LangSmithApiKeyMissing,
+      message: ragTracingLogMessages.disabled,
+    });
+  }
+  const recorder =
+    input.environment.langSmithRagTracing && input.environment.langSmithApiKey
+      ? createLangSmithRagTraceRecorder({
+          apiKey: input.environment.langSmithApiKey,
+          projectName: input.environment.langSmithProject,
+        })
+      : undefined;
   const queries = new KnowledgeQueryService({
     repository,
     embeddings,
@@ -47,6 +60,7 @@ export function createKnowledgeModule(input: {
       model: input.environment.openAiModel,
     }),
     security,
+    ...(tracingUnavailable ? { tracingUnavailable: { logger: input.logger } } : {}),
     ...(recorder
       ? {
           tracing: {

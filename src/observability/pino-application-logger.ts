@@ -2,6 +2,7 @@ import pino, { type Logger } from 'pino';
 import { redactSensitiveData } from '../security/pii-redaction';
 import type { ApplicationLogger } from '../types/application-logger';
 import type { OperationalLogEntry } from '../types/operational-log-entry';
+import { ragTracingLogMessages } from './rag-tracing-log-messages';
 
 const sensitiveKeys = new Set([
   'cause',
@@ -50,18 +51,34 @@ function redact(value: unknown, key?: string): unknown {
   return value;
 }
 
+function redactEntry(entry: OperationalLogEntry): Record<string, unknown> {
+  const redacted = redact(entry) as Record<string, unknown>;
+  const safeMessage =
+    entry.event === 'knowledge.trace.disabled'
+      ? ragTracingLogMessages.disabled
+      : entry.event === 'knowledge.trace.skipped'
+        ? ragTracingLogMessages.skipped
+        : undefined;
+
+  if (safeMessage && entry.message === safeMessage) {
+    redacted.message = safeMessage;
+  }
+
+  return redacted;
+}
+
 export class PinoApplicationLogger implements ApplicationLogger {
   public constructor(private readonly logger: Logger = pino()) {}
 
   public info(entry: OperationalLogEntry): void {
-    this.logger.info(redact(entry) as Record<string, unknown>);
+    this.logger.info(redactEntry(entry));
   }
 
   public warn(entry: OperationalLogEntry): void {
-    this.logger.warn(redact(entry) as Record<string, unknown>);
+    this.logger.warn(redactEntry(entry));
   }
 
   public error(entry: OperationalLogEntry): void {
-    this.logger.error(redact(entry) as Record<string, unknown>);
+    this.logger.error(redactEntry(entry));
   }
 }

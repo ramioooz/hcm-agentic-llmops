@@ -41,7 +41,7 @@ const environmentSchema = z
       .transform(Number)
       .refine((value) => value >= 1 && value <= 10),
     LANGSMITH_AGENT_TRACING: z.enum(['true', 'false']).default('false'),
-    LANGSMITH_RAG_TRACING: z.enum(['true', 'false']).default('false'),
+    LANGSMITH_RAG_TRACING: z.enum(['true', 'false']).default('true'),
     LANGSMITH_API_KEY: z.preprocess(
       (value) => (value === '' ? undefined : value),
       z.string().min(1).optional(),
@@ -49,11 +49,7 @@ const environmentSchema = z
     LANGSMITH_PROJECT: z.string().min(1).default('hcm-agentic-llmops'),
   })
   .superRefine((environment, context) => {
-    if (
-      (environment.LANGSMITH_AGENT_TRACING === 'true' ||
-        environment.LANGSMITH_RAG_TRACING === 'true') &&
-      !environment.LANGSMITH_API_KEY
-    ) {
+    if (environment.LANGSMITH_AGENT_TRACING === 'true' && !environment.LANGSMITH_API_KEY) {
       context.addIssue({
         code: 'custom',
         path: ['LANGSMITH_API_KEY'],
@@ -81,9 +77,6 @@ export function parseEnvironment(
     if (langSmithKeyIssue) {
       if (input.LANGSMITH_AGENT_TRACING === 'true') {
         throw new Error('LANGSMITH_API_KEY is required when LANGSMITH_AGENT_TRACING=true');
-      }
-      if (input.LANGSMITH_RAG_TRACING === 'true') {
-        throw new Error('LANGSMITH_API_KEY is required when LANGSMITH_RAG_TRACING=true');
       }
     }
 
