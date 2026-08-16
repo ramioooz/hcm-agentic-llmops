@@ -7,7 +7,7 @@ type LangSmithRagRun = {
   id: string;
   name: string;
   run_type: 'chain';
-  project_name: string;
+  session_name: string;
   start_time: number;
   end_time: number;
   inputs: Record<string, unknown>;
@@ -19,7 +19,7 @@ type LangSmithRagRun = {
 };
 
 type LangSmithRagClient = {
-  createRun(run: LangSmithRagRun): Promise<void>;
+  batchIngestRuns(input: { runCreates: LangSmithRagRun[] }): Promise<void>;
 };
 
 export class LangSmithRagTraceRecorder implements RagTraceRecorder {
@@ -33,11 +33,11 @@ export class LangSmithRagTraceRecorder implements RagTraceRecorder {
       trace.startedAtMs,
       trace.traceId,
     ).dottedOrder;
-    await this.client.createRun({
+    const rootRun: LangSmithRagRun = {
       id: trace.traceId,
       name: 'hcm-rag-query',
       run_type: 'chain',
-      project_name: this.projectName,
+      session_name: this.projectName,
       start_time: trace.startedAtMs,
       end_time: trace.endedAtMs,
       inputs: {
@@ -66,19 +66,19 @@ export class LangSmithRagTraceRecorder implements RagTraceRecorder {
       },
       trace_id: trace.traceId,
       dotted_order: rootDottedOrder,
-    });
+    };
 
-    for (const [index, stage] of trace.stages.entries()) {
+    const stageRuns = trace.stages.map((stage, index): LangSmithRagRun => {
       const stageDottedOrder = convertToDottedOrderFormat(
         stage.startedAtMs,
         stage.id,
         index + 1,
       ).dottedOrder;
-      await this.client.createRun({
+      return {
         id: stage.id,
         name: stage.name,
         run_type: 'chain',
-        project_name: this.projectName,
+        session_name: this.projectName,
         start_time: stage.startedAtMs,
         end_time: stage.endedAtMs,
         inputs: stage.inputs,
@@ -93,8 +93,12 @@ export class LangSmithRagTraceRecorder implements RagTraceRecorder {
         parent_run_id: trace.traceId,
         trace_id: trace.traceId,
         dotted_order: `${rootDottedOrder}.${stageDottedOrder}`,
-      });
-    }
+      };
+    });
+
+    await this.client.batchIngestRuns({
+      runCreates: [rootRun, ...stageRuns],
+    });
   }
 }
 

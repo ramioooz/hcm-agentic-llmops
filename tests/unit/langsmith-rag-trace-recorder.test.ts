@@ -3,11 +3,11 @@ import type { RagTrace } from '../../src/types/rag-trace';
 
 describe('LangSmithRagTraceRecorder', () => {
   it('creates the required ordered hierarchy for a RAG parent run and its stages', async () => {
-    const runs: Array<Record<string, unknown>> = [];
+    const batches: Array<{ runCreates: Array<Record<string, unknown>> }> = [];
     const recorder = new LangSmithRagTraceRecorder(
       {
-        createRun: async (run) => {
-          runs.push(run);
+        batchIngestRuns: async (batch) => {
+          batches.push(batch);
         },
       },
       'hcm-agentic-llmops-test',
@@ -54,14 +54,18 @@ describe('LangSmithRagTraceRecorder', () => {
 
     await recorder.record(trace);
 
+    expect(batches).toHaveLength(1);
+    const runs = batches[0]?.runCreates ?? [];
     expect(runs).toHaveLength(3);
     expect(runs[0]).toMatchObject({
       id: trace.traceId,
+      session_name: 'hcm-agentic-llmops-test',
       trace_id: trace.traceId,
       dotted_order: '19700101T000001000001Z11111111-1111-4111-8111-111111111111',
     });
     expect(runs[1]).toMatchObject({
       id: trace.stages[0]?.id,
+      session_name: 'hcm-agentic-llmops-test',
       parent_run_id: trace.traceId,
       trace_id: trace.traceId,
       dotted_order:
@@ -69,6 +73,7 @@ describe('LangSmithRagTraceRecorder', () => {
     });
     expect(runs[2]).toMatchObject({
       id: trace.stages[1]?.id,
+      session_name: 'hcm-agentic-llmops-test',
       parent_run_id: trace.traceId,
       trace_id: trace.traceId,
       dotted_order:

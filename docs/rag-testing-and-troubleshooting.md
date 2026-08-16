@@ -57,6 +57,8 @@ A successful first index resembles:
 
 Run the command again to verify idempotency. Unchanged files produce `SKIPPED` rather than duplicate versions.
 
+`npm run db:seed` deletes the current knowledge records. Running the indexer afterward creates new document UUIDs. Always copy the latest IDs from the indexer output or the PostgreSQL query below; do not reuse an ID saved before a seed-and-reindex cycle.
+
 Start the API locally:
 
 ```bash
@@ -140,7 +142,7 @@ curl --request POST \
   --url http://localhost:3000/api/v1/knowledge/documents/EMPLOYEE_POLICY_DOCUMENT_ID/query \
   --header 'Content-Type: application/json' \
   --header 'X-Employee-Id: EMP-201' \
-  --data '{"query":"When is a fixed-term agreement reviewed?"}'
+  --data '{"query":"What is the annual leave allowance?"}'
 ```
 
 Representative response:
@@ -148,20 +150,44 @@ Representative response:
 ```json
 {
   "status": "ANSWERED",
-  "answer": "A fixed-term agreement is reviewed 60 days before its stated end date.",
+  "answer": "Eligible employees receive 24 days of paid annual leave per calendar year.",
   "sources": [
     {
       "documentId": "<employee-policy-document-id>",
       "documentTitle": "Fictional Employee Policy",
       "chunkId": "<employee-policy-chunk-id>",
-      "chunkIndex": 0,
-      "pageNumber": 1
+      "chunkIndex": 2,
+      "pageNumber": 3
     }
   ]
 }
 ```
 
-### 5.3 Insufficient evidence
+### 5.3 Missing or stale document identifier
+
+Use a UUID that is not present in the current active index:
+
+```bash
+curl --request POST \
+  --url http://localhost:3000/api/v1/knowledge/documents/00000000-0000-4000-8000-000000000099/query \
+  --header 'Content-Type: application/json' \
+  --header 'X-Employee-Id: EMP-201' \
+  --data '{"query":"What is the annual leave allowance?"}'
+```
+
+Expected response:
+
+```json
+{
+  "status": "FAILED",
+  "code": "KNOWLEDGE_DOCUMENT_NOT_FOUND",
+  "message": "The requested knowledge document was not found or has no active index."
+}
+```
+
+The API returns HTTP `404` before query embedding, preventing an unnecessary OpenAI call. A valid active document whose chunks do not qualify still returns `INSUFFICIENT_EVIDENCE`.
+
+### 5.4 Insufficient evidence
 
 ```bash
 curl --request POST \
@@ -183,7 +209,7 @@ Expected response:
 
 The API intentionally returns HTTP `200` because retrieval completed successfully but found no safe, sufficiently relevant evidence.
 
-### 5.4 Unsafe knowledge question
+### 5.5 Unsafe knowledge question
 
 ```bash
 curl --request POST \
@@ -205,7 +231,7 @@ Expected response:
 
 The guard rejects this request before query embedding, vector retrieval, or answer generation.
 
-### 5.5 Missing development identity
+### 5.6 Missing development identity
 
 ```bash
 curl --request POST \
@@ -224,7 +250,7 @@ Expected response:
 }
 ```
 
-### 5.6 Removed caller-controlled limit
+### 5.7 Removed caller-controlled limit
 
 Retrieval limits are server configuration. This obsolete request is rejected:
 
@@ -242,7 +268,7 @@ Expected response:
 {
   "status": "FAILED",
   "code": "KNOWLEDGE_QUERY_INVALID",
-  "message": "Provide a request body containing only a query of at most 2,000 characters."
+  "message": "Send only a non-empty query of at most 2,000 characters. The limit field is not supported because retrieval limits are configured by the server."
 }
 ```
 
@@ -283,6 +309,8 @@ After a knowledge query, filter the project for parent run `hcm-rag-query`. Conf
 
 Reached child runs appear in order as `rag.query_guard`, `rag.query_embedding`, `rag.vector_retrieval`, `rag.evidence_guard`, `rag.grounded_answer`, and `rag.output_validation`.
 
+The completed parent and reached child stages are sent through one awaited LangSmith batch. This preserves the hierarchy while avoiding one sequential network request per trace stage.
+
 If the API key is absent, the query still completes. Startup logs `knowledge.trace.disabled`, and each valid query logs `knowledge.trace.skipped` without including the question or employee identity.
 
 ## 8. How retrieval controls work
@@ -299,17 +327,18 @@ Do not lower the threshold to make one manual query pass. Evaluate representativ
 
 ## 9. Troubleshooting
 
-| Symptom                                                | Likely cause                                                                                                        | Action                                                                                                                    |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `KNOWLEDGE_DATABASE_READ_FAILED` during indexing       | PostgreSQL is unavailable, migrations are missing, or `DATABASE_URL` points to the wrong database.                  | Check `docker compose ps`, run `npm run db:migrate`, and verify `.env` without printing credentials.                      |
-| Index summary contains no PDFs                         | The command was not run from the repository root or `knowledge-documents/` contains no readable `.pdf` files.       | Run from the repository root and list the directory.                                                                      |
-| `KNOWLEDGE_EMBEDDING_FAILED`                           | Missing/invalid OpenAI key, model access, provider outage, or network failure.                                      | Verify `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, and connectivity.                                                      |
-| `EMBEDDING_DIMENSION_MISMATCH`                         | The configured embedding model no longer returns the stored vector width.                                           | Restore the configured model or perform a controlled reindex compatible with the schema.                                  |
-| Relevant-looking query returns `INSUFFICIENT_EVIDENCE` | No active chunks passed the similarity threshold, evidence was rejected by safety inspection, or indexing is stale. | Inspect active versions and LangSmith retrieval scores; reindex changed PDFs; tune only with evaluation evidence.         |
-| Answer cites only one PDF                              | Only one document produced qualifying or cited evidence.                                                            | Use the cross-document test question and inspect returned scores and citations.                                           |
-| `RAG_EXTERNAL_PROCESSING_DISABLED`                     | External embedding and answer calls are disabled.                                                                   | Set `RAG_EXTERNAL_PROCESSING_ENABLED=true` only in an approved environment and restart.                                   |
-| No LangSmith run appears                               | RAG tracing is disabled, the key is absent, the project differs, or trace delivery failed.                          | Check tracing variables and safe `knowledge.trace.disabled`, `knowledge.trace.skipped`, or `knowledge.trace.failed` logs. |
-| HTTP request with `limit` returns `400`                | Caller-controlled retrieval tuning was removed.                                                                     | Remove `limit`; configure retrieval through environment values.                                                           |
+| Symptom                                                      | Likely cause                                                                                                        | Action                                                                                                                    |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `KNOWLEDGE_DATABASE_READ_FAILED` during indexing             | PostgreSQL is unavailable, migrations are missing, or `DATABASE_URL` points to the wrong database.                  | Check `docker compose ps`, run `npm run db:migrate`, and verify `.env` without printing credentials.                      |
+| Index summary contains no PDFs                               | The command was not run from the repository root or `knowledge-documents/` contains no readable `.pdf` files.       | Run from the repository root and list the directory.                                                                      |
+| `KNOWLEDGE_EMBEDDING_FAILED`                                 | Missing/invalid OpenAI key, model access, provider outage, or network failure.                                      | Verify `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, and connectivity.                                                      |
+| `EMBEDDING_DIMENSION_MISMATCH`                               | The configured embedding model no longer returns the stored vector width.                                           | Restore the configured model or perform a controlled reindex compatible with the schema.                                  |
+| Relevant-looking query returns `INSUFFICIENT_EVIDENCE`       | No active chunks passed the similarity threshold, evidence was rejected by safety inspection, or indexing is stale. | Inspect active versions and LangSmith retrieval scores; reindex changed PDFs; tune only with evaluation evidence.         |
+| Document-scoped query returns `KNOWLEDGE_DOCUMENT_NOT_FOUND` | The ID is missing, inactive, or was copied before the latest seed-and-reindex cycle.                                | Copy the current document ID from `npm run knowledge:index` or the PostgreSQL document query.                             |
+| Answer cites only one PDF                                    | Only one document produced qualifying or cited evidence.                                                            | Use the cross-document test question and inspect returned scores and citations.                                           |
+| `RAG_EXTERNAL_PROCESSING_DISABLED`                           | External embedding and answer calls are disabled.                                                                   | Set `RAG_EXTERNAL_PROCESSING_ENABLED=true` only in an approved environment and restart.                                   |
+| No LangSmith run appears                                     | RAG tracing is disabled, the key is absent, the project differs, or trace delivery failed.                          | Check tracing variables and safe `knowledge.trace.disabled`, `knowledge.trace.skipped`, or `knowledge.trace.failed` logs. |
+| HTTP request with `limit` returns `400`                      | Caller-controlled retrieval tuning was removed.                                                                     | Remove `limit`; configure retrieval through environment values.                                                           |
 
 ## 10. Focused verification checklist
 
@@ -317,6 +346,7 @@ Do not lower the threshold to make one manual query pass. Evaluate representativ
 - [ ] PostgreSQL contains two active documents and their active chunks.
 - [ ] Cross-document query returns facts and sources from both PDFs.
 - [ ] Document-scoped query returns only the requested document.
+- [ ] Missing or stale document scope returns `404` before embedding.
 - [ ] Unsupported policy question returns `INSUFFICIENT_EVIDENCE`.
 - [ ] Unsafe question is rejected before embedding and retrieval.
 - [ ] Missing identity returns `AUTHENTICATION_REQUIRED`.
