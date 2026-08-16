@@ -252,6 +252,8 @@ docker compose exec api npm run knowledge:index
 
 The first local run reports `INDEXED` or `UPDATED`. The optional unchanged run reports `SKIPPED`; it does not create duplicates.
 
+`npm run db:seed` clears the knowledge index. The next `npm run knowledge:index` creates new document UUIDs, so copy current IDs from the indexer output or PostgreSQL before using the document-scoped endpoint. A missing or stale scope returns `404 KNOWLEDGE_DOCUMENT_NOT_FOUND` before an OpenAI call.
+
 ```bash
 curl --request POST \
   --url http://localhost:3000/api/v1/knowledge/query \
@@ -325,6 +327,7 @@ LangSmith uses explicit recorders instead of global automatic LangChain tracing:
 
 - Agent traces include the exact raw query, normalized intent, graph path, tools, authorization, guardrail result, latency, prompt version, and model.
 - RAG traces include the raw question and answer, scope, retrieval metadata, citations, guard outcomes, models, timing, and stable failure code—but not complete retrieved chunks.
+- A completed RAG trace and its child stages are submitted through one awaited LangSmith batch rather than sequential network requests.
 
 RAG tracing is enabled by default. It sends traces only when `LANGSMITH_API_KEY` is configured. Without the key, the API starts and answers knowledge queries normally while emitting safe warnings that tracing is disabled or skipped; those warnings exclude the raw question and employee identity. Agent tracing remains disabled by default and requires the key when enabled.
 

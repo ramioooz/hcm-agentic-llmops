@@ -23,6 +23,7 @@
 ### Task 1: Improve validation and reject stale document scopes
 
 **Files:**
+
 - Modify: `src/controllers/knowledge.controller.ts`
 - Modify: `src/types/knowledge.ts`
 - Modify: `src/repositories/knowledge.repository.ts`
@@ -31,6 +32,7 @@
 - Modify: `tests/unit/knowledge-query.service.test.ts`
 
 **Interfaces:**
+
 - Consumes: existing `KnowledgeErrorCode.DocumentNotFound` and strict knowledge-query schema.
 - Produces: `KnowledgeRepository.hasActiveDocument(documentId: string): Promise<boolean>` and public `KnowledgeController.handleQuery` for isolated controller verification.
 
@@ -109,10 +111,7 @@ public async hasActiveDocument(documentId: string): Promise<boolean> {
 Change the service repository dependency to include `hasActiveDocument`. After `rag.query_guard` succeeds and before `rag.query_embedding`, add:
 
 ```ts
-if (
-  input.documentId &&
-  !(await this.dependencies.repository.hasActiveDocument(input.documentId))
-) {
+if (input.documentId && !(await this.dependencies.repository.hasActiveDocument(input.documentId))) {
   throw new ApplicationError(KnowledgeErrorCode.DocumentNotFound);
 }
 ```
@@ -158,10 +157,12 @@ git commit -m "fix: improve scoped RAG query feedback"
 ### Task 2: Batch LangSmith RAG trace delivery
 
 **Files:**
+
 - Modify: `src/observability/langsmith-rag-trace-recorder.ts`
 - Modify: `tests/unit/langsmith-rag-trace-recorder.test.ts`
 
 **Interfaces:**
+
 - Consumes: the existing `RagTrace` parent and ordered stage records.
 - Produces: one `batchIngestRuns({ runCreates })` call containing the unchanged root and child run payloads.
 
@@ -235,10 +236,12 @@ git commit -m "perf: batch LangSmith RAG trace delivery"
 ### Task 3: Update RAG guidance and verify the complete change
 
 **Files:**
+
 - Modify: `README.md`
 - Modify: `docs/rag-testing-and-troubleshooting.md`
 
 **Interfaces:**
+
 - Consumes: the new validation message, `404` contract, and batched trace behavior.
 - Produces: copyable testing guidance that always discovers current document IDs after indexing.
 
