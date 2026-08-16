@@ -71,6 +71,25 @@ With `npm run dev`, the API uses `PORT` and listens on `http://localhost:3000` w
 
 With Docker Compose, the API process still listens on container port `3000`, while `API_PORT` controls the host mapping. The default host URL is `http://localhost:3300`.
 
+## Startup diagnostics
+
+Startup failures are written to the terminal for the operator who must correct them. Known failures include both the cause and the next action. For example, starting a second local API process on the same port reports:
+
+```text
+API failed to start [EADDRINUSE]: port 3300 is already in use.
+Fix: stop the existing process or configure a different PORT.
+```
+
+Other mapped diagnostics cover unavailable PostgreSQL (`P1001`), refused dependency connections (`ECONNREFUSED`), port permissions (`EACCES`), and invalid `.env` configuration. Check the relevant Docker service and connection variable when a dependency is unavailable:
+
+```bash
+docker compose ps
+docker compose logs postgres
+docker compose logs rabbitmq
+```
+
+Unexpected startup failures retain their error code and sanitized message so they remain diagnosable. Connection-string passwords, bearer credentials, API keys, tokens, and secrets are masked. Development output includes a sanitized stack trace; production output omits stack traces.
+
 ## Configuration sources
 
 - `.env.example` provides the committed development template.
