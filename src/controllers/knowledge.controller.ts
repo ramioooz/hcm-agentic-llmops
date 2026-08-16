@@ -79,13 +79,14 @@ export class KnowledgeController implements HttpController {
     next();
   };
 
-  private readonly handleQuery = async (request: Request, response: Response): Promise<void> => {
+  public readonly handleQuery = async (request: Request, response: Response): Promise<void> => {
     const parsed = querySchema.safeParse(request.body);
     if (!parsed.success) {
       response.status(400).json({
         status: 'FAILED',
         code: 'KNOWLEDGE_QUERY_INVALID',
-        message: 'Provide a request body containing only a query of at most 2,000 characters.',
+        message:
+          'Send only a non-empty query of at most 2,000 characters. The limit field is not supported because retrieval limits are configured by the server.',
       });
       return;
     }
@@ -104,9 +105,16 @@ export class KnowledgeController implements HttpController {
         }),
       );
     } catch (error) {
-      const unsafe =
-        resolveApplicationErrorCode(error, KnowledgeErrorCode.QueryFailed) ===
-        KnowledgeErrorCode.UnsafeQuery;
+      const code = resolveApplicationErrorCode(error, KnowledgeErrorCode.QueryFailed);
+      if (code === KnowledgeErrorCode.DocumentNotFound) {
+        response.status(404).json({
+          status: 'FAILED',
+          code,
+          message: 'The requested knowledge document was not found or has no active index.',
+        });
+        return;
+      }
+      const unsafe = code === KnowledgeErrorCode.UnsafeQuery;
       response.status(unsafe ? 403 : 500).json({
         status: 'FAILED',
         code: unsafe ? KnowledgeErrorCode.UnsafeQuery : KnowledgeErrorCode.QueryFailed,

@@ -122,6 +122,7 @@ describe('KnowledgeDirectoryIndexer', () => {
     });
     const ingestion = new KnowledgeIngestionService({
       repository: {
+        hasActiveDocument: jest.fn(),
         findActiveIndexBySourcePath,
         publishVersion,
         searchActiveChunks: jest.fn(),

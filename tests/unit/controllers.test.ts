@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { AgentController } from '../../src/controllers/agent.controller';
+import { KnowledgeController } from '../../src/controllers/knowledge.controller';
 import type { ApplicationLogger } from '../../src/types/application-logger';
 import type { OperationalLogEntry } from '../../src/types/operational-log-entry';
 import { HealthController } from '../../src/controllers/health.controller';
@@ -723,6 +724,34 @@ describe('AgentController', () => {
       httpStatus: 200,
     });
     expect(logs.warn).not.toHaveBeenCalled();
+  });
+});
+
+describe('KnowledgeController', () => {
+  test('explains that caller-controlled retrieval limits are unsupported', async () => {
+    const controller = new KnowledgeController({
+      employees: { findByEmployeeCode: jest.fn() },
+      enabled: true,
+    });
+    const captured = captureResponse();
+
+    await controller.handleQuery(
+      requestWith({
+        body: {
+          query: 'How many remote days are allowed?',
+          limit: 5,
+        },
+      }),
+      captured.response,
+    );
+
+    expect(captured.statusCode).toBe(400);
+    expect(captured.body).toEqual({
+      status: 'FAILED',
+      code: 'KNOWLEDGE_QUERY_INVALID',
+      message:
+        'Send only a non-empty query of at most 2,000 characters. The limit field is not supported because retrieval limits are configured by the server.',
+    });
   });
 });
 

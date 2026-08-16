@@ -21,6 +21,14 @@ function vectorLiteral(values: number[]): string {
 export class PrismaKnowledgeRepository implements KnowledgeRepository {
   public constructor(private readonly database: PrismaClient) {}
 
+  public async hasActiveDocument(documentId: string): Promise<boolean> {
+    const document = await this.database.knowledgeDocument.findUnique({
+      where: { id: documentId },
+      select: { activeIndexVersion: true },
+    });
+    return Boolean(document && document.activeIndexVersion > 0);
+  }
+
   public async findActiveIndexBySourcePath(sourcePath: string) {
     const document = await this.database.knowledgeDocument.findUnique({
       where: { sourcePath },

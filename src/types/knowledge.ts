@@ -38,6 +38,7 @@ export type RetrievedKnowledgeChunk = {
 export type KnowledgeSource = Omit<RetrievedKnowledgeChunk, 'content' | 'score'>;
 
 export interface KnowledgeRepository {
+  hasActiveDocument(documentId: string): Promise<boolean>;
   findActiveIndexBySourcePath(sourcePath: string): Promise<{
     documentId: string;
     contentHash: string;

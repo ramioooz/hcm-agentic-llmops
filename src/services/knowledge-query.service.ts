@@ -64,7 +64,7 @@ async function runStage<T>(input: {
 export class KnowledgeQueryService {
   public constructor(
     private readonly dependencies: {
-      repository: Pick<KnowledgeRepository, 'searchActiveChunks'>;
+      repository: Pick<KnowledgeRepository, 'hasActiveDocument' | 'searchActiveChunks'>;
       embeddings: Pick<KnowledgeEmbeddingProvider, 'embedQuery'>;
       answers: KnowledgeAnswerGenerator;
       retrieval: RagRetrievalSettings;
@@ -123,6 +123,13 @@ export class KnowledgeQueryService {
         }),
       });
       if (!queryRisk.safe) throw new ApplicationError(KnowledgeErrorCode.UnsafeQuery);
+
+      if (
+        input.documentId &&
+        !(await this.dependencies.repository.hasActiveDocument(input.documentId))
+      ) {
+        throw new ApplicationError(KnowledgeErrorCode.DocumentNotFound);
+      }
 
       const embedding = await runStage({
         trace,

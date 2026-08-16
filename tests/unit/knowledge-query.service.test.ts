@@ -12,14 +12,18 @@ describe('KnowledgeQueryService', () => {
       content: 'Eligible employees may work remotely for two days each week.',
       score: 0.91,
     };
-    const repository = { searchActiveChunks: jest.fn().mockResolvedValue([evidence]) };
+    const repository = {
+      hasActiveDocument: jest.fn().mockResolvedValue(false),
+      searchActiveChunks: jest.fn().mockResolvedValue([evidence]),
+    };
+    const embedQuery = jest.fn().mockResolvedValue([0.25, 0.75]);
     const generate = jest.fn().mockResolvedValue({
       answer: 'Eligible employees may work remotely for two days each week.',
       citedChunkIds: ['chunk-2'],
     });
     const dependencies = {
       repository,
-      embeddings: { embedQuery: jest.fn().mockResolvedValue([0.25, 0.75]) },
+      embeddings: { embedQuery },
       answers: { generate },
       security: {
         inspect: jest.fn().mockResolvedValue({ safe: true as const }),
@@ -54,12 +58,31 @@ describe('KnowledgeQueryService', () => {
       query: 'How many remote days are allowed?',
       evidence: [evidence],
     });
+
+    await expect(
+      service.query({
+        query: 'What is the annual leave allowance?',
+        documentId: 'stale-document-id',
+        securityContext: {
+          correlationId: '00000000-0000-4000-8000-000000000046',
+          actorEmployeeCode: 'EMP-201',
+          requestSource: 'HTTP',
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'KNOWLEDGE_DOCUMENT_NOT_FOUND' });
+
+    expect(repository.hasActiveDocument).toHaveBeenCalledWith('stale-document-id');
+    expect(embedQuery).toHaveBeenCalledTimes(1);
+    expect(repository.searchActiveChunks).toHaveBeenCalledTimes(1);
   });
 
   it('continues the query and safely logs when LangSmith tracing has no API key', async () => {
     const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
     const dependencies = {
-      repository: { searchActiveChunks: jest.fn().mockResolvedValue([]) },
+      repository: {
+        hasActiveDocument: jest.fn().mockResolvedValue(true),
+        searchActiveChunks: jest.fn().mockResolvedValue([]),
+      },
       embeddings: { embedQuery: jest.fn().mockResolvedValue([0.25, 0.75]) },
       answers: {
         generate: jest.fn().mockResolvedValue({ answer: '', citedChunkIds: [] }),
@@ -107,6 +130,7 @@ describe('KnowledgeQueryService', () => {
 
   it('returns grounded active-version sources and a stable insufficient-evidence result', async () => {
     const repository = {
+      hasActiveDocument: jest.fn().mockResolvedValue(true),
       searchActiveChunks: jest
         .fn()
         .mockResolvedValueOnce([
