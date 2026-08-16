@@ -5,7 +5,7 @@ describe('KnowledgeQueryService', () => {
   it('delegates server-owned relevance settings and uses repository-qualified evidence', async () => {
     const evidence = {
       documentId: 'doc-policy',
-      documentTitle: 'Fictional Flexible Work Policy',
+      documentTitle: 'Mock Flexible Work Policy',
       chunkId: 'chunk-2',
       chunkIndex: 2,
       pageNumber: 3,
@@ -102,7 +102,7 @@ describe('KnowledgeQueryService', () => {
 
     await expect(
       service.query({
-        query: 'What is the fictional remote-work allowance?',
+        query: 'What is the remote-work allowance?',
         securityContext: {
           correlationId: '00000000-0000-4000-8000-000000000045',
           actorEmployeeCode: 'EMP-201',
@@ -123,7 +123,7 @@ describe('KnowledgeQueryService', () => {
         'The RAG query was not sent to LangSmith because LANGSMITH_API_KEY is not configured.',
     });
     expect(JSON.stringify(logger.warn.mock.calls)).not.toContain(
-      'What is the fictional remote-work allowance?',
+      'What is the remote-work allowance?',
     );
     expect(JSON.stringify(logger.warn.mock.calls)).not.toContain('EMP-201');
   });
@@ -136,7 +136,7 @@ describe('KnowledgeQueryService', () => {
         .mockResolvedValueOnce([
           {
             documentId: 'doc-policy',
-            documentTitle: 'Fictional Flexible Work Policy',
+            documentTitle: 'Mock Flexible Work Policy',
             chunkId: 'chunk-2',
             chunkIndex: 2,
             pageNumber: 3,
@@ -148,7 +148,7 @@ describe('KnowledgeQueryService', () => {
         .mockResolvedValueOnce([
           {
             documentId: 'doc-malicious',
-            documentTitle: 'Fictional Compromised Policy',
+            documentTitle: 'Mock Compromised Policy',
             chunkId: 'chunk-malicious',
             chunkIndex: 0,
             pageNumber: 1,
@@ -243,7 +243,7 @@ describe('KnowledgeQueryService', () => {
       sources: [
         {
           documentId: 'doc-policy',
-          documentTitle: 'Fictional Flexible Work Policy',
+          documentTitle: 'Mock Flexible Work Policy',
           chunkId: 'chunk-2',
           chunkIndex: 2,
           pageNumber: 3,

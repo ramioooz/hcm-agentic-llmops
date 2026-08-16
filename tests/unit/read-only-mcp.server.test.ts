@@ -50,11 +50,11 @@ describe('read-only MCP server', () => {
       knowledgeQueries: {
         query: async () => ({
           status: 'ANSWERED' as const,
-          answer: 'The fictional policy allows two remote days.',
+          answer: 'The policy allows two remote days.',
           sources: [
             {
               documentId: '00000000-0000-4000-8000-000000000041',
-              documentTitle: 'Fictional Policy',
+              documentTitle: 'Mock Policy',
               chunkId: '00000000-0000-4000-8000-000000000001',
               chunkIndex: 0,
               pageNumber: 1,
@@ -109,7 +109,7 @@ describe('read-only MCP server', () => {
       isError: false,
       structuredContent: {
         status: 'ANSWERED',
-        answer: 'The fictional policy allows two remote days.',
+        answer: 'The policy allows two remote days.',
         correlationId: '00000000-0000-4000-8000-000000000042',
       },
     });

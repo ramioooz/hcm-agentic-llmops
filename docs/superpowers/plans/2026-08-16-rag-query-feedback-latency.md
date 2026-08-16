@@ -290,7 +290,7 @@ Query a random UUID through `/api/v1/knowledge/documents/:documentId/query`.
 Expected: `404 KNOWLEDGE_DOCUMENT_NOT_FOUND` before OpenAI embedding.
 
 Copy the current employee-policy UUID from `npm run knowledge:index` or PostgreSQL and ask for the annual-leave allowance.
-Expected: `ANSWERED` with a source from the fictional employee policy.
+Expected: `ANSWERED` with a source from the mock employee policy.
 
 Run one cross-document query with LangSmith enabled.
 Expected: one parent trace with ordered children and materially lower trace-delivery overhead than the prior sequential implementation.

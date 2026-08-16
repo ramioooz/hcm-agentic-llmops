@@ -9,7 +9,7 @@ The system separates language understanding from business execution:
 - **Database changes and external actions:** Prisma repositories control PostgreSQL writes, LangGraph interrupts require human approval before leave submission, and explicit adapters handle PDF generation, RabbitMQ events, and manager notifications.
 
 > [!IMPORTANT]
-> This repository is a development and learning implementation, not a production HCM system. `X-Employee-Id` is a mock development identity, manager notifications use a development adapter, and the seeded employee and policy data is fictional.
+> This repository is a development and learning implementation, not a production HCM system. `X-Employee-Id` is a mock development identity, manager notifications use a development adapter, and all seeded employee and policy data is synthetic.
 
 [![Node.js 22](https://img.shields.io/badge/Node.js-22-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -111,7 +111,7 @@ docker compose up -d --build
 docker compose exec api npm run db:seed
 ```
 
-The API listens on `http://localhost:3300`. The process uses container port `3000`; `API_PORT=3300` controls only the host mapping. Seeding resets the fictional runtime and indexed knowledge data, so never use it against data that must be preserved.
+The API listens on `http://localhost:3300`. The process uses container port `3000`; `API_PORT=3300` controls only the host mapping. Seeding resets the sample runtime and indexed knowledge data, so never use it against data that must be preserved.
 
 ### Check the service
 
@@ -331,7 +331,7 @@ LangSmith uses explicit recorders instead of global automatic LangChain tracing:
 
 RAG tracing is enabled by default. It sends traces only when `LANGSMITH_API_KEY` is configured. Without the key, the API starts and answers knowledge queries normally while emitting safe warnings that tracing is disabled or skipped; those warnings exclude the raw question and employee identity. Agent tracing remains disabled by default and requires the key when enabled.
 
-Enable explicit traces only for approved fictional development data. See [explicit versus automatic tracing](docs/configuration.md#explicit-versus-automatic-tracing).
+Enable explicit traces only for approved mock development data. See [explicit versus automatic tracing](docs/configuration.md#explicit-versus-automatic-tracing).
 
 The intent prompt is source-controlled as `hcm-intent-v3` and included in agent trace metadata.
 
@@ -343,7 +343,7 @@ npm run agent:studio
 npm run eval:agent
 ```
 
-Studio exposes `hcm_agent`, `onboarding`, and `leave` using production graph builders with fictional offline dependencies. The evaluation runner uses fakes and makes no live OpenAI call; upload occurs only when explicitly enabled.
+Studio exposes `hcm_agent`, `onboarding`, and `leave` using production graph builders with mock offline dependencies. The evaluation runner uses fakes and makes no live OpenAI call; upload occurs only when explicitly enabled.
 
 ## Interfaces and automation
 
@@ -378,13 +378,13 @@ The MCP endpoint exposes exactly two read-only tools: `get_employee_onboarding_s
 
 ## Data and repository structure
 
-| Data group | Tables                                               | Purpose                                                |
-| ---------- | ---------------------------------------------------- | ------------------------------------------------------ |
-| Employees  | `employees`, `onboarding_review_periods`             | Fictional identity, roles, reporting, and review dates |
-| Leave      | `leave_policies`, `leave_balances`, `leave_requests` | Policy, eligibility, approved requests, and PDFs       |
-| Audit      | `agent_runs`, `agent_run_steps`, `security_events`   | Durable workflow and security evidence                 |
-| Delivery   | `processed_events`                                   | Event idempotency, attempts, hashes, and outcomes      |
-| Knowledge  | `knowledge_documents`, `knowledge_chunks`            | Active policy versions, text, sources, and vectors     |
+| Data group | Tables                                               | Purpose                                             |
+| ---------- | ---------------------------------------------------- | --------------------------------------------------- |
+| Employees  | `employees`, `onboarding_review_periods`             | Sample identity, roles, reporting, and review dates |
+| Leave      | `leave_policies`, `leave_balances`, `leave_requests` | Policy, eligibility, approved requests, and PDFs    |
+| Audit      | `agent_runs`, `agent_run_steps`, `security_events`   | Durable workflow and security evidence              |
+| Delivery   | `processed_events`                                   | Event idempotency, attempts, hashes, and outcomes   |
+| Knowledge  | `knowledge_documents`, `knowledge_chunks`            | Active policy versions, text, sources, and vectors  |
 
 LangGraph owns separate checkpoint tables. See the [data-model guide](docs/data-model.md) for the ER diagram, PII classification, seed records, and migrations.
 
@@ -410,7 +410,7 @@ src/
 ├── tools/           Typed onboarding, leave, and knowledge tools
 └── triggers/        Schedule, webhook, and RabbitMQ adapters
 
-prisma/              Schema, migrations, and fictional seed data
+prisma/              Schema, migrations, and synthetic seed data
 knowledge-documents/ Repository-managed policy PDFs
 tests/unit/           Unit tests with fake external dependencies
 docs/                 Architecture, configuration, data, API, indexing, and usage guides
@@ -445,7 +445,7 @@ Live infrastructure paths are documented for manual verification in the [usage g
 - Manager notifications use a development adapter.
 - Policy Q&A is exposed through the knowledge API and MCP, not the conversational supervisor.
 - External RAG processing runs only for explicit indexing or query actions.
-- LangSmith tracing is opt-in and intended only for fictional development data.
+- LangSmith tracing is opt-in and intended only for mock development data.
 - Leave calculations use Monday–Friday and no public-holiday calendar.
 - Leave PDFs are stored in PostgreSQL rather than object storage.
 - Automated coverage is focused on unit tests, not broad integration, load, or fault-injection suites.
