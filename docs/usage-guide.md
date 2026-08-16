@@ -4,14 +4,14 @@ This is the complete local playbook for starting the service and verifying onboa
 
 See the [configuration reference](configuration.md) for every environment variable, the [knowledge-indexing guide](knowledge-indexing.md) for PDF publication behavior, and [RAG testing and troubleshooting](rag-testing-and-troubleshooting.md) for complete policy-query verification.
 
-## Runtime and fictional identities
+## Runtime and mock identities
 
 | Runtime                      | Base URL                |
 | ---------------------------- | ----------------------- |
 | Local `npm run dev`          | `http://localhost:3000` |
 | Docker Compose `api` service | `http://localhost:3300` |
 
-Replace port `3000` with `3300` for the containerized API. The examples use fictional identities resolved from PostgreSQL:
+Replace port `3000` with `3300` for the containerized API. The examples use mock identities resolved from PostgreSQL:
 
 | Employee  | Development access | Reporting relationship                                |
 | --------- | ------------------ | ----------------------------------------------------- |
@@ -31,7 +31,7 @@ cp .env.example .env
 docker compose up -d postgres rabbitmq
 ```
 
-Set `OPENAI_API_KEY` and a random `WEBHOOK_API_KEY` of at least 32 characters in `.env`, then prepare the fictional database:
+Set `OPENAI_API_KEY` and a random `WEBHOOK_API_KEY` of at least 32 characters in `.env`, then prepare the sample database:
 
 ```bash
 npm run db:generate
@@ -162,7 +162,7 @@ To verify thread ownership, create an ambiguous thread as `EMP-200`, then send i
 
 ## Verify annual leave and PDF generation
 
-Create dates far enough in the future for the fictional notice rule:
+Create dates far enough in the future for the sample leave policy's notice rule:
 
 ```bash
 LEAVE_START_DATE=$(node -e "const d=new Date(); d.setUTCDate(d.getUTCDate()+14); console.log(d.toISOString().slice(0,10))")
@@ -214,7 +214,7 @@ For Docker Compose:
 docker compose exec api npm run knowledge:index
 ```
 
-The included fictional corpus contains `fictional-employee-policy.pdf` and `fictional-home-office-policy.pdf`. The first run reports `INDEXED`; the optional unchanged run reports `SKIPPED`.
+The included mock corpus contains `mock-employee-policy.pdf` and `mock-home-office-policy.pdf`. The first run reports `INDEXED`; the optional unchanged run reports `SKIPPED`.
 
 ```bash
 curl --request POST \
@@ -224,7 +224,7 @@ curl --request POST \
   --data '{"query":"How many remote-working days are allowed each week, and what home-office equipment allowance is available?"}'
 ```
 
-Expected: `ANSWERED` with sources from both fictional PDFs. Use `POST /api/v1/knowledge/documents/DOCUMENT_ID/query` to restrict retrieval to one active document.
+Expected: `ANSWERED` with sources from both mock PDFs. Use `POST /api/v1/knowledge/documents/DOCUMENT_ID/query` to restrict retrieval to one active document.
 
 For full successful and failure examples, expected response bodies, retrieval-setting explanations, MCP checks, LangSmith inspection, and database troubleshooting, use the dedicated [RAG testing and troubleshooting guide](rag-testing-and-troubleshooting.md).
 
@@ -293,7 +293,7 @@ curl --request POST \
 
 Expected: HTTP `202` after publisher confirmation. RabbitMQ uses manual acknowledgement, bounded retries, and dead-letters exhausted deliveries.
 
-The scheduler is disabled by default. Set `SCHEDULER_ENABLED=true` to run daily at 09:00 `Asia/Dubai` using the configured fictional automation actor.
+The scheduler is disabled by default. Set `SCHEDULER_ENABLED=true` to run daily at 09:00 `Asia/Dubai` using the configured development automation actor.
 
 ## Inspect observability and audit data
 
@@ -324,7 +324,7 @@ Rejected requests should have safe run, step, and security-event codes without r
 
 ## Inspect tracing, Studio, and evaluation
 
-Agent tracing is off by default. RAG tracing is on by default and, when `LANGSMITH_API_KEY` is configured, includes raw knowledge questions and generated answers. If the key is absent, the API continues normally and logs that RAG tracing was skipped without logging the question or employee identity. Use only fictional development data when configuring LangSmith and see the [configuration reference](configuration.md#explicit-versus-automatic-tracing).
+Agent tracing is off by default. RAG tracing is on by default and, when `LANGSMITH_API_KEY` is configured, includes raw knowledge questions and generated answers. If the key is absent, the API continues normally and logs that RAG tracing was skipped without logging the question or employee identity. Use only mock development data when configuring LangSmith and see the [configuration reference](configuration.md#explicit-versus-automatic-tracing).
 
 ```bash
 # Inspect the production graph topology in LangGraph Studio

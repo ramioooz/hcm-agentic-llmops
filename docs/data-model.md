@@ -52,7 +52,7 @@ PROCESSED_EVENTS {
 
 ## Seed records
 
-The seed command creates fictional records:
+The seed command creates sample records:
 
 - `EMP-100`: HR partner.
 - `EMP-200`: Engineering manager.
@@ -62,7 +62,7 @@ The seed command creates fictional records:
 
 The dates are calculated relative to the seed date so the examples remain useful after the repository is cloned.
 
-The seed also creates an `ANNUAL` policy with a 20-working-day allowance, Monday–Friday workweek, three working days of notice, ten consecutive working days maximum, and holiday exclusion. Fictional current-year and next-year balances are created for `EMP-200`, `EMP-201`, and `EMP-202`; no leave request is seeded. The agent writes a request only after approval and stores its generated PDF in `leave_requests.document_pdf`; `approval_thread_id` prevents duplicate submissions.
+The seed also creates an `ANNUAL` policy with a 20-working-day allowance, Monday–Friday workweek, three working days of notice, ten consecutive working days maximum, and holiday exclusion. Sample balances for the current and next calendar years are created for `EMP-200`, `EMP-201`, and `EMP-202`; no leave request is seeded. The agent writes a request only after approval and stores its generated PDF in `leave_requests.document_pdf`; `approval_thread_id` prevents duplicate submissions.
 
 ### Seeded reporting story
 
@@ -86,7 +86,7 @@ The HCM agent service writes run records through the Prisma-backed agent-run rep
 
 `npm run db:migrate` runs Prisma's deployment command. It applies each migration that is not already recorded in PostgreSQL's `_prisma_migrations` table and does nothing when the database is current. It is safe to run repeatedly, but it does not undo or repair a changed migration.
 
-`npm run db:seed` is idempotent in its final result: it resets processed events, audit data, leave data, knowledge documents and cascading chunks, onboarding periods, and employees before recreating the fictional HCM sample set relative to today's date. Deleting knowledge documents before employees respects the creator foreign key. Because the seed clears the active knowledge index, run `npm run knowledge:index` afterward. This is intentionally a development reset and must not be run against data that should be preserved.
+`npm run db:seed` is idempotent in its final result: it resets processed events, audit data, leave data, knowledge documents and cascading chunks, onboarding periods, and employees before recreating the synthetic HCM sample set relative to today's date. Deleting knowledge documents before employees respects the creator foreign key. Because the seed clears the active knowledge index, run `npm run knowledge:index` afterward. This is intentionally a development reset and must not be run against data that should be preserved.
 
 ## Identifiers and traceability
 

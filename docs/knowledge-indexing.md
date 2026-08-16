@@ -96,16 +96,16 @@ The command finishes with a `SUMMARY` line. Any per-file `FAILED` result makes t
 Representative first run:
 
 ```json
-{"sourcePath":"knowledge-documents/fictional-employee-policy.pdf","status":"INDEXED","documentId":"<employee-policy-document-id>","activeIndexVersion":1,"chunkCount":5}
-{"sourcePath":"knowledge-documents/fictional-home-office-policy.pdf","status":"INDEXED","documentId":"<home-office-policy-document-id>","activeIndexVersion":1,"chunkCount":3}
+{"sourcePath":"knowledge-documents/mock-employee-policy.pdf","status":"INDEXED","documentId":"<employee-policy-document-id>","activeIndexVersion":1,"chunkCount":5}
+{"sourcePath":"knowledge-documents/mock-home-office-policy.pdf","status":"INDEXED","documentId":"<home-office-policy-document-id>","activeIndexVersion":1,"chunkCount":3}
 {"status":"SUMMARY","INDEXED":2}
 ```
 
 Representative unchanged run:
 
 ```json
-{"sourcePath":"knowledge-documents/fictional-employee-policy.pdf","status":"SKIPPED","documentId":"<employee-policy-document-id>"}
-{"sourcePath":"knowledge-documents/fictional-home-office-policy.pdf","status":"SKIPPED","documentId":"<home-office-policy-document-id>"}
+{"sourcePath":"knowledge-documents/mock-employee-policy.pdf","status":"SKIPPED","documentId":"<employee-policy-document-id>"}
+{"sourcePath":"knowledge-documents/mock-home-office-policy.pdf","status":"SKIPPED","documentId":"<home-office-policy-document-id>"}
 {"status":"SUMMARY","SKIPPED":2}
 ```
 
@@ -134,14 +134,14 @@ The following codes can be emitted by the repository index command or its ingest
 
 `KNOWLEDGE_FILE_TYPE_UNSUPPORTED` is a lower-level ingestion validation error. The repository directory command discovers PDFs only and silently ignores other extensions, so operators should not expect that code for a non-PDF file placed in `knowledge-documents/`.
 
-## Included fictional corpus
+## Included mock corpus
 
-| Source PDF                         | Pages | Main topics                                                               |
-| ---------------------------------- | ----: | ------------------------------------------------------------------------- |
-| `fictional-employee-policy.pdf`    |     4 | Contracts, flexible work, leave, development support, and business travel |
-| `fictional-home-office-policy.pdf` |     3 | Home-office allowance, remote-work security, reimbursement, and assets    |
+| Source PDF                    | Pages | Main topics                                                               |
+| ----------------------------- | ----: | ------------------------------------------------------------------------- |
+| `mock-employee-policy.pdf`    |     4 | Contracts, flexible work, leave, development support, and business travel |
+| `mock-home-office-policy.pdf` |     3 | Home-office allowance, remote-work security, reimbursement, and assets    |
 
-The corpus is fictional and intended for local development and demonstrations. Run the indexer again after adding, changing, or renaming a PDF, and after `npm run db:seed` because the seed resets indexed knowledge rows.
+The corpus contains synthetic Mock policy documents intended for local development and demonstrations. Run the indexer again after adding, changing, or renaming a PDF, and after `npm run db:seed` because the seed resets indexed knowledge rows.
 
 ## Implementation locations
 

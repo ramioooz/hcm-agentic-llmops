@@ -17,7 +17,7 @@ describe('LangSmithRagTraceRecorder', () => {
       correlationId: '22222222-2222-4222-8222-222222222222',
       actorEmployeeCode: 'EMP-201',
       source: 'HTTP',
-      question: 'What is the fictional remote-work policy?',
+      question: 'What is the remote-work policy?',
       answer: 'Employees may work remotely two days each week.',
       candidateLimit: 8,
       minimumSimilarity: 0.5,

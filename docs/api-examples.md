@@ -77,7 +77,7 @@ Repository indexing rejects indirect prompt injection with `KNOWLEDGE_DOCUMENT_U
 
 ### Explicit RAG trace
 
-With fictional indexed data only, configure `LANGSMITH_API_KEY` and `LANGSMITH_PROJECT` before starting the API. `RAG_EXTERNAL_PROCESSING_ENABLED` and `LANGSMITH_RAG_TRACING` both default to `true`. Then issue a knowledge query through HTTP:
+With only approved mock data indexed, configure `LANGSMITH_API_KEY` and `LANGSMITH_PROJECT` before starting the API. `RAG_EXTERNAL_PROCESSING_ENABLED` and `LANGSMITH_RAG_TRACING` both default to `true`. Then issue a knowledge query through HTTP:
 
 ```http
 POST /api/v1/knowledge/query

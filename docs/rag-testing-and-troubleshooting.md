@@ -37,7 +37,7 @@ The candidate limit must be greater than or equal to the evidence limit. Keep th
 
 ## 3. Prepare the local knowledge index
 
-Start PostgreSQL and RabbitMQ, apply migrations, reset fictional development data, and index the PDFs under `knowledge-documents/`:
+Start PostgreSQL and RabbitMQ, apply migrations, reset mock development data, and index the PDFs under `knowledge-documents/`:
 
 ```bash
 docker compose up -d postgres rabbitmq
@@ -50,8 +50,8 @@ npm run knowledge:index
 A successful first index resembles:
 
 ```json
-{"sourcePath":"knowledge-documents/fictional-employee-policy.pdf","status":"INDEXED","documentId":"<employee-policy-document-id>","activeIndexVersion":1,"chunkCount":5}
-{"sourcePath":"knowledge-documents/fictional-home-office-policy.pdf","status":"INDEXED","documentId":"<home-office-policy-document-id>","activeIndexVersion":1,"chunkCount":3}
+{"sourcePath":"knowledge-documents/mock-employee-policy.pdf","status":"INDEXED","documentId":"<employee-policy-document-id>","activeIndexVersion":1,"chunkCount":5}
+{"sourcePath":"knowledge-documents/mock-home-office-policy.pdf","status":"INDEXED","documentId":"<home-office-policy-document-id>","activeIndexVersion":1,"chunkCount":3}
 {"status":"SUMMARY","INDEXED":2}
 ```
 
@@ -115,14 +115,14 @@ Representative response:
   "sources": [
     {
       "documentId": "<employee-policy-document-id>",
-      "documentTitle": "Fictional Employee Policy",
+      "documentTitle": "Mock Employee Policy",
       "chunkId": "<employee-policy-chunk-id>",
       "chunkIndex": 1,
       "pageNumber": 2
     },
     {
       "documentId": "<home-office-policy-document-id>",
-      "documentTitle": "Fictional Home Office Policy",
+      "documentTitle": "Mock Home Office Policy",
       "chunkId": "<home-office-policy-chunk-id>",
       "chunkIndex": 0,
       "pageNumber": 1
@@ -154,7 +154,7 @@ Representative response:
   "sources": [
     {
       "documentId": "<employee-policy-document-id>",
-      "documentTitle": "Fictional Employee Policy",
+      "documentTitle": "Mock Employee Policy",
       "chunkId": "<employee-policy-chunk-id>",
       "chunkIndex": 2,
       "pageNumber": 3
@@ -302,7 +302,7 @@ LANGSMITH_PROJECT=hcm-agentic-llmops
 
 After a knowledge query, filter the project for parent run `hcm-rag-query`. Confirm that the parent contains:
 
-- Raw fictional question and generated answer.
+- Raw sample question and generated answer.
 - `candidateLimit`, `minimumSimilarity`, and `evidenceLimit`.
 - Returned document, chunk, page, and score metadata.
 - Citations, status, models, total latency, and failure code.

@@ -63,7 +63,7 @@ Agent tracing and RAG tracing are independent:
 - Set `LANGSMITH_RAG_TRACING=false` to disable RAG tracing and its missing-key warnings explicitly.
 - Pino logs, PostgreSQL audit records, checkpoints, and SSE progress events continue to omit raw user queries.
 
-Use only fictional development data when enabling either explicit trace mode.
+Use only mock development data when enabling either explicit trace mode.
 
 ## Local and Docker ports
 
