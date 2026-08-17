@@ -192,7 +192,7 @@ Representative body:
 ```json
 {
   "status": "ANSWERED",
-  "answer": "Eligible employees receive 24 days of paid annual leave per calendar year.",
+  "answer": "Full-time employees receive 24 working days of paid annual leave per calendar year.",
   "sources": [
     {
       "documentId": "<employee-policy-document-id>",
