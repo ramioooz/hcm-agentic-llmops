@@ -349,7 +349,7 @@ For RAG-specific indexing prerequisites, expected knowledge results, LangSmith i
 
 ## Production considerations
 
-The current MCP endpoint is intended for development and learning with fictional seeded employee data. `X-Employee-Id` must not be deployed as production authentication.
+The current MCP endpoint is intended for development and learning with mock seeded employee data. `X-Employee-Id` must not be deployed as production authentication.
 
 A production design would require decisions and implementation for:
 
