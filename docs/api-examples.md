@@ -6,7 +6,13 @@
 curl http://localhost:3000/health
 ```
 
-HTTP `200`:
+Expected HTTP `200` header:
+
+```http
+Content-Type: application/json
+```
+
+Representative body:
 
 ```json
 {
@@ -14,13 +20,21 @@ HTTP `200`:
 }
 ```
 
+This response has no variable fields.
+
 For complete copyable success and failure workflows, see the [local usage and manual verification guide](usage-guide.md).
 
 ```bash
 curl http://localhost:3000/ready
 ```
 
-When PostgreSQL is reachable, HTTP `200`:
+When PostgreSQL is reachable, expect HTTP `200` header:
+
+```http
+Content-Type: application/json
+```
+
+Representative body:
 
 ```json
 {
@@ -28,13 +42,15 @@ When PostgreSQL is reachable, HTTP `200`:
 }
 ```
 
-When PostgreSQL is unavailable, HTTP `503`:
+When PostgreSQL is unavailable, expect HTTP `503` with the same JSON content type:
 
 ```json
 {
   "status": "not_ready"
 }
 ```
+
+The status and body vary with PostgreSQL availability; neither readiness body contains variable IDs, dates, or timestamps.
 
 ## Agent invocation
 
