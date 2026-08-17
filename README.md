@@ -125,17 +125,28 @@ Use port `3300` instead when running the full Docker Compose stack.
 
 ```bash
 curl http://localhost:3000/health
-curl http://localhost:3000/ready
 ```
 
-Expected responses:
+HTTP `200`:
 
 ```json
 { "status": "ok" }
 ```
 
+```bash
+curl http://localhost:3000/ready
+```
+
+When PostgreSQL is reachable, HTTP `200`:
+
 ```json
 { "status": "ready" }
+```
+
+When PostgreSQL is unavailable, HTTP `503`:
+
+```json
+{ "status": "not_ready" }
 ```
 
 ### Run the first onboarding review
@@ -150,7 +161,36 @@ curl --request POST \
   --data '{"query":"Review my onboarding status"}'
 ```
 
-Expected: HTTP `200`, application status `COMPLETED`, onboarding data for `EMP-201`, and `threadId`, `runId`, and `correlationId` values.
+Representative HTTP response:
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+X-Thread-Id: <thread-id>
+```
+
+```json
+{
+  "status": "COMPLETED",
+  "message": "Employee onboarding review completed.",
+  "threadId": "<thread-id>",
+  "runId": "<run-id>",
+  "correlationId": "<correlation-id>",
+  "data": {
+    "employeeCode": "EMP-201",
+    "fullName": "Samira Noor",
+    "reviewEndDate": "<review-end-date>",
+    "daysRemaining": "<days-remaining>",
+    "withinThreshold": true,
+    "action": "REVIEW_ONLY",
+    "actionPerformed": false
+  }
+}
+```
+
+`threadId`, `runId`, and `correlationId` are generated per execution. `reviewEndDate`,
+`daysRemaining`, and the threshold result vary with the seeded employee data and the date the
+request runs.
 
 For complete success, failure, continuation, approval, trigger, RAG, and MCP flows, continue with the [local usage guide](docs/usage-guide.md).
 
@@ -318,7 +358,33 @@ curl --request POST \
   --data '{"query":"How many remote-working days are allowed each week?"}'
 ```
 
-A grounded result returns `ANSWERED` plus document, page, and chunk sources. Without enough evidence, the API returns `INSUFFICIENT_EVIDENCE` instead of asking the model to guess.
+Representative HTTP response when the indexed evidence supports an answer:
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+X-Correlation-Id: <correlation-id>
+```
+
+```json
+{
+  "status": "ANSWERED",
+  "answer": "<grounded answer>",
+  "sources": [
+    {
+      "documentId": "<document-id>",
+      "documentTitle": "<document-title>",
+      "chunkId": "<chunk-id>",
+      "chunkIndex": 0,
+      "pageNumber": 1
+    }
+  ]
+}
+```
+
+Document, chunk, and page values vary with the active index and the answer varies with the
+retrieved evidence. Without enough evidence, the same endpoint returns HTTP `200` with
+`INSUFFICIENT_EVIDENCE` and an empty `sources` array instead of asking the model to guess.
 
 See [RAG testing and troubleshooting](docs/rag-testing-and-troubleshooting.md) for complete HTTP and MCP scenarios, expected responses, retrieval settings, LangSmith inspection, and database diagnostics. See [repository knowledge indexing](docs/knowledge-indexing.md) for PDF limits, version activation, and indexing failure codes.
 
