@@ -2,8 +2,8 @@ import { Router, type Request, type Response } from 'express';
 import { CommonErrorCode } from '../enums/error.enum';
 import { resolveApplicationErrorCode } from '../helpers/application-error.helpers';
 import { resolveSafeCorrelationId } from '../security/correlation-id';
-import type { LeaveApprovalStore } from '../types/leave-approval-store';
 import type { ApplicationLogger } from '../types/application-logger';
+import type { LeaveDocumentProvider } from '../types/leave-document-provider';
 import type { HttpController } from './http-controller';
 
 export class LeaveRequestController implements HttpController {
@@ -12,7 +12,7 @@ export class LeaveRequestController implements HttpController {
 
   public constructor(
     private readonly dependencies: {
-      approvals: LeaveApprovalStore;
+      documents: LeaveDocumentProvider;
       logger: ApplicationLogger;
     },
   ) {
@@ -33,7 +33,7 @@ export class LeaveRequestController implements HttpController {
       return;
     }
     try {
-      const document = await this.dependencies.approvals.findAuthorizedDocument({
+      const document = await this.dependencies.documents.generateAuthorized({
         leaveRequestId: request.params.leaveRequestId as string,
         actorEmployeeCode,
       });
@@ -64,7 +64,7 @@ export class LeaveRequestController implements HttpController {
         'Content-Disposition',
         `inline; filename="leave-request-${document.id}.pdf"`,
       );
-      response.status(200).send(document.documentPdf);
+      response.status(200).send(document.pdf);
     } catch (error) {
       const code = resolveApplicationErrorCode(error, CommonErrorCode.InternalError);
       const httpStatus =

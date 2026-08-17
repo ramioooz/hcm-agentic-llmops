@@ -14,6 +14,7 @@ import { PrismaAgentRunRepository } from '../repositories/agent-run.repository';
 import { PrismaEmployeeRepository } from '../repositories/employee.repository';
 import { PrismaLeaveRepository } from '../repositories/leave.repository';
 import { HcmAgentService } from '../services/hcm-agent.service';
+import { LeaveDocumentService } from '../services/leave-document.service';
 import type { ApplicationEnvironment } from '../types/application-environment';
 
 export function createAgentModule(input: {
@@ -51,12 +52,13 @@ export function createAgentModule(input: {
         }
       : {}),
   });
+  const leaveDocuments = new LeaveDocumentService(input.leaves);
 
   return {
     agent,
     agentController: new AgentController({ agent, logger: input.logger }),
     leaveRequestController: new LeaveRequestController({
-      approvals: input.leaves,
+      documents: leaveDocuments,
       logger: input.logger,
     }),
   };

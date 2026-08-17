@@ -60,6 +60,7 @@ export enum LeaveErrorCode {
   BalanceNotFound = 'LEAVE_BALANCE_NOT_FOUND',
   DocumentNotFound = 'LEAVE_DOCUMENT_NOT_FOUND',
   ProposalChanged = 'LEAVE_PROPOSAL_CHANGED',
+  DocumentTemplateUnsupported = 'LEAVE_DOCUMENT_TEMPLATE_UNSUPPORTED',
 }
 
 export enum TriggerErrorCode {

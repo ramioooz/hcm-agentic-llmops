@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import { CommonErrorCode, LeaveErrorCode } from '../enums/error.enum';
+import { LeaveDocumentTemplateVersion } from '../enums/leave.enum';
 import { ApplicationError } from '../errors/application.error';
 import type { LeaveReader } from '../types/leave-reader';
 import type { LeaveApprovalStore } from '../types/leave-approval-store';
@@ -66,16 +67,16 @@ export class PrismaLeaveRepository implements LeaveReader, LeaveApprovalStore {
       select: {
         id: true,
         status: true,
-        documentPdf: true,
+        documentTemplateVersion: true,
         employee: { select: { employeeCode: true } },
       },
     });
-    if (!request || request.status !== 'SUBMITTED' || !request.documentPdf) return undefined;
+    if (!request || request.status !== 'SUBMITTED') return undefined;
     return {
       id: request.id,
       employeeCode: request.employee.employeeCode,
       status: 'SUBMITTED' as const,
-      documentPdf: Buffer.from(request.documentPdf),
+      documentTemplateVersion: request.documentTemplateVersion as LeaveDocumentTemplateVersion,
     };
   }
 
@@ -88,7 +89,7 @@ export class PrismaLeaveRepository implements LeaveReader, LeaveApprovalStore {
     startDate: string;
     endDate: string;
     requestedWorkingDays: number;
-    documentPdf: Buffer;
+    documentTemplateVersion: LeaveDocumentTemplateVersion;
   }) {
     const request = await this.database.leaveRequest.upsert({
       where: { approvalThreadId: input.approvalThreadId },
@@ -102,23 +103,23 @@ export class PrismaLeaveRepository implements LeaveReader, LeaveApprovalStore {
         endDate: new Date(`${input.endDate}T00:00:00.000Z`),
         requestedWorkingDays: input.requestedWorkingDays,
         status: 'SUBMITTED',
-        documentPdf: Uint8Array.from(input.documentPdf),
+        documentTemplateVersion: input.documentTemplateVersion,
         submittedAt: new Date(),
       },
       select: {
         id: true,
         status: true,
-        documentPdf: true,
+        documentTemplateVersion: true,
       },
     });
-    if (request.status !== 'SUBMITTED' || !request.documentPdf) {
+    if (request.status !== 'SUBMITTED') {
       throw new ApplicationError(LeaveErrorCode.RequestPersistenceFailed);
     }
     return {
       id: request.id,
       employeeCode: input.employeeCode,
       status: 'SUBMITTED' as const,
-      documentPdf: Buffer.from(request.documentPdf),
+      documentTemplateVersion: request.documentTemplateVersion as LeaveDocumentTemplateVersion,
     };
   }
 
@@ -136,22 +137,33 @@ export class PrismaLeaveRepository implements LeaveReader, LeaveApprovalStore {
         select: {
           id: true,
           status: true,
-          documentPdf: true,
+          startDate: true,
+          endDate: true,
+          requestedWorkingDays: true,
+          documentTemplateVersion: true,
           employee: { select: { employeeCode: true } },
+          leavePolicy: { select: { code: true } },
         },
       }),
     ]);
     if (!actor) throw new ApplicationError(CommonErrorCode.AuthenticationRequired);
-    if (!request || request.status !== 'SUBMITTED' || !request.documentPdf) return null;
+    if (!request || request.status !== 'SUBMITTED') return null;
     if (actor.status !== 'ACTIVE') throw new ApplicationError(CommonErrorCode.EmployeeInactive);
     if (actor.accessRole !== 'HR' && actor.employeeCode !== request.employee.employeeCode) {
       throw new ApplicationError(CommonErrorCode.AuthorizationDenied);
     }
+    if (request.leavePolicy.code !== 'ANNUAL') {
+      throw new ApplicationError(LeaveErrorCode.DocumentTemplateUnsupported);
+    }
     return {
       id: request.id,
       employeeCode: request.employee.employeeCode,
+      leaveType: 'ANNUAL' as const,
+      startDate: request.startDate.toISOString().slice(0, 10),
+      endDate: request.endDate.toISOString().slice(0, 10),
+      requestedWorkingDays: request.requestedWorkingDays,
       status: 'SUBMITTED' as const,
-      documentPdf: Buffer.from(request.documentPdf),
+      documentTemplateVersion: request.documentTemplateVersion as LeaveDocumentTemplateVersion,
     };
   }
 }

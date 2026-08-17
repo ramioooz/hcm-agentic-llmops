@@ -1,8 +1,11 @@
+import type { LeaveDocumentTemplateVersion } from '../enums/leave.enum';
+import type { LeaveDocumentSnapshot } from './leave-document-snapshot';
+
 export type SubmittedLeaveRequest = {
   id: string;
   employeeCode: string;
   status: 'SUBMITTED';
-  documentPdf: Buffer;
+  documentTemplateVersion: LeaveDocumentTemplateVersion;
 };
 
 export interface LeaveApprovalStore {
@@ -17,10 +20,10 @@ export interface LeaveApprovalStore {
     startDate: string;
     endDate: string;
     requestedWorkingDays: number;
-    documentPdf: Buffer;
+    documentTemplateVersion: LeaveDocumentTemplateVersion;
   }): Promise<SubmittedLeaveRequest>;
   findAuthorizedDocument(input: {
     leaveRequestId: string;
     actorEmployeeCode: string;
-  }): Promise<SubmittedLeaveRequest | null>;
+  }): Promise<LeaveDocumentSnapshot | null>;
 }

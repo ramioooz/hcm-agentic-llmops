@@ -97,7 +97,7 @@ export function createStudioScenario(scenario: StudioScenario): StudioGraphDefin
         id: input.id,
         employeeCode: input.employeeCode,
         status: 'SUBMITTED',
-        documentPdf: input.documentPdf,
+        documentTemplateVersion: input.documentTemplateVersion,
       }),
       findAuthorizedDocument: async () => null,
     },
