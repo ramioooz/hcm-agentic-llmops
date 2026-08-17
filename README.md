@@ -180,7 +180,7 @@ X-Thread-Id: <thread-id>
     "employeeCode": "EMP-201",
     "fullName": "Samira Noor",
     "reviewEndDate": "<review-end-date>",
-    "daysRemaining": "<days-remaining>",
+    "daysRemaining": 14,
     "withinThreshold": true,
     "action": "REVIEW_ONLY",
     "actionPerformed": false
@@ -188,9 +188,10 @@ X-Thread-Id: <thread-id>
 }
 ```
 
-`threadId`, `runId`, and `correlationId` are generated per execution. `reviewEndDate`,
-`daysRemaining`, and the threshold result vary with the seeded employee data and the date the
-request runs.
+`runId` is generated for each execution attempt. Omitting `X-Thread-Id` starts a conversation and
+generates its `threadId`; that ID remains stable for a continuation. `correlationId` uses a valid
+supplied `X-Correlation-Id` or is generated for the request. `reviewEndDate`, `daysRemaining`, and
+the threshold result vary with the seeded employee data and the date the request runs.
 
 For complete success, failure, continuation, approval, trigger, RAG, and MCP flows, continue with the [local usage guide](docs/usage-guide.md).
 
@@ -383,7 +384,8 @@ X-Correlation-Id: <correlation-id>
 ```
 
 Document, chunk, and page values vary with the active index and the answer varies with the
-retrieved evidence. Without enough evidence, the same endpoint returns HTTP `200` with
+retrieved evidence. Because this command omits `X-Correlation-Id`, its `<correlation-id>` is
+generated per request. Without enough evidence, the same endpoint returns HTTP `200` with
 `INSUFFICIENT_EVIDENCE` and an empty `sources` array instead of asking the model to guess.
 
 See [RAG testing and troubleshooting](docs/rag-testing-and-troubleshooting.md) for complete HTTP and MCP scenarios, expected responses, retrieval settings, LangSmith inspection, and database diagnostics. See [repository knowledge indexing](docs/knowledge-indexing.md) for PDF limits, version activation, and indexing failure codes.

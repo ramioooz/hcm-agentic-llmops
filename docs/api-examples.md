@@ -67,7 +67,7 @@ and `X-Thread-Id: <thread-id>`:
     "employeeCode": "EMP-201",
     "fullName": "Samira Noor",
     "reviewEndDate": "<review-end-date>",
-    "daysRemaining": "<days-remaining>",
+    "daysRemaining": 14,
     "withinThreshold": true,
     "action": "REVIEW_ONLY",
     "actionPerformed": false
@@ -75,17 +75,19 @@ and `X-Thread-Id: <thread-id>`:
 }
 ```
 
-`threadId`, `runId`, and `correlationId` are generated per execution. `reviewEndDate`,
-`daysRemaining`, and the threshold result depend on the employee record and the date of the
-review. Omit `X-Thread-Id` to start a thread, then send the returned UUID v4 on the next request
-to continue it. For example, a first request with `{"query":"Review the onboarding status"}`
-returns `NEED_MORE_INFORMATION`; a second request with `X-Thread-Id` set to the returned value
-and `{"query":"EMP-201"}` completes the review. The same `X-Employee-Id` must own both
-requests. A malformed thread header returns HTTP `400` with `INVALID_THREAD_ID`, and a different
-employee identity returns HTTP `403` with `THREAD_IDENTITY_MISMATCH`.
+`runId` is generated for each execution attempt. Omitting `X-Thread-Id` starts a conversation and
+generates its `threadId`; that ID remains stable for a continuation. `correlationId` uses a valid
+supplied `X-Correlation-Id` or is generated for the request. `reviewEndDate`, `daysRemaining`, and
+the threshold result depend on the employee record and the date of the review. For example, a
+first request with `{"query":"Review the onboarding status"}` returns `NEED_MORE_INFORMATION`; a
+second request with `X-Thread-Id` set to the returned value and `{"query":"EMP-201"}` completes
+the review. The same `X-Employee-Id` must own both requests. A malformed thread header returns
+HTTP `400` with `INVALID_THREAD_ID`, and a different employee identity returns HTTP `403` with
+`THREAD_IDENTITY_MISMATCH`.
 An explicit first-person request such as `{"query":"Review my onboarding status"}` deterministically resolves the target to the authenticated `X-Employee-Id`. A request without either an employee code or an explicit first-person target remains ambiguous and follows the continuation flow below.
 
-Every accepted request has separate identifiers: `threadId` remains stable across the conversation, `runId` changes for each attempt, and `correlationId` traces one request. This separation also appears in JSON and final SSE response bodies.
+These identifier roles also appear in JSON and final SSE response bodies: `threadId` remains stable
+across a conversation, `runId` changes for each attempt, and `correlationId` traces one request.
 
 If an ambiguous request is missing the employee ID, the endpoint returns `NEED_MORE_INFORMATION`. If the request is outside the onboarding capability, it returns `UNSUPPORTED_REQUEST`. An explicit notification request inside the requested threshold uses the development notification adapter when the database-derived role permits it: HR may notify for any employee, managers only for direct reports, and employees cannot notify. Requests are normalized with a strict structured intent contract after deterministic request-safety checks; a normalization failure returns HTTP `503` with code `MODEL_UNAVAILABLE`.
 
