@@ -232,6 +232,8 @@ Repository-document injection is rejected before embedding and activation. Unsaf
 
 ## Verify MCP with Inspector
 
+For the endpoint architecture, development identity model, authorization rules, tool schemas, error behavior, and production considerations, read the [MCP guide](mcp.md). This section remains the canonical connection and invocation walkthrough.
+
 Launch the graphical Inspector:
 
 ```bash

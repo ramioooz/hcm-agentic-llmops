@@ -453,17 +453,18 @@ Live infrastructure paths are documented for manual verification in the [usage g
 
 ## Further documentation
 
-| Document                                               | Use it for                                                          |
-| ------------------------------------------------------ | ------------------------------------------------------------------- |
-| [Local usage guide](docs/usage-guide.md)               | Manual workflows, triggers, MCP, Studio, and audit checks           |
-| [Configuration reference](docs/configuration.md)       | Environment, ports, trace flags, and forbidden aliases              |
-| [Knowledge indexing](docs/knowledge-indexing.md)       | PDF limits, version publication, statuses, and troubleshooting      |
-| [RAG testing](docs/rag-testing-and-troubleshooting.md) | HTTP and MCP scenarios, expected responses, traces, and diagnostics |
-| [Architecture guide](docs/architecture.md)             | Detailed composition, graphs, boundaries, and delivery              |
-| [Data model](docs/data-model.md)                       | ER diagram, tables, seed records, identifiers, and migrations       |
-| [API examples](docs/api-examples.md)                   | HTTP and MCP request/response contracts                             |
-| [Security policy](SECURITY.md)                         | Supported versions and vulnerability reporting                      |
-| [Contribution guide](CONTRIBUTING.md)                  | Branch, verification, documentation, and review expectations        |
+| Document                                               | Use it for                                                                          |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| [Local usage guide](docs/usage-guide.md)               | Manual workflows, triggers, MCP, Studio, and audit checks                           |
+| [MCP guide](docs/mcp.md)                               | Architecture, tools, identity, authorization, errors, and production considerations |
+| [Configuration reference](docs/configuration.md)       | Environment, ports, trace flags, and forbidden aliases                              |
+| [Knowledge indexing](docs/knowledge-indexing.md)       | PDF limits, version publication, statuses, and troubleshooting                      |
+| [RAG testing](docs/rag-testing-and-troubleshooting.md) | HTTP and MCP scenarios, expected responses, traces, and diagnostics                 |
+| [Architecture guide](docs/architecture.md)             | Detailed composition, graphs, boundaries, and delivery                              |
+| [Data model](docs/data-model.md)                       | ER diagram, tables, seed records, identifiers, and migrations                       |
+| [API examples](docs/api-examples.md)                   | HTTP and MCP request/response contracts                                             |
+| [Security policy](SECURITY.md)                         | Supported versions and vulnerability reporting                                      |
+| [Contribution guide](CONTRIBUTING.md)                  | Branch, verification, documentation, and review expectations                        |
 
 ## Contributing
 
