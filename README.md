@@ -386,14 +386,14 @@ X-Correlation-Id: <correlation-id>
 ```json
 {
   "status": "ANSWERED",
-  "answer": "<grounded answer>",
+  "answer": "Eligible employees may work remotely up to two days each week after manager approval.",
   "sources": [
     {
-      "documentId": "<document-id>",
-      "documentTitle": "<document-title>",
-      "chunkId": "<chunk-id>",
-      "chunkIndex": 0,
-      "pageNumber": 1
+      "documentId": "<employee-policy-document-id>",
+      "documentTitle": "Mock Employee Policy",
+      "chunkId": "<employee-policy-chunk-id>",
+      "chunkIndex": 1,
+      "pageNumber": 2
     }
   ]
 }
