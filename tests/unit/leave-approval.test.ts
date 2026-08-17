@@ -1,6 +1,6 @@
 import { MemorySaver } from '@langchain/langgraph';
 import { HcmIntentType } from '../../src/enums/hcm-agent.enum';
-import { LeaveApprovalDecision } from '../../src/enums/leave.enum';
+import { LeaveApprovalDecision, LeaveDocumentTemplateVersion } from '../../src/enums/leave.enum';
 import { HcmAgentService } from '../../src/services/hcm-agent.service';
 import type { EmployeeRecord } from '../../src/types/employee-record';
 
@@ -15,24 +15,26 @@ const employee: EmployeeRecord = {
 };
 
 describe('leave approval', () => {
-  it('interrupts before creation, then revalidates and submits exactly once with a deterministic PDF', async () => {
+  it('interrupts before creation, then revalidates and submits exactly once with a document template version', async () => {
     let submitted:
       | {
           id: string;
           employeeCode: string;
           status: 'SUBMITTED';
-          documentPdf: Buffer;
+          documentTemplateVersion: LeaveDocumentTemplateVersion;
         }
       | undefined;
-    const submitApproved = jest.fn(async (input: { documentPdf: Buffer }) => {
-      submitted ??= {
-        id: 'leave-request-thread-001',
-        employeeCode: 'EMP-201',
-        status: 'SUBMITTED' as const,
-        documentPdf: input.documentPdf,
-      };
-      return submitted;
-    });
+    const submitApproved = jest.fn(
+      async (input: { documentTemplateVersion: LeaveDocumentTemplateVersion }) => {
+        submitted ??= {
+          id: 'leave-request-thread-001',
+          employeeCode: 'EMP-201',
+          status: 'SUBMITTED' as const,
+          documentTemplateVersion: input.documentTemplateVersion,
+        };
+        return submitted;
+      },
+    );
     const policy = {
       id: 'policy-annual',
       code: 'ANNUAL' as const,
@@ -120,6 +122,9 @@ describe('leave approval', () => {
     expect(leaves.findAnnualPolicy).toHaveBeenCalledTimes(2);
     expect(leaves.findAnnualBalance).toHaveBeenCalledTimes(2);
     expect(submitApproved).toHaveBeenCalledTimes(1);
-    expect(submitApproved.mock.calls[0]?.[0].documentPdf.subarray(0, 5).toString()).toBe('%PDF-');
+    expect(submitApproved.mock.calls[0]?.[0]).toMatchObject({
+      documentTemplateVersion: LeaveDocumentTemplateVersion.V1,
+    });
+    expect(submitApproved.mock.calls[0]?.[0]).not.toHaveProperty('documentPdf');
   });
 });

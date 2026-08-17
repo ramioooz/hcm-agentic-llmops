@@ -118,20 +118,20 @@ model LeaveBalance {
 }
 
 model LeaveRequest {
-  id                   String             @id @default(cuid())
-  employeeId           String             @map("employee_id")
-  leavePolicyId        String             @map("leave_policy_id")
-  startDate            DateTime           @map("start_date") @db.Date
-  endDate              DateTime           @map("end_date") @db.Date
-  requestedWorkingDays Int                @map("requested_working_days")
-  status               LeaveRequestStatus @default(PENDING)
-  approvalThreadId     String?            @unique @map("approval_thread_id")
-  documentPdf          Bytes?             @map("document_pdf")
-  submittedAt          DateTime?          @map("submitted_at")
-  employee             Employee           @relation(fields: [employeeId], references: [id])
-  leavePolicy          LeavePolicy        @relation(fields: [leavePolicyId], references: [id])
-  createdAt            DateTime           @default(now()) @map("created_at")
-  updatedAt            DateTime           @updatedAt @map("updated_at")
+  id                      String             @id @default(cuid())
+  employeeId              String             @map("employee_id")
+  leavePolicyId           String             @map("leave_policy_id")
+  startDate               DateTime           @map("start_date") @db.Date
+  endDate                 DateTime           @map("end_date") @db.Date
+  requestedWorkingDays    Int                @map("requested_working_days")
+  status                  LeaveRequestStatus @default(PENDING)
+  approvalThreadId        String?            @unique @map("approval_thread_id")
+  documentTemplateVersion String             @default("leave-request-v1") @map("document_template_version")
+  submittedAt             DateTime?          @map("submitted_at")
+  employee                Employee           @relation(fields: [employeeId], references: [id])
+  leavePolicy             LeavePolicy        @relation(fields: [leavePolicyId], references: [id])
+  createdAt               DateTime           @default(now()) @map("created_at")
+  updatedAt               DateTime           @updatedAt @map("updated_at")
 
   @@index([employeeId, startDate, endDate])
   @@map("leave_requests")

@@ -2,9 +2,12 @@ import { interrupt } from '@langchain/langgraph';
 import { createHash } from 'node:crypto';
 import { LeaveErrorCode } from '../../enums/error.enum';
 import { HcmAgentRoute } from '../../enums/hcm-agent.enum';
-import { LeaveApprovalDecision, LeaveGraphNode } from '../../enums/leave.enum';
+import {
+  LeaveApprovalDecision,
+  LeaveDocumentTemplateVersion,
+  LeaveGraphNode,
+} from '../../enums/leave.enum';
 import { ApplicationError } from '../../errors/application.error';
-import { generateLeaveRequestPdf } from '../../documents/leave-request-pdf';
 import { buildInvocationResult } from '../../helpers/onboarding-agent.helpers';
 import { evaluateLeaveProposal } from '../../services/leave-proposal.service';
 import type { AgentEventSink } from '../../types/agent-event-sink';
@@ -121,14 +124,6 @@ export function createLeaveApprovalNode(
       .update(context.input.threadId)
       .digest('hex')
       .slice(0, 24)}`;
-    const documentPdf = generateLeaveRequestPdf({
-      leaveRequestId,
-      employeeCode: targetEmployeeCode,
-      leaveType: 'ANNUAL',
-      startDate: pending.startDate,
-      endDate: pending.endDate,
-      requestedWorkingDays: revalidated.requestedWorkingDays,
-    });
     const submitted = await dependencies.leaveApprovals.submitApproved({
       id: leaveRequestId,
       approvalThreadId: context.input.threadId,
@@ -138,7 +133,7 @@ export function createLeaveApprovalNode(
       startDate: pending.startDate,
       endDate: pending.endDate,
       requestedWorkingDays: revalidated.requestedWorkingDays,
-      documentPdf,
+      documentTemplateVersion: LeaveDocumentTemplateVersion.V1,
     });
     context.steps.push({
       stepName: LeaveGraphNode.Approval,
@@ -163,7 +158,7 @@ export function createLeaveApprovalNode(
     });
     emit({
       event: 'document',
-      data: { runId: context.runId, status: 'generated', leaveRequestId: submitted.id },
+      data: { runId: context.runId, status: 'available', leaveRequestId: submitted.id },
     });
     return { route: HcmAgentRoute.Respond, pendingLeaveApproval: null };
   };

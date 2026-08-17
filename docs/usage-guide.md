@@ -160,7 +160,7 @@ Expected: HTTP `403` and `UNSAFE_REQUEST_REJECTED` before OpenAI or employee too
 
 To verify thread ownership, create an ambiguous thread as `EMP-200`, then send its `X-Thread-Id` as `EMP-201`. Expected: HTTP `403` and `THREAD_IDENTITY_MISMATCH`.
 
-## Verify annual leave and PDF generation
+## Verify annual leave and on-demand PDF generation
 
 Create dates far enough in the future for the sample leave policy's notice rule:
 
@@ -185,7 +185,24 @@ curl --request POST \
   --data '{"threadId":"THREAD_ID","decision":"APPROVE"}'
 ```
 
-Expected: `SUBMITTED`, one `leaveRequestId`, and a document URL. Repeating approval returns the same request. `REJECT` creates no request.
+Expected: HTTP `201` with a response like:
+
+```json
+{
+  "status": "COMPLETED",
+  "message": "The approved leave request was submitted.",
+  "threadId": "<thread-id>",
+  "runId": "<run-id>",
+  "correlationId": "<correlation-id>",
+  "data": {
+    "leaveRequestId": "<leave-request-id>",
+    "leaveRequestStatus": "SUBMITTED",
+    "documentUrl": "/api/v1/leave-requests/<leave-request-id>/document"
+  }
+}
+```
+
+The `leave_requests` row contains the submitted business snapshot and `document_template_version = leave-request-v1`; it has no PDF column. Repeating approval returns the same request. `REJECT` creates no request.
 
 ```bash
 curl http://localhost:3000/api/v1/leave-requests/LEAVE_REQUEST_ID/document \
@@ -193,7 +210,7 @@ curl http://localhost:3000/api/v1/leave-requests/LEAVE_REQUEST_ID/document \
   --output leave-request.pdf
 ```
 
-Expected: `application/pdf` with `Cache-Control: no-store`.
+Expected: `application/pdf` with `Cache-Control: no-store`. Each authorized download renders the same deterministic PDF from the stored snapshot; no PDF bytes are persisted.
 
 ## Index and query policy documents
 
