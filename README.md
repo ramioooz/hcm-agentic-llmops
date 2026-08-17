@@ -1,12 +1,14 @@
 # Agentic LLMOps for HCM
 
-A TypeScript backend that combines OpenAI models with deterministic Human Capital Management (HCM) workflows. HCM software supports employee processes such as onboarding reviews, leave requests, policies, and manager actions.
+A TypeScript HR backend for Human Capital Management (HCM), demonstrating LLM orchestration, LangGraph workflows, RAG, MCP tools, guardrails, human approval, automated triggers, and LangSmith observability.
 
-The system separates language understanding from business execution:
+The system translates natural-language requests into a validated, predefined intent. Deterministic application code then:
 
-- **Identity and access:** In development, Express controllers resolve `X-Employee-Id` through Prisma and PostgreSQL. Every protected LangChain tool then checks the applicable role, ownership, and reporting rules before returning data or performing an action.
-- **Business rules and calculations:** Deterministic TypeScript services use Zod-validated inputs to calculate onboarding deadlines, warning thresholds, working days, leave balances, notice periods, and eligibility.
-- **Database changes and external actions:** Prisma repositories control PostgreSQL writes, LangGraph interrupts require human approval before leave submission, and explicit adapters handle PDF generation, RabbitMQ events, and manager notifications.
+- resolves identity and authorizes access;
+- selects a worker graph;
+- performs deterministic calculations;
+- persists workflow and audit state; and
+- executes only explicitly permitted side effects.
 
 > [!IMPORTANT]
 > This repository is a development and learning implementation, not a production HCM system. `X-Employee-Id` is a mock development identity, manager notifications use a development adapter, and all seeded employee and policy data is synthetic.
@@ -21,6 +23,7 @@ The system separates language understanding from business execution:
 - [Quick start](#quick-start)
 - [How the system works](#how-the-system-works)
 - [Where the LLM is used](#where-the-llm-is-used)
+- [Intent normalization and routing](#intent-normalization-and-routing)
 - [HCM workflows](#hcm-workflows)
 - [Policy knowledge and RAG](#policy-knowledge-and-rag)
 - [Security and guardrails](#security-and-guardrails)
@@ -29,7 +32,10 @@ The system separates language understanding from business execution:
 - [Interfaces and automation](#interfaces-and-automation)
 - [Data and repository structure](#data-and-repository-structure)
 - [Testing](#testing)
-- [Current boundaries](#current-boundaries)
+- [Current limitations](#current-limitations)
+- [Production-readiness roadmap](#production-readiness-roadmap)
+- [Extending the system](#extending-the-system)
+- [Project delivery](#project-delivery)
 - [Further documentation](#further-documentation)
 
 ## Project overview
@@ -188,6 +194,56 @@ The model does **not**:
 - write audit records, publish events, generate PDFs, or select safe telemetry fields.
 
 Agent queries are excluded from checkpoints, Pino logs, PostgreSQL audit summaries, and SSE progress. When explicit LangSmith agent tracing is enabled, the exact raw query is intentionally included in that external trace.
+
+## Intent normalization and routing
+
+```mermaid
+flowchart TD
+    USER["Natural-language request"]
+    GUARD["Deterministic request guard"]
+    REJECT["Reject unsafe request<br/>before model and tools"]
+    LLM["LLM normalizes request"]
+    VALIDATE["Validate structured output<br/>with Zod"]
+    FAILURE["MODEL_UNAVAILABLE<br/>No tool execution"]
+    ROUTER{"Predefined intent"}
+
+    ONBOARDING["ONBOARDING_REVIEW"]
+    LEAVE["LEAVE_REQUEST"]
+    UNSUPPORTED["UNSUPPORTED"]
+
+    ONBOARDING_FLOW["Onboarding worker graph<br/>lookup → authorize → calculate<br/>→ optional notification"]
+    LEAVE_FLOW["Leave worker graph<br/>policy + balance → calculate<br/>→ human approval"]
+    UNSUPPORTED_FLOW["Structured<br/>UNSUPPORTED_REQUEST"]
+
+    USER --> GUARD
+    GUARD -->|Unsafe| REJECT
+    GUARD -->|Accepted| LLM
+    LLM --> VALIDATE
+    VALIDATE -->|Invalid or unavailable| FAILURE
+    VALIDATE -->|Valid| ROUTER
+
+    ROUTER --> ONBOARDING
+    ROUTER --> LEAVE
+    ROUTER --> UNSUPPORTED
+
+    ONBOARDING --> ONBOARDING_FLOW
+    LEAVE --> LEAVE_FLOW
+    UNSUPPORTED --> UNSUPPORTED_FLOW
+```
+
+| Intent              | Meaning                                                    | Route                           |
+| ------------------- | ---------------------------------------------------------- | ------------------------------- |
+| `ONBOARDING_REVIEW` | Review an active onboarding or probationary period         | Onboarding worker graph         |
+| `LEAVE_REQUEST`     | Prepare an annual-leave proposal from explicit dates       | Leave worker graph              |
+| `UNSUPPORTED`       | The request does not match an implemented agent capability | Structured unsupported response |
+
+The model may select only a predefined enum value and must satisfy strict Zod output. It cannot create routes, authorize, calculate, or execute side effects; deterministic application code owns those decisions and actions.
+
+When a supported request is missing fields, the API returns `NEED_MORE_INFORMATION` and can continue on the same thread. Missing fields are not an intent. `UNSUPPORTED` is a valid normalized intent and returns `UNSUPPORTED_REQUEST`.
+
+Deterministic guards reject unsafe input before OpenAI or tools run. Invalid output, timeout, or model failure after one bounded retry returns HTTP `503 MODEL_UNAVAILABLE`, and no protected tool runs.
+
+Typed schedule, webhook, and RabbitMQ commands skip model normalization because they already carry a typed command. They enter the same deterministic workflow and audit path.
 
 ## HCM workflows
 
