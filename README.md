@@ -43,7 +43,7 @@ The system translates natural-language requests into a validated, predefined int
 The API implements two conversational employee workflows and one policy-knowledge capability:
 
 - **Onboarding review:** The initial or probationary review period for a new employee. The system finds the active review, calculates days remaining, applies a warning threshold, and optionally notifies a manager when an authorized request explicitly asks for it.
-- **Annual leave:** Paid vacation entitlement. The system reads the policy and balance, calculates an eligible proposal, pauses for human approval, then creates one submitted request and PDF.
+- **Annual leave:** Paid vacation entitlement. The system reads the policy and balance, calculates an eligible proposal, pauses for human approval, then creates one submitted request. An authorized download generates its PDF on demand.
 - **Policy knowledge:** Repository-managed policy PDFs are indexed into PostgreSQL/pgvector. The system retrieves relevant excerpts before asking the model for an answer backed by page and chunk citations.
 
 ### Terminology
@@ -67,7 +67,7 @@ The API implements two conversational employee workflows and one policy-knowledg
 | Language understanding | OpenAI `ChatOpenAI`, a versioned prompt, timeout, one bounded retry, and strict Zod output                       |
 | Agent orchestration    | A LangGraph supervisor with deterministic routing to onboarding and leave subgraphs                              |
 | Conversations          | PostgreSQL-backed checkpoints for multi-turn continuation and human approval                                     |
-| Business workflows     | Authorized tools, deterministic calculations, idempotent leave submission, and PDF generation                    |
+| Business workflows     | Authorized tools, deterministic calculations, idempotent leave submission, and on-demand PDF generation          |
 | Knowledge retrieval    | Explicit PDF indexing, OpenAI embeddings, pgvector retrieval, grounded answers, and page/chunk sources           |
 | Interfaces             | JSON, Server-Sent Events (SSE), read-only MCP tools, webhook, scheduler, and RabbitMQ triggers                   |
 | Security               | Pre-model checks, protected-tool authorization, explicit side-effect permission, thread ownership, and redaction |
@@ -263,7 +263,7 @@ A review-only request never sends a notification. The notification adapter runs 
 The leave worker loads policy and balance in parallel. TypeScript counts Monday–Friday working days and checks notice, maximum consecutive days, and available balance. An eligible proposal pauses at a LangGraph `interrupt()` before any write.
 
 - `REJECT` creates no request.
-- `APPROVE` reloads policy and balance, recalculates eligibility, and creates one `SUBMITTED` request plus PDF.
+- `APPROVE` reloads policy and balance, recalculates eligibility, and creates one `SUBMITTED` request. An authorized document download renders its PDF on demand.
 - Repeating approval returns the existing request instead of creating a duplicate.
 
 Employees and managers may submit leave only for themselves; HR may submit for another employee.
@@ -366,6 +366,18 @@ Controllers and adapters emit typed entries through `ApplicationLogger`. `PinoAp
 
 `PrismaAgentRunRepository` transactionally stores one run, ordered steps, and linked security events. Summaries receive field-aware redaction. Checkpoints continue conversations; audit rows explain completed or rejected executions.
 
+### Intent evidence map
+
+| Evidence                                    | What it shows                                                                                                                     |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| PostgreSQL `agent_runs` / `agent_run_steps` | Durable execution and `intent_normalization` outcome codes                                                                        |
+| SSE                                         | Safe intent, node, tool, approval, document, and response progress                                                                |
+| LangSmith agent trace                       | Raw query when explicitly traced, normalized intent, prompt/model, path, tools, authorization, latency, tokens, retries, failures |
+| Pino                                        | Safe request/operation metadata without complete employee records                                                                 |
+| `security_events`                           | Unsafe-request, indirect-injection, and authorization evidence                                                                    |
+
+Missing fields and `UNSUPPORTED` are valid intent-normalization outcomes: missing fields return `NEED_MORE_INFORMATION`, while `UNSUPPORTED` returns `UNSUPPORTED_REQUEST`. `MODEL_UNAVAILABLE` instead records a technical model failure after the bounded retry; it is not an intent outcome.
+
 ### Failure behavior
 
 - RAG trace-delivery failure logs a safe event and leaves the HTTP or MCP result unchanged.
@@ -387,7 +399,7 @@ LangSmith uses explicit recorders instead of global automatic LangChain tracing:
 
 RAG tracing is enabled by default. It sends traces only when `LANGSMITH_API_KEY` is configured. Without the key, the API starts and answers knowledge queries normally while emitting safe warnings that tracing is disabled or skipped; those warnings exclude the raw question and employee identity. Agent tracing remains disabled by default and requires the key when enabled.
 
-Enable explicit traces only for approved mock development data. See [explicit versus automatic tracing](docs/configuration.md#explicit-versus-automatic-tracing).
+Detailed LangSmith traces are restricted to approved synthetic data under the present privacy model. Raw questions and answers, normalized intent, paths, tools, tokens, latency, and failures help debug non-deterministic behavior. Real HR data needs a trace-data policy, PII filtering, access control, sampling, retention, regional/legal review, and the ability to omit payloads. See [explicit versus automatic tracing](docs/configuration.md#explicit-versus-automatic-tracing).
 
 The intent prompt is source-controlled as `hcm-intent-v3` and included in agent trace metadata.
 
@@ -434,13 +446,15 @@ The MCP endpoint exposes exactly two read-only tools: `get_employee_onboarding_s
 
 ## Data and repository structure
 
-| Data group | Tables                                               | Purpose                                             |
-| ---------- | ---------------------------------------------------- | --------------------------------------------------- |
-| Employees  | `employees`, `onboarding_review_periods`             | Sample identity, roles, reporting, and review dates |
-| Leave      | `leave_policies`, `leave_balances`, `leave_requests` | Policy, eligibility, approved requests, and PDFs    |
-| Audit      | `agent_runs`, `agent_run_steps`, `security_events`   | Durable workflow and security evidence              |
-| Delivery   | `processed_events`                                   | Event idempotency, attempts, hashes, and outcomes   |
-| Knowledge  | `knowledge_documents`, `knowledge_chunks`            | Active policy versions, text, sources, and vectors  |
+| Data group | Tables                                               | Purpose                                                                 |
+| ---------- | ---------------------------------------------------- | ----------------------------------------------------------------------- |
+| Employees  | `employees`, `onboarding_review_periods`             | Sample identity, roles, reporting, and review dates                     |
+| Leave      | `leave_policies`, `leave_balances`, `leave_requests` | Policy, eligibility, submitted requests, and document template versions |
+| Audit      | `agent_runs`, `agent_run_steps`, `security_events`   | Durable workflow and security evidence                                  |
+| Delivery   | `processed_events`                                   | Event idempotency, attempts, hashes, and outcomes                       |
+| Knowledge  | `knowledge_documents`, `knowledge_chunks`            | Active policy versions, text, sources, and vectors                      |
+
+Leave PDFs are derived on demand after authorization from submitted-request data and the stored document template version; they are not persisted.
 
 LangGraph owns separate checkpoint tables. See the [data-model guide](docs/data-model.md) for the ER diagram, PII classification, seed records, and migrations.
 
@@ -495,17 +509,22 @@ npm run build
 
 Live infrastructure paths are documented for manual verification in the [usage guide](docs/usage-guide.md).
 
-## Current boundaries
+## Current limitations
 
-- `X-Employee-Id` is a development identity, not SSO, OAuth, or JWT authentication.
-- Manager notifications use a development adapter.
-- Policy Q&A is exposed through the knowledge API and MCP, not the conversational supervisor.
-- External RAG processing runs only for explicit indexing or query actions.
-- LangSmith tracing is opt-in and intended only for mock development data.
-- Leave calculations use Monday–Friday and no public-holiday calendar.
-- Leave PDFs are stored in PostgreSQL rather than object storage.
-- Automated coverage is focused on unit tests, not broad integration, load, or fault-injection suites.
-- Production requires trusted identity, managed secrets, hardening, scaling, alerting, recovery, and external log shipping.
+| Current implementation                                                                                                                                                            | Why it is limited                                                                                                                                    | Production direction                                                                                                                   |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `X-Employee-Id` resolves a canonical development identity from PostgreSQL.                                                                                                        | A request header is not SSO, OAuth, or JWT authentication.                                                                                           | Integrate a trusted enterprise identity provider and map verified claims to employee access.                                           |
+| Manager notifications use a development adapter.                                                                                                                                  | It does not deliver through a managed email, chat, or workflow provider.                                                                             | Add a provider adapter with delivery authentication, observability, and operational ownership.                                         |
+| Employee and policy data are local PostgreSQL records.                                                                                                                            | Seeded data is synthetic and does not synchronize with Oracle Fusion or another HR system of record.                                                 | Add a governed HR-system integration with source-of-truth, synchronization, and failure-handling rules.                                |
+| Business use cases are onboarding review, annual leave, and policy Q&A only.                                                                                                      | Other HCM processes and policy domains are intentionally outside the implemented intent and tool vocabulary.                                         | Add use cases incrementally with explicit intents, authorization, policy, and evaluation coverage.                                     |
+| The configured runtime integrations for OpenAI, PostgreSQL/pgvector, RabbitMQ, LangGraph, and LangSmith are real; unit tests and LangGraph Studio use fake external dependencies. | Tests and Studio do not prove live-provider behavior, credentials, network conditions, or persistence semantics.                                     | Keep isolated fakes for fast tests and add controlled integration and end-to-end verification against managed services.                |
+| Policy ingestion accepts repository-managed PDFs only.                                                                                                                            | PDF-only ingestion supports page citations but excludes business-dependent DOCX, CSV/spreadsheet, HTML, text/Markdown, OCR, and document connectors. | Add formats and connectors only with product ownership, extraction quality, safety, provenance, and citation requirements.             |
+| OpenAI is the only language and embedding adapter.                                                                                                                                | There is no provider abstraction proven against alternative model or embedding services.                                                             | Introduce evaluated provider adapters where portability, regional requirements, or model choice require them.                          |
+| Detailed LangSmith traces are restricted to approved synthetic data.                                                                                                              | They can contain raw questions/answers and operational model data; the present privacy model is not approved for real HR data.                       | Establish trace-data policy, PII filtering, access control, sampling, retention, regional/legal review, and payload omission controls. |
+| Leave calculations count Monday–Friday working days.                                                                                                                              | The calendar has no public-holiday support.                                                                                                          | Integrate jurisdiction-aware holiday and work-schedule calendars.                                                                      |
+| Leave PDFs are generated on demand after authorization and retain the request's template version.                                                                                 | Generated files are not retained as immutable legal artifacts.                                                                                       | Define legal-record requirements, immutable retention, signing, and storage controls where required.                                   |
+| Automated coverage focuses on unit tests; infrastructure paths are checked manually.                                                                                              | It does not provide broad integration, load, resilience, or fault-injection evidence.                                                                | Add repeatable managed-infrastructure, end-to-end, performance, and resilience suites.                                                 |
+| Docker Compose supplies the development runtime.                                                                                                                                  | It has no production secrets, deployment, monitoring, disaster recovery, or SLO implementation.                                                      | Build a production platform with managed secrets, deployment controls, monitoring/alerting, DR, and explicit SLOs.                     |
 
 ## Further documentation
 
