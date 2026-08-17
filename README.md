@@ -179,11 +179,11 @@ controller or trigger → application service → HCM graph → domain subgraph 
 
 ## Where the LLM is used
 
-| Model boundary         | Input                                        | Output                                                        | Application controls                                                                             |
-| ---------------------- | -------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Intent normalization   | A user query accepted by the request guard   | Onboarding, leave, missing-information, or unsupported intent | Prompt `hcm-intent-v3`, Zod schema, 15-second timeout, and one retry                             |
-| Knowledge embeddings   | Policy chunks or a search question           | 1,536-dimensional vectors                                     | Configuration gate, limits, safety checks, and active-version retrieval                          |
-| Grounded policy answer | A question and bounded retrieved policy text | An answer with cited retrieved chunk IDs                      | Evidence-only prompt, citation/URL validation, output safety, and insufficient-evidence fallback |
+| Model boundary         | Input                                        | Output                                                                                      | Application controls                                                                             |
+| ---------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Intent normalization   | A user query accepted by the request guard   | `ONBOARDING_REVIEW`, `LEAVE_REQUEST`, or `UNSUPPORTED`; missing fields continue the request | Prompt `hcm-intent-v3`, Zod schema, 15-second timeout, and one retry                             |
+| Knowledge embeddings   | Policy chunks or a search question           | 1,536-dimensional vectors                                                                   | Configuration gate, limits, safety checks, and active-version retrieval                          |
+| Grounded policy answer | A question and bounded retrieved policy text | An answer with cited retrieved chunk IDs                                                    | Evidence-only prompt, citation/URL validation, output safety, and insufficient-evidence fallback |
 
 The model does **not**:
 
