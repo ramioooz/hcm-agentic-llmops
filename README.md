@@ -522,9 +522,60 @@ Live infrastructure paths are documented for manual verification in the [usage g
 | OpenAI is the only language and embedding adapter.                                                                                                                                | There is no provider abstraction proven against alternative model or embedding services.                                                             | Introduce evaluated provider adapters where portability, regional requirements, or model choice require them.                          |
 | Detailed LangSmith traces are restricted to approved synthetic data.                                                                                                              | They can contain raw questions/answers and operational model data; the present privacy model is not approved for real HR data.                       | Establish trace-data policy, PII filtering, access control, sampling, retention, regional/legal review, and payload omission controls. |
 | Leave calculations count Monday–Friday working days.                                                                                                                              | The calendar has no public-holiday support.                                                                                                          | Integrate jurisdiction-aware holiday and work-schedule calendars.                                                                      |
-| Leave PDFs are generated on demand after authorization and retain the request's template version.                                                                                 | Generated files are not retained as immutable legal artifacts.                                                                                       | Define legal-record requirements, immutable retention, signing, and storage controls where required.                                   |
+| Leave PDFs are generated on demand after authorization; the submitted request row retains the document template version and generation uses it.                                   | Generated files are not retained as immutable legal artifacts.                                                                                       | Define legal-record requirements, immutable retention, signing, and storage controls where required.                                   |
 | Automated coverage focuses on unit tests; infrastructure paths are checked manually.                                                                                              | It does not provide broad integration, load, resilience, or fault-injection evidence.                                                                | Add repeatable managed-infrastructure, end-to-end, performance, and resilience suites.                                                 |
 | Docker Compose supplies the development runtime.                                                                                                                                  | It has no production secrets, deployment, monitoring, disaster recovery, or SLO implementation.                                                      | Build a production platform with managed secrets, deployment controls, monitoring/alerting, DR, and explicit SLOs.                     |
+
+## Production-readiness roadmap
+
+This ordered roadmap identifies potential production work; it does not describe implemented capabilities.
+
+1. Introduce trusted SSO/OAuth identity and authorization governance.
+2. Add Oracle Fusion or approved HR REST/SOAP adapters.
+3. Add approved notification providers with retry, idempotency, and delivery tracking.
+4. Add managed secrets, TLS, encryption, PII governance, retention, and audit controls.
+5. Move to managed PostgreSQL/RabbitMQ, backups, and disaster recovery.
+6. Use immutable object storage for official/legal documents when required.
+7. Add transactional event publishing, circuit breakers, and operational DLQ handling.
+8. Add production containers, horizontal scaling, scheduler coordination, and worker isolation.
+9. Add centralized metrics, OpenTelemetry, dashboards, alerts, and SLOs.
+10. Add integration, contract, end-to-end, security, load, and fault-injection tests.
+11. Add prompt/model release gates, evaluations, cost budgets, caching, provider fallback, and rollback.
+12. Add additional HR intents, worker graphs, tools, authorization, traces, evaluations, and documentation.
+
+Legal, security, data-residency, availability, and operational requirements remain organization-specific.
+
+## Extending the system
+
+### Knowledge-ingestion extensibility
+
+Additional knowledge formats and connectors are requirements-driven, not universally mandatory. CSV and spreadsheet ingestion needs schema-aware header, row, and column handling; scanned documents need OCR. Document connectors also need defined ownership, access, lifecycle, deletion, reindexing, and malware-scanning controls.
+
+### Model-provider extensibility
+
+Potential provider portability should use separate provider-neutral interfaces for intent normalization, grounded answer generation, and embeddings. Claude or other approved language providers can support language tasks, while embeddings remain independently selectable rather than assumed to come from the same provider. Each provider integration needs structured-output compatibility, provider-specific timeout, retry, and rate-limit handling, evaluation, and a fallback policy. Embedding dimensions and versions must remain compatible with the active index; changed embeddings require side-by-side reindexing before activation.
+
+### Extending HR capabilities
+
+Future HR capabilities should follow this extension pattern:
+
+```text
+business requirement
+→ predefined structured intent
+→ supervisor route
+→ domain worker graph
+→ authorized tools
+→ repository or external adapter
+→ audit, traces, evaluations, and documentation
+```
+
+Employee profiles, absence categories, benefits, performance reviews, recruitment, document workflows, and more external HR integrations are future opportunities, not implemented features.
+
+## Project delivery
+
+[GitHub Project #7](https://github.com/users/ramioooz/projects/7) records the delivery work.
+
+Development was managed through the linked GitHub Project using a lightweight Agile delivery process. Work was organized into two fast-paced sprints with epics, stories, parented tasks, acceptance criteria, pull-request-based delivery, and a working increment at the end of each sprint.
 
 ## Further documentation
 
