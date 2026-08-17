@@ -20,7 +20,7 @@ The parent records the trace/correlation/actor/source identifiers, raw question,
 
 ## Read-only MCP boundary
 
-The `/mcp` endpoint creates a fresh official TypeScript SDK `McpServer` and stateless Streamable HTTP transport for every POST. The HTTP adapter resolves a canonical employee through PostgreSQL before MCP dispatch and closes identity plus a safe correlation ID over the two handlers. `get_employee_onboarding_status` delegates to the existing authorized onboarding calculation tool; `search_knowledge_documents` delegates to the existing active-version knowledge search tool/service. Both are annotated read-only and only masked, bounded structured results cross the MCP boundary. No notification, leave, upload, reindex, or other mutating capability is registered.
+The `/mcp` endpoint creates a fresh official TypeScript SDK `McpServer` and stateless Streamable HTTP transport for every POST. The HTTP adapter resolves a canonical employee through PostgreSQL before MCP dispatch and closes identity plus a safe correlation ID over the two handlers. `get_employee_onboarding_status` delegates to the existing authorized onboarding calculation tool; `search_knowledge_documents` delegates to the existing active-version knowledge search tool/service. Both are annotated read-only and only masked, bounded structured results cross the MCP boundary. No notification, leave, upload, reindex, or other mutating capability is registered. See the [MCP guide](mcp.md) for the complete endpoint, tool, identity, error, and production-boundary reference.
 
 ```mermaid
 flowchart LR
