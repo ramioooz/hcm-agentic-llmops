@@ -81,24 +81,26 @@ export class RabbitMqOnboardingTransport implements OnboardingEventPublisher {
   }
 
   public async publish(event: OnboardingTriggerEvent, attempt: number): Promise<void> {
+    const correlationId = resolveSafeCorrelationId(event.correlationId);
+    const publishedEvent = { ...event, correlationId };
     const options: AmqpPublishOptions = {
       persistent: true,
       contentType: 'application/json',
       type: event.type,
       messageId: event.eventId,
-      correlationId: event.correlationId,
+      correlationId,
       timestamp: Date.parse(event.occurredAt),
       headers: { 'x-attempt': attempt, 'x-event-version': event.version },
     };
     await this.confirmedPublish(
       EVENT_EXCHANGE,
       EVENT_ROUTING_KEY,
-      Buffer.from(JSON.stringify(event)),
+      Buffer.from(JSON.stringify(publishedEvent)),
       options,
     );
     this.dependencies.logger.info({
       event: 'rabbitmq.event.publish_confirmed',
-      correlationId: resolveSafeCorrelationId(event.correlationId),
+      correlationId,
       messageId: event.eventId,
       attempt,
       routingKey: EVENT_ROUTING_KEY,
