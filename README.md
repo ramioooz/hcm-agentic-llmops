@@ -720,7 +720,7 @@ Additional knowledge formats and connectors are requirements-driven, not univers
 
 ### Model-provider extensibility
 
-Potential provider portability should use separate provider-neutral interfaces for intent normalization, grounded answer generation, and embeddings. Claude or other approved language providers can support language tasks, while embeddings remain independently selectable rather than assumed to come from the same provider. Each provider integration needs structured-output compatibility, provider-specific timeout, retry, and rate-limit handling, evaluation, and a fallback policy. Embedding dimensions and versions must remain compatible with the active index; changed embeddings require side-by-side reindexing before activation.
+Potential provider portability should use separate provider-neutral interfaces for intent normalization, grounded answer generation, and embeddings. Other approved language providers can support language tasks, while embeddings remain independently selectable rather than assumed to come from the same provider. Each provider integration needs structured-output compatibility, provider-specific timeout, retry, and rate-limit handling, evaluation, and a fallback policy. Embedding dimensions and versions must remain compatible with the active index; changed embeddings require side-by-side reindexing before activation.
 
 ### Extending HR capabilities
 
