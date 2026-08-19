@@ -20,7 +20,12 @@ const event = parseOnboardingTriggerEvent({
 function messageFor(attempt: number): AmqpMessage {
   return {
     content: Buffer.from(JSON.stringify(event)),
-    properties: { headers: { 'x-attempt': attempt } },
+    properties: {
+      headers: { 'x-attempt': attempt },
+      messageId: event.eventId,
+      correlationId: event.correlationId,
+      type: event.type,
+    },
   };
 }
 
@@ -73,11 +78,23 @@ function fakeBroker() {
   };
 }
 
-function createTransport(broker: ReturnType<typeof fakeBroker>, process = jest.fn()) {
+function captureLogger() {
+  const info = jest.fn();
+  const warn = jest.fn();
+  const error = jest.fn();
+  return { logger: { info, warn, error }, info, warn, error };
+}
+
+function createTransport(
+  broker: ReturnType<typeof fakeBroker>,
+  process = jest.fn(),
+  logger = captureLogger().logger,
+) {
   return new RabbitMqOnboardingTransport({
     amqpUrl: 'amqp://localhost:5672',
     connector: broker.connector,
     processor: { process },
+    logger,
     prefetch: 5,
     maxAttempts: 3,
   });
@@ -148,6 +165,46 @@ describe('RabbitMqOnboardingTransport', () => {
     expect(broker.waitForConfirms).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps correlation-less publication payloads stable while correlating each publication', async () => {
+    const broker = fakeBroker();
+    const logs = captureLogger();
+    const transport = createTransport(broker, jest.fn(), logs.logger);
+    const eventWithoutCorrelationId = { ...event, correlationId: undefined };
+    await transport.start();
+
+    await transport.publish(eventWithoutCorrelationId, 1);
+    await transport.publish(eventWithoutCorrelationId, 1);
+
+    const [firstPublication, secondPublication] = broker.publications;
+    const [firstConfirmation, secondConfirmation] = logs.info.mock.calls.map(([entry]) => entry);
+    expect(firstPublication!.content).toEqual(
+      Buffer.from(JSON.stringify(eventWithoutCorrelationId)),
+    );
+    expect(secondPublication!.content).toEqual(
+      Buffer.from(JSON.stringify(eventWithoutCorrelationId)),
+    );
+    expect(JSON.parse(firstPublication!.content.toString('utf8'))).not.toHaveProperty(
+      'correlationId',
+    );
+    expect(JSON.parse(secondPublication!.content.toString('utf8'))).not.toHaveProperty(
+      'correlationId',
+    );
+    expect(firstPublication!.options.correlationId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    expect(secondPublication!.options.correlationId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    expect(firstConfirmation).toMatchObject({
+      event: 'rabbitmq.event.publish_confirmed',
+      correlationId: firstPublication!.options.correlationId,
+    });
+    expect(secondConfirmation).toMatchObject({
+      event: 'rabbitmq.event.publish_confirmed',
+      correlationId: secondPublication!.options.correlationId,
+    });
+  });
+
   it('acknowledges only after successful idempotent processing', async () => {
     const broker = fakeBroker();
     const process = jest.fn().mockResolvedValue({ status: 'COMPLETED', runId: 'run-event-001' });
@@ -157,7 +214,12 @@ describe('RabbitMqOnboardingTransport', () => {
 
     await broker.deliver(message);
 
-    expect(process).toHaveBeenCalledWith({ event, triggerType: 'RABBITMQ', attempt: 1 });
+    expect(process).toHaveBeenCalledWith({
+      event,
+      triggerType: 'RABBITMQ',
+      attempt: 1,
+      correlationId: event.correlationId,
+    });
     expect(broker.ack).toHaveBeenCalledWith(message);
     expect(broker.publications).toHaveLength(0);
   });
@@ -176,6 +238,11 @@ describe('RabbitMqOnboardingTransport', () => {
       exchange: 'hcm.events.v1',
       routingKey: 'onboarding.review.requested',
       options: { headers: { 'x-attempt': 2, 'x-event-version': '1' } },
+    });
+    expect(broker.publications[0]?.options).toMatchObject({
+      messageId: event.eventId,
+      correlationId: event.correlationId,
+      type: event.type,
     });
     expect(broker.waitForConfirms).toHaveBeenCalledTimes(1);
     expect(broker.ack).toHaveBeenCalledWith(message);
@@ -216,6 +283,56 @@ describe('RabbitMqOnboardingTransport', () => {
     await broker.deliver(messageFor(1));
 
     expect(broker.ack).not.toHaveBeenCalled();
+  });
+
+  it.each([1, 3])('classifies invalid JSON safely at attempt %s', async (attempt) => {
+    const broker = fakeBroker();
+    const logs = captureLogger();
+    const process = jest.fn();
+    const transport = createTransport(broker, process, logs.logger);
+    const invalidBody = '{"employeeCode":"EMP-201"';
+    const message: AmqpMessage = {
+      ...messageFor(attempt),
+      content: Buffer.from(invalidBody),
+    };
+    await transport.start();
+
+    await broker.deliver(message);
+
+    expect(process).not.toHaveBeenCalled();
+    expect(logs.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'rabbitmq.event.validation_failed',
+        code: 'RABBITMQ_EVENT_VALIDATION_FAILED',
+        attempt,
+      }),
+    );
+
+    if (attempt === 1) {
+      const firstRetry = broker.publications[0]!;
+      expect(firstRetry.options.headers).toMatchObject({ 'x-attempt': 2 });
+    } else {
+      const finalDeadLetter = broker.publications[0]!;
+      expect(finalDeadLetter.options.headers).toMatchObject({
+        'x-attempt': 3,
+        'x-error-code': 'RABBITMQ_EVENT_VALIDATION_FAILED',
+      });
+      expect(logs.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'rabbitmq.event.dead_lettered',
+          code: 'RABBITMQ_EVENT_VALIDATION_FAILED',
+          attempt: 3,
+        }),
+      );
+    }
+
+    const serializedLogs = JSON.stringify([
+      ...logs.info.mock.calls,
+      ...logs.warn.mock.calls,
+      ...logs.error.mock.calls,
+    ]);
+    expect(serializedLogs).not.toContain(invalidBody);
+    expect(serializedLogs).not.toContain('employeeCode');
   });
 
   it('cancels the consumer before closing the channel and connection', async () => {

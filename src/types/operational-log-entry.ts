@@ -2,6 +2,10 @@ type OperationalLogFields = {
   runId?: string;
   status?: string;
   code?: string;
+  messageId?: string;
+  attempt?: number;
+  nextAttempt?: number;
+  routingKey?: string;
   message?: string;
   httpStatus?: number;
   query?: string;
@@ -26,7 +30,15 @@ type CorrelatedOperationalLogEntry = OperationalLogFields & {
     | 'leave.document.failed'
     | 'knowledge.security.detected'
     | 'knowledge.trace.failed'
-    | 'knowledge.trace.skipped';
+    | 'knowledge.trace.skipped'
+    | 'rabbitmq.event.publish_confirmed'
+    | 'rabbitmq.event.received'
+    | 'rabbitmq.event.completed'
+    | 'rabbitmq.event.duplicate'
+    | 'rabbitmq.event.conflict'
+    | 'rabbitmq.event.validation_failed'
+    | 'rabbitmq.event.retry_published'
+    | 'rabbitmq.event.dead_lettered';
   correlationId: string;
 };
 

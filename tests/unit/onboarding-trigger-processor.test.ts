@@ -7,6 +7,7 @@ import type {
 } from '../../src/types/processed-event-store';
 
 const correlationId = '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0';
+const transportCorrelationId = 'd6ce3c2f-317c-4de3-9e59-089b913f9e46';
 const threadId = '8b8a6d62-bf1c-4abf-9968-84b8e23b58cb';
 const event = parseOnboardingTriggerEvent({
   version: '1',
@@ -70,7 +71,12 @@ describe('OnboardingTriggerProcessor', () => {
       automationActorEmployeeCode: 'EMP-100',
     });
 
-    const outcome = await processor.process({ event, triggerType: 'RABBITMQ', attempt: 1 });
+    const outcome = await processor.process({
+      event,
+      triggerType: 'RABBITMQ',
+      attempt: 1,
+      correlationId: transportCorrelationId,
+    });
 
     expect(outcome).toEqual({ status: 'COMPLETED', runId: 'run-event-001' });
     expect(agent.invoke).toHaveBeenCalledWith({
@@ -79,7 +85,7 @@ describe('OnboardingTriggerProcessor', () => {
       thresholdDays: 30,
       notificationPolicy: 'EXPLICIT_REQUEST',
       actorEmployeeCode: 'EMP-100',
-      correlationId,
+      correlationId: transportCorrelationId,
       triggerType: 'RABBITMQ',
       eventId: 'event-onboarding-001',
       threadId,
@@ -88,7 +94,7 @@ describe('OnboardingTriggerProcessor', () => {
       eventId: 'event-onboarding-001',
       type: 'onboarding.review.requested',
       payloadHash: expect.stringMatching(/^[a-f0-9]{64}$/),
-      correlationId,
+      correlationId: transportCorrelationId,
       attempt: 1,
     });
     expect(events.complete).toHaveBeenCalledWith({

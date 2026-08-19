@@ -8,12 +8,14 @@ import { OnboardingScheduleTrigger } from '../triggers/onboarding-schedule.trigg
 import { RabbitMqOnboardingTransport } from '../triggers/rabbitmq-onboarding.transport';
 import type { AgentInvoker } from '../types/agent-invoker';
 import type { ApplicationEnvironment } from '../types/application-environment';
+import type { ApplicationLogger } from '../types/application-logger';
 
 export function createTriggerModule(input: {
   environment: ApplicationEnvironment;
   employees: PrismaEmployeeRepository;
   processedEvents: PrismaProcessedEventRepository;
   agent: AgentInvoker;
+  logger: ApplicationLogger;
 }) {
   const processor = new OnboardingTriggerProcessor({
     events: input.processedEvents,
@@ -24,6 +26,7 @@ export function createTriggerModule(input: {
     amqpUrl: input.environment.amqpUrl,
     connector: new AmqplibConnector(),
     processor,
+    logger: input.logger,
     prefetch: input.environment.rabbitPrefetch,
     maxAttempts: input.environment.rabbitMaxAttempts,
   });

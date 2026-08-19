@@ -39,8 +39,11 @@ export class OnboardingTriggerProcessor {
     event: OnboardingTriggerEvent;
     triggerType: TechnicalTriggerType;
     attempt: number;
+    correlationId?: string;
   }): Promise<{ status: 'COMPLETED'; runId: string } | { status: 'DUPLICATE' }> {
-    const correlationId = resolveSafeCorrelationId(input.event.correlationId);
+    const correlationId = resolveSafeCorrelationId(
+      input.correlationId ?? input.event.correlationId,
+    );
     const claim = await this.dependencies.events.claim({
       eventId: input.event.eventId,
       type: input.event.type,
