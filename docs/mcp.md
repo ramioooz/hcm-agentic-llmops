@@ -343,7 +343,7 @@ The correlation ID connects the client response with these operational logs. For
 
 ## Connect and test
 
-Use [Verify MCP with Inspector](usage-guide.md#verify-mcp-with-inspector) for graphical and CLI connection, discovery, and invocation instructions. That section is the canonical operational walkthrough and is not repeated here.
+Use [MCP discovery and read-only calls](manual-testing.md#mcp-discovery-and-read-only-calls) for graphical and CLI connection, discovery, and invocation instructions. That section is the canonical operational walkthrough and is not repeated here.
 
 For RAG-specific indexing prerequisites, expected knowledge results, LangSmith inspection, and troubleshooting, see [RAG testing and troubleshooting](rag-testing-and-troubleshooting.md#6-test-the-mcp-knowledge-tool).
 

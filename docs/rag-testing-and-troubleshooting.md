@@ -353,7 +353,7 @@ npx @modelcontextprotocol/inspector
 ```
 
 For Inspector connection configuration, tool discovery, and invocation examples, see
-[Verify MCP with Inspector](usage-guide.md#verify-mcp-with-inspector).
+[Verify MCP with Inspector](manual-testing.md#mcp-discovery-and-read-only-calls).
 
 Connect with Streamable HTTP to `http://localhost:3000/mcp` and send header `X-Employee-Id: EMP-201`. Discover `search_knowledge_documents`, then invoke it with:
 

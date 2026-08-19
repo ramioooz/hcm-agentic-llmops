@@ -209,7 +209,7 @@ generates its `threadId`; that ID remains stable for a continuation. `correlatio
 supplied `X-Correlation-Id` or is generated for the request. `reviewEndDate`, `daysRemaining`, and
 the threshold result vary with the seeded employee data and the date the request runs.
 
-For complete success, failure, continuation, approval, trigger, RAG, and MCP flows, continue with the [local usage guide](docs/usage-guide.md).
+For complete success, failure, continuation, approval, trigger, RAG, and MCP flows, continue with the [manual testing guide](docs/manual-testing.md).
 
 ## How the system works
 
@@ -469,7 +469,7 @@ Missing fields and `UNSUPPORTED` are valid intent-normalization outcomes: missin
 - Pino and PostgreSQL audit operate when LangSmith is disabled.
 - SSE progress omits sensitive input even when a request fails.
 
-See [manual observability checks](docs/usage-guide.md#inspect-observability-and-audit-data).
+See [manual observability checks](docs/manual-testing.md#pino-postgresql-audit-langsmith-studio-and-evaluation).
 
 ## LLMOps, tracing, and evaluation
 
@@ -591,7 +591,7 @@ npm run format:check
 npm run build
 ```
 
-Live infrastructure paths are documented for manual verification in the [usage guide](docs/usage-guide.md).
+Live infrastructure paths are documented for manual verification in the [manual testing guide](docs/manual-testing.md).
 
 ## Current limitations
 
@@ -665,7 +665,7 @@ Development was managed through the linked GitHub Project using a lightweight Ag
 
 | Document                                               | Use it for                                                                          |
 | ------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| [Local usage guide](docs/usage-guide.md)               | Manual workflows, triggers, MCP, Studio, and audit checks                           |
+| [Manual testing guide](docs/manual-testing.md)         | Manual workflows, triggers, MCP, Studio, and audit checks                           |
 | [MCP guide](docs/mcp.md)                               | Architecture, tools, identity, authorization, errors, and production considerations |
 | [Configuration reference](docs/configuration.md)       | Environment, ports, trace flags, and forbidden aliases                              |
 | [Knowledge indexing](docs/knowledge-indexing.md)       | PDF limits, version publication, statuses, and troubleshooting                      |

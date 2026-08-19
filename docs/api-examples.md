@@ -22,7 +22,7 @@ Representative body:
 
 This response has no variable fields.
 
-For complete copyable success and failure workflows, see the [local usage and manual verification guide](usage-guide.md).
+For complete copyable success and failure workflows, see the [manual testing guide](manual-testing.md).
 
 ```bash
 curl http://localhost:3000/ready
@@ -111,7 +111,7 @@ Set `Accept: text/event-stream` to receive `run`, `intent`, `node`, `tool`, and 
 
 For a Docker Compose API, replace port `3000` with `3300` in these examples.
 
-Repository indexing rejects indirect prompt injection with `KNOWLEDGE_DOCUMENT_UNSAFE` before embeddings are generated and before an active version is published. Knowledge questions containing unsafe instructions return HTTP `403` and `UNSAFE_KNOWLEDGE_QUERY` before query embedding or retrieval. Copyable commands are in the [policy indexing and query guide](usage-guide.md#index-and-query-policy-documents), with operator diagnostics in [repository knowledge indexing](knowledge-indexing.md).
+Repository indexing rejects indirect prompt injection with `KNOWLEDGE_DOCUMENT_UNSAFE` before embeddings are generated and before an active version is published. Knowledge questions containing unsafe instructions return HTTP `403` and `UNSAFE_KNOWLEDGE_QUERY` before query embedding or retrieval. Copyable commands are in the [policy indexing and query guide](manual-testing.md#knowledge-indexing-and-rag-successfailure), with operator diagnostics in [repository knowledge indexing](knowledge-indexing.md).
 
 ### Explicit RAG trace
 
