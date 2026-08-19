@@ -375,7 +375,7 @@ LANGSMITH_API_KEY=your-langsmith-api-key
 LANGSMITH_PROJECT=hcm-agentic-llmops
 ```
 
-After a knowledge query, filter the project for parent run `hcm-rag-query`. Confirm that the parent contains:
+Run the executable [cross-document grounded-answer scenario](#51-cross-document-grounded-answer), then filter the configured project for parent run `hcm-rag-query`. Confirm that the parent contains:
 
 - Raw sample question and generated answer.
 - `candidateLimit`, `minimumSimilarity`, and `evidenceLimit`.
