@@ -52,7 +52,7 @@ Representative ready body:
 
 **Purpose:** Verify the API listener and PostgreSQL readiness dependency.
 
-**Prerequisites:** Complete MT-environment-01.
+**Prerequisites:** Complete [MT-environment-01](#mt-environment-01-initialize-the-docker-compose-stack).
 
 **Recommended tool:** curl.
 
@@ -87,7 +87,7 @@ Representative ready body:
 
 **Purpose:** Confirm deterministic first-person onboarding routing.
 
-**Prerequisites:** Complete MT-environment-01.
+**Prerequisites:** Complete [MT-environment-01](#mt-environment-01-initialize-the-docker-compose-stack).
 
 **Recommended tool:** curl.
 
@@ -118,7 +118,7 @@ curl --include --request POST --url http://localhost:3300/api/v1/agent/invoke \
 
 **Variable values:** IDs, review date, remaining days, and threshold result are runtime-dependent.
 
-**Optional evidence:** Inspect the run by correlation ID in MT-observability-01.
+**Optional evidence:** Inspect the run by correlation ID in [MT-observability-01](#mt-observability-01-inspect-redacted-operational-and-audit-evidence).
 
 **Cleanup/reset:** None.
 
@@ -126,7 +126,7 @@ curl --include --request POST --url http://localhost:3300/api/v1/agent/invoke \
 
 **Purpose:** Verify PostgreSQL-derived manager authorization and routing.
 
-**Prerequisites:** Complete MT-environment-01 as `EMP-200`.
+**Prerequisites:** Complete [MT-environment-01](#mt-environment-01-initialize-the-docker-compose-stack) as `EMP-200`.
 
 **Recommended tool:** curl.
 
@@ -153,7 +153,7 @@ curl --include --request POST --url http://localhost:3300/api/v1/agent/invoke \
 
 **Variable values:** IDs, dates, remaining days, and threshold outcome vary; the manager relationship comes from PostgreSQL.
 
-**Optional evidence:** Inspect the `employee_lookup` step in MT-observability-01.
+**Optional evidence:** Inspect the `employee_lookup` step in [MT-observability-01](#mt-observability-01-inspect-redacted-operational-and-audit-evidence).
 
 **Cleanup/reset:** None.
 
@@ -161,7 +161,7 @@ curl --include --request POST --url http://localhost:3300/api/v1/agent/invoke \
 
 **Purpose:** Verify the authorized development notification decision.
 
-**Prerequisites:** Complete MT-environment-01 as `EMP-200`.
+**Prerequisites:** Complete [MT-environment-01](#mt-environment-01-initialize-the-docker-compose-stack) as `EMP-200`.
 
 **Recommended tool:** curl.
 
@@ -188,7 +188,7 @@ curl --include --request POST --url http://localhost:3300/api/v1/agent/invoke \
 
 **Variable values:** IDs, dates, threshold result, and whether the development adapter acts vary; outside the threshold `actionPerformed` is `false`.
 
-**Optional evidence:** Inspect the `onboarding_review` outcome in MT-observability-01.
+**Optional evidence:** Inspect the `onboarding_review` outcome in [MT-observability-01](#mt-observability-01-inspect-redacted-operational-and-audit-evidence).
 
 **Cleanup/reset:** None.
 
@@ -198,7 +198,7 @@ curl --include --request POST --url http://localhost:3300/api/v1/agent/invoke \
 
 **Purpose:** Verify the supported fallback for an out-of-capability request and the continuation prompt for an ambiguous onboarding request.
 
-**Prerequisites:** Complete MT-environment-01.
+**Prerequisites:** Complete [MT-environment-01](#mt-environment-01-initialize-the-docker-compose-stack).
 
 **Recommended tool:** curl.
 
@@ -235,7 +235,7 @@ curl --include --request POST --url http://localhost:3300/api/v1/agent/invoke \
 
 **Variable values:** Thread, run, and correlation IDs vary. `UNSUPPORTED_REQUEST` is the structured fallback for a valid request outside the implemented HCM capabilities; it is distinct from `MODEL_UNAVAILABLE`, which is a technical normalization failure after the bounded retry.
 
-**Optional evidence:** MT-observability-01 shows the first run with `UNSUPPORTED_REQUEST` and the second with `NEED_MORE_INFORMATION`.
+**Optional evidence:** [MT-observability-01](#mt-observability-01-inspect-redacted-operational-and-audit-evidence) shows the first run with `UNSUPPORTED_REQUEST` and the second with `NEED_MORE_INFORMATION`.
 
 **Cleanup/reset:** None.
 
@@ -245,7 +245,7 @@ curl --include --request POST --url http://localhost:3300/api/v1/agent/invoke \
 
 **Purpose:** Verify a thread retains its owner and accepts a same-owner continuation.
 
-**Prerequisites:** Complete MT-environment-01.
+**Prerequisites:** Complete [MT-environment-01](#mt-environment-01-initialize-the-docker-compose-stack).
 
 **Recommended tool:** curl.
 
@@ -267,7 +267,7 @@ curl --include --request POST --url http://localhost:3300/api/v1/agent/invoke \
 
 **Variable values:** The thread ID remains stable; attempts receive new run/correlation IDs; review values vary.
 
-**Optional evidence:** MT-observability-01 shows two runs with the same thread ID.
+**Optional evidence:** [MT-observability-01](#mt-observability-01-inspect-redacted-operational-and-audit-evidence) shows two runs with the same thread ID.
 
 **Cleanup/reset:** Use a new thread for another continuation.
 
@@ -277,7 +277,7 @@ curl --include --request POST --url http://localhost:3300/api/v1/agent/invoke \
 
 **Purpose:** Verify safe lifecycle events and the final workflow result.
 
-**Prerequisites:** Complete MT-environment-01.
+**Prerequisites:** Complete [MT-environment-01](#mt-environment-01-initialize-the-docker-compose-stack).
 
 **Recommended tool:** curl.
 
@@ -296,7 +296,7 @@ data: {"runId":"<run-id>","status":"completed","httpStatus":200,"body":{"status"
 
 **Variable values:** IDs, date-derived data, and node/tool event counts vary; progress excludes raw query and employee records.
 
-**Optional evidence:** Inspect the final event correlation ID in MT-observability-01.
+**Optional evidence:** Inspect the final event correlation ID in [MT-observability-01](#mt-observability-01-inspect-redacted-operational-and-audit-evidence).
 
 **Cleanup/reset:** None.
 
@@ -306,7 +306,7 @@ data: {"runId":"<run-id>","status":"completed","httpStatus":200,"body":{"status"
 
 **Purpose:** Verify authorization, prompt-injection, bulk-data, and thread-owner guardrails.
 
-**Prerequisites:** Complete MT-state-01 and retain its UUID as `THREAD_ID` for the final command.
+**Prerequisites:** Complete [MT-state-01](#mt-state-01-continue-an-ambiguous-onboarding-request) and retain its UUID as `THREAD_ID` for the final command.
 
 **Recommended tool:** curl.
 
@@ -332,7 +332,7 @@ curl --include --request POST --url http://localhost:3300/api/v1/agent/invoke --
 
 **Variable values:** Generated IDs vary; these rejections contain no date-derived result data.
 
-**Optional evidence:** MT-observability-01 records safe authorization/request-guard evidence. The unsafe-request records have reason codes `INSTRUCTION_OVERRIDE` and `BULK_EMPLOYEE_DATA_REQUEST`; ownership is rejected before protected checkpoint loading.
+**Optional evidence:** [MT-observability-01](#mt-observability-01-inspect-redacted-operational-and-audit-evidence) records safe authorization/request-guard evidence. The unsafe-request records have reason codes `INSTRUCTION_OVERRIDE` and `BULK_EMPLOYEE_DATA_REQUEST`; ownership is rejected before protected checkpoint loading.
 
 **Cleanup/reset:** Use a new thread for another ownership check.
 
@@ -340,7 +340,7 @@ curl --include --request POST --url http://localhost:3300/api/v1/agent/invoke --
 
 **Purpose:** Verify that the agent HTTP body requires a non-empty `query` string.
 
-**Prerequisites:** Complete MT-environment-01.
+**Prerequisites:** Complete [MT-environment-01](#mt-environment-01-initialize-the-docker-compose-stack).
 
 **Recommended tool:** curl.
 
@@ -375,7 +375,7 @@ curl --include --request POST --url http://localhost:3300/api/v1/agent/invoke \
 
 **Purpose:** Verify durable leave approval, rejection, duplicate prevention, and authorized PDF generation.
 
-**Prerequisites:** Complete MT-environment-01. Save a proposed thread UUID as `THREAD_ID`; create another fresh proposal and save its UUID as `REJECT_THREAD_ID`.
+**Prerequisites:** Complete [MT-environment-01](#mt-environment-01-initialize-the-docker-compose-stack). Save a proposed thread UUID as `THREAD_ID`; create another fresh proposal and save its UUID as `REJECT_THREAD_ID`.
 
 **Recommended tool:** curl, `file`, and a PDF viewer.
 
@@ -424,7 +424,7 @@ docker compose exec api npm run db:seed
 
 **Purpose:** Verify indexing and grounded knowledge retrieval.
 
-**Prerequisites:** Complete MT-environment-01 with configured OpenAI embedding access.
+**Prerequisites:** Complete [MT-environment-01](#mt-environment-01-initialize-the-docker-compose-stack) with configured OpenAI embedding access.
 
 **Recommended tool:** Terminal and curl.
 
@@ -455,7 +455,7 @@ curl --include --request POST --url http://localhost:3300/api/v1/knowledge/query
 
 **Purpose:** Verify that indexing rejects an unsafe repository PDF after text extraction and before embedding or version publication.
 
-**Prerequisites:** Complete MT-environment-01 so the seeded policy PDFs are already indexed. This procedure creates its temporary file inside the running API container because the Docker image contains its own `knowledge-documents/` copy.
+**Prerequisites:** Complete [MT-environment-01](#mt-environment-01-initialize-the-docker-compose-stack) so the seeded policy PDFs are already indexed. This procedure creates its temporary file inside the running API container because the Docker image contains its own `knowledge-documents/` copy.
 
 **Recommended tool:** Terminal and PostgreSQL `psql`.
 
@@ -494,7 +494,7 @@ docker compose exec api rm -f knowledge-documents/manual-unsafe-policy.pdf
 
 **Purpose:** Verify Inspector discovery, onboarding status, policy search, and a protected-tool denial.
 
-**Prerequisites:** Complete MT-environment-01; complete MT-rag-01 before policy search.
+**Prerequisites:** Complete [MT-environment-01](#mt-environment-01-initialize-the-docker-compose-stack); complete [MT-rag-01](#mt-rag-01-index-and-query-mock-policy-knowledge) before policy search.
 
 **Recommended tool:** MCP Inspector.
 
@@ -532,7 +532,7 @@ npx @modelcontextprotocol/inspector --cli http://localhost:3300/mcp --transport 
 
 **Variable values:** IDs, wording, sources, and numbers vary; numeric values demonstrate JSON number types only.
 
-**Optional evidence:** Inspector shows a text content block for each `structuredContent` result; inspect a successful correlation ID in MT-observability-01.
+**Optional evidence:** Inspector shows a text content block for each `structuredContent` result; inspect a successful correlation ID in [MT-observability-01](#mt-observability-01-inspect-redacted-operational-and-audit-evidence).
 
 **Cleanup/reset:** Close Inspector; re-index after a mock-knowledge reset.
 
@@ -561,7 +561,7 @@ curl --include --request POST --url http://localhost:3300/api/v1/triggers/webhoo
 
 **Variable values:** The shell generates event ID/timestamp; workflow run ID is runtime-generated.
 
-**Optional evidence:** Inspect webhook evidence in MT-observability-01.
+**Optional evidence:** Inspect webhook evidence in [MT-observability-01](#mt-observability-01-inspect-redacted-operational-and-audit-evidence).
 
 **Cleanup/reset:** Seed clears runtime event state.
 
@@ -569,7 +569,7 @@ curl --include --request POST --url http://localhost:3300/api/v1/triggers/webhoo
 
 **Purpose:** Verify the opt-in daily scheduler creates durable onboarding processing for seeded reviews due within its 30-day policy window.
 
-**Prerequisites:** Complete MT-environment-01 after `db:seed`; run this controlled check before the next `09:00` Asia/Dubai schedule or wait until the following day. The scheduler uses the automation actor `EMP-100` and the seeded `EMP-201` review is due in 14 days.
+**Prerequisites:** Complete [MT-environment-01](#mt-environment-01-initialize-the-docker-compose-stack) after `db:seed`; run this controlled check before the next `09:00` Asia/Dubai schedule or wait until the following day. The scheduler uses the automation actor `EMP-100` and the seeded `EMP-201` review is due in 14 days.
 
 **Recommended tool:** Terminal and PostgreSQL `psql`.
 
@@ -590,7 +590,7 @@ schedule-onboarding-v1-<digest> | COMPLETED | 1 | <run-id> | <thread-id> |
 
 **Variable values:** The schedule event ID, run/thread/correlation IDs, and query ordering vary. The time zone and cron expression are fixed by the application at `09:00` Asia/Dubai; there is no HTTP endpoint to force an immediate scheduler run.
 
-**Optional evidence:** `processed_events` is the durable event/idempotency record and `agent_runs` is the workflow record; inspect their linked run, thread, and correlation IDs with MT-observability-01.
+**Optional evidence:** `processed_events` is the durable event/idempotency record and `agent_runs` is the workflow record; inspect their linked run, thread, and correlation IDs with [MT-observability-01](#mt-observability-01-inspect-redacted-operational-and-audit-evidence).
 
 **Cleanup/reset:** Disable the scheduler after the check, then seed again before repeating it:
 
@@ -607,7 +607,7 @@ RabbitMQ is an implemented asynchronous onboarding trigger. See [RabbitMQ archit
 
 **Purpose:** Verify that RabbitMQ routes a valid onboarding-review event, the consumer completes it once, and PostgreSQL retains the event and workflow evidence.
 
-**Prerequisites:** Complete MT-environment-01. The `api` consumer and RabbitMQ must be healthy. This typed event bypasses language-model intent normalization, so the seeded deterministic onboarding path does not require OpenAI access.
+**Prerequisites:** Complete [MT-environment-01](#mt-environment-01-initialize-the-docker-compose-stack). The `api` consumer and RabbitMQ must be healthy. This typed event bypasses language-model intent normalization, so the seeded deterministic onboarding path does not require OpenAI access.
 
 **Recommended tool:** curl, Docker logs, and PostgreSQL `psql`.
 
@@ -667,7 +667,7 @@ docker compose exec -T postgres psql -U hcm -d hcm -c "SELECT r.run_id, r.thread
 
 **Purpose:** Verify that an invalid event is routed by the broker, fails application validation before the idempotency claim, retries immediately through attempt `3`, and is retained for manual DLQ inspection.
 
-**Prerequisites:** Complete MT-environment-01. Use a new safe event ID and do not consume or acknowledge the DLQ message during inspection.
+**Prerequisites:** Complete [MT-environment-01](#mt-environment-01-initialize-the-docker-compose-stack). Use a new safe event ID and do not consume or acknowledge the DLQ message during inspection.
 
 **Recommended tool:** curl, Docker logs, RabbitMQ Management UI or `rabbitmqadmin`, and PostgreSQL `psql`.
 
