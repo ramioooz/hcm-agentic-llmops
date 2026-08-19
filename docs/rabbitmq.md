@@ -133,12 +133,12 @@ The procedures use the local Management API at `http://localhost:15672` and insp
 
 ## Secondary behavior reference
 
-| Behavior               | Implemented behavior                                                                                                                         |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Duplicate delivery     | The same payload and event ID become `DUPLICATE`, avoiding repeated workflow side effects.                                                   |
-| Conflicting reuse      | Different payload content with the same event ID becomes `EVENT_ID_CONFLICT`.                                                                |
-| Management credentials | Compose reads the broker values from `.env` and `.env.example`; the local Management API examples use the Compose `guest:guest` credentials. |
-| Durability             | Messages survive a normal restart through the named `hcm_rabbitmq_data` volume.                                                              |
-| Development publisher  | The development HTTP publisher is available only when `NODE_ENV=development`; the Docker Compose API runs with `NODE_ENV=production`.        |
-| Retries                | Retries are immediate, not delayed or exponential.                                                                                           |
-| DLQ                    | Manual inspection only; there is no DLQ consumer or redrive implementation.                                                                  |
+| Behavior               | Implemented behavior                                                                                                                                                                                                                                      |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Duplicate delivery     | The same payload and event ID become `DUPLICATE`, avoiding repeated workflow side effects.                                                                                                                                                                |
+| Conflicting reuse      | Different payload content with the same event ID becomes `EVENT_ID_CONFLICT`.                                                                                                                                                                             |
+| Management credentials | `.env.example` is a copy/template; Compose loads `.env` only for interpolated variables. The current Compose file hard-codes local `AMQP_URL=amqp://guest:guest@rabbitmq:5672`, so the Management API examples use `guest:guest` independently of `.env`. |
+| Durability             | Messages survive a normal restart through the named `hcm_rabbitmq_data` volume.                                                                                                                                                                           |
+| Development publisher  | The development HTTP publisher is available only when `NODE_ENV=development`; the Docker Compose API runs with `NODE_ENV=production`.                                                                                                                     |
+| Retries                | Retries are immediate, not delayed or exponential.                                                                                                                                                                                                        |
+| DLQ                    | Manual inspection only; there is no DLQ consumer or redrive implementation.                                                                                                                                                                               |
