@@ -20,7 +20,12 @@ const event = parseOnboardingTriggerEvent({
 function messageFor(attempt: number): AmqpMessage {
   return {
     content: Buffer.from(JSON.stringify(event)),
-    properties: { headers: { 'x-attempt': attempt } },
+    properties: {
+      headers: { 'x-attempt': attempt },
+      messageId: event.eventId,
+      correlationId: event.correlationId,
+      type: event.type,
+    },
   };
 }
 
@@ -73,11 +78,23 @@ function fakeBroker() {
   };
 }
 
-function createTransport(broker: ReturnType<typeof fakeBroker>, process = jest.fn()) {
+function captureLogger() {
+  const info = jest.fn();
+  const warn = jest.fn();
+  const error = jest.fn();
+  return { logger: { info, warn, error }, info, warn, error };
+}
+
+function createTransport(
+  broker: ReturnType<typeof fakeBroker>,
+  process = jest.fn(),
+  logger = captureLogger().logger,
+) {
   return new RabbitMqOnboardingTransport({
     amqpUrl: 'amqp://localhost:5672',
     connector: broker.connector,
     processor: { process },
+    logger,
     prefetch: 5,
     maxAttempts: 3,
   });
@@ -177,6 +194,11 @@ describe('RabbitMqOnboardingTransport', () => {
       routingKey: 'onboarding.review.requested',
       options: { headers: { 'x-attempt': 2, 'x-event-version': '1' } },
     });
+    expect(broker.publications[0]?.options).toMatchObject({
+      messageId: event.eventId,
+      correlationId: event.correlationId,
+      type: event.type,
+    });
     expect(broker.waitForConfirms).toHaveBeenCalledTimes(1);
     expect(broker.ack).toHaveBeenCalledWith(message);
   });
@@ -216,6 +238,56 @@ describe('RabbitMqOnboardingTransport', () => {
     await broker.deliver(messageFor(1));
 
     expect(broker.ack).not.toHaveBeenCalled();
+  });
+
+  it.each([1, 3])('classifies invalid JSON safely at attempt %s', async (attempt) => {
+    const broker = fakeBroker();
+    const logs = captureLogger();
+    const process = jest.fn();
+    const transport = createTransport(broker, process, logs.logger);
+    const invalidBody = '{"employeeCode":"EMP-201"';
+    const message: AmqpMessage = {
+      ...messageFor(attempt),
+      content: Buffer.from(invalidBody),
+    };
+    await transport.start();
+
+    await broker.deliver(message);
+
+    expect(process).not.toHaveBeenCalled();
+    expect(logs.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'rabbitmq.event.validation_failed',
+        code: 'RABBITMQ_EVENT_VALIDATION_FAILED',
+        attempt,
+      }),
+    );
+
+    if (attempt === 1) {
+      const firstRetry = broker.publications[0]!;
+      expect(firstRetry.options.headers).toMatchObject({ 'x-attempt': 2 });
+    } else {
+      const finalDeadLetter = broker.publications[0]!;
+      expect(finalDeadLetter.options.headers).toMatchObject({
+        'x-attempt': 3,
+        'x-error-code': 'RABBITMQ_EVENT_VALIDATION_FAILED',
+      });
+      expect(logs.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'rabbitmq.event.dead_lettered',
+          code: 'RABBITMQ_EVENT_VALIDATION_FAILED',
+          attempt: 3,
+        }),
+      );
+    }
+
+    const serializedLogs = JSON.stringify([
+      ...logs.info.mock.calls,
+      ...logs.warn.mock.calls,
+      ...logs.error.mock.calls,
+    ]);
+    expect(serializedLogs).not.toContain(invalidBody);
+    expect(serializedLogs).not.toContain('employeeCode');
   });
 
   it('cancels the consumer before closing the channel and connection', async () => {

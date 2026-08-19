@@ -5,6 +5,7 @@ import {
 import { CommonErrorCode, TriggerErrorCode } from '../enums/error.enum';
 import { ApplicationError } from '../errors/application.error';
 import { resolveApplicationErrorCode } from '../helpers/application-error.helpers';
+import { resolveSafeCorrelationId } from '../security/correlation-id';
 import type {
   AmqpConfirmChannel,
   AmqpConnection,
@@ -12,6 +13,7 @@ import type {
   AmqpMessage,
   AmqpPublishOptions,
 } from '../types/amqp';
+import type { ApplicationLogger } from '../types/application-logger';
 import type { OnboardingEventPublisher } from '../types/onboarding-event-publisher';
 import type { OnboardingTriggerHandler } from '../types/onboarding-trigger-handler';
 
@@ -21,6 +23,7 @@ const ONBOARDING_QUEUE = 'hcm.onboarding.review.v1';
 const DEAD_LETTER_QUEUE = 'hcm.onboarding.review.dlq.v1';
 const EVENT_ROUTING_KEY = 'onboarding.review.requested';
 const DEAD_LETTER_ROUTING_KEY = 'onboarding.review.dead';
+const SAFE_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 
 function deliveryAttempt(message: AmqpMessage): number {
   const value = message.properties.headers?.['x-attempt'];
@@ -30,6 +33,10 @@ function deliveryAttempt(message: AmqpMessage): number {
 
 function stableErrorCode(error: unknown): string {
   return resolveApplicationErrorCode(error, CommonErrorCode.InternalError);
+}
+
+function safeMessageId(value: string | undefined): string | undefined {
+  return value && value.length <= 128 && SAFE_IDENTIFIER.test(value) ? value : undefined;
 }
 
 export class RabbitMqOnboardingTransport implements OnboardingEventPublisher {
@@ -42,6 +49,7 @@ export class RabbitMqOnboardingTransport implements OnboardingEventPublisher {
       amqpUrl: string;
       connector: AmqpConnector;
       processor: OnboardingTriggerHandler;
+      logger: ApplicationLogger;
       prefetch: number;
       maxAttempts: number;
     },
@@ -88,6 +96,14 @@ export class RabbitMqOnboardingTransport implements OnboardingEventPublisher {
       Buffer.from(JSON.stringify(event)),
       options,
     );
+    this.dependencies.logger.info({
+      event: 'rabbitmq.event.publish_confirmed',
+      correlationId: resolveSafeCorrelationId(event.correlationId),
+      messageId: event.eventId,
+      attempt,
+      routingKey: EVENT_ROUTING_KEY,
+      status: 'ACCEPTED',
+    });
   }
 
   public async close(): Promise<void> {
@@ -112,18 +128,73 @@ export class RabbitMqOnboardingTransport implements OnboardingEventPublisher {
   private async consumeMessage(message: AmqpMessage): Promise<void> {
     const channel = this.requireChannel();
     const attempt = deliveryAttempt(message);
+    const correlationId = resolveSafeCorrelationId(message.properties.correlationId);
+    const messageId = safeMessageId(message.properties.messageId);
+    const safeType = message.properties.type === EVENT_ROUTING_KEY ? EVENT_ROUTING_KEY : undefined;
+    const metadata = { correlationId, messageId, attempt, routingKey: EVENT_ROUTING_KEY };
+    this.dependencies.logger.info({
+      event: 'rabbitmq.event.received',
+      ...metadata,
+      status: 'RECEIVED',
+    });
+
     try {
-      const event = onboardingTriggerEventSchema.parse(
-        JSON.parse(message.content.toString('utf8')),
-      );
-      await this.dependencies.processor.process({ event, triggerType: 'RABBITMQ', attempt });
+      const event = this.parseEvent(message.content);
+      const result = await this.dependencies.processor.process({
+        event,
+        triggerType: 'RABBITMQ',
+        attempt,
+      });
+      if (result.status === 'COMPLETED') {
+        this.dependencies.logger.info({
+          event: 'rabbitmq.event.completed',
+          ...metadata,
+          status: 'COMPLETED',
+          runId: result.runId,
+        });
+      } else {
+        this.dependencies.logger.info({
+          event: 'rabbitmq.event.duplicate',
+          ...metadata,
+          status: 'DUPLICATE',
+        });
+      }
       channel.ack(message);
     } catch (error) {
+      const code = stableErrorCode(error);
+      if (code === TriggerErrorCode.EventIdConflict) {
+        this.dependencies.logger.warn({
+          event: 'rabbitmq.event.conflict',
+          ...metadata,
+          status: 'FAILED',
+          code,
+        });
+      }
+      if (code === TriggerErrorCode.RabbitMqEventValidationFailed) {
+        this.dependencies.logger.warn({
+          event: 'rabbitmq.event.validation_failed',
+          ...metadata,
+          status: 'FAILED',
+          code,
+        });
+      }
+
       if (attempt < this.dependencies.maxAttempts) {
         await this.confirmedPublish(EVENT_EXCHANGE, EVENT_ROUTING_KEY, message.content, {
           persistent: true,
           contentType: 'application/json',
+          type: safeType,
+          messageId,
+          correlationId,
+          timestamp: undefined,
           headers: { 'x-attempt': attempt + 1, 'x-event-version': '1' },
+        });
+        this.dependencies.logger.warn({
+          event: 'rabbitmq.event.retry_published',
+          ...metadata,
+          nextAttempt: attempt + 1,
+          status: 'RETRYING',
+          code,
         });
       } else {
         await this.confirmedPublish(
@@ -133,15 +204,36 @@ export class RabbitMqOnboardingTransport implements OnboardingEventPublisher {
           {
             persistent: true,
             contentType: 'application/json',
+            type: safeType,
+            messageId,
+            correlationId,
+            timestamp: undefined,
             headers: {
               'x-attempt': attempt,
               'x-event-version': '1',
-              'x-error-code': stableErrorCode(error),
+              'x-error-code': code,
             },
           },
         );
+        this.dependencies.logger.error({
+          event: 'rabbitmq.event.dead_lettered',
+          correlationId,
+          messageId,
+          attempt,
+          routingKey: DEAD_LETTER_ROUTING_KEY,
+          status: 'DEAD_LETTERED',
+          code,
+        });
       }
       channel.ack(message);
+    }
+  }
+
+  private parseEvent(content: Buffer): OnboardingTriggerEvent {
+    try {
+      return onboardingTriggerEventSchema.parse(JSON.parse(content.toString('utf8')));
+    } catch {
+      throw new ApplicationError(TriggerErrorCode.RabbitMqEventValidationFailed);
     }
   }
 

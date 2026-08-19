@@ -32,6 +32,7 @@ export function composeApplication(environment: ApplicationEnvironment): Applica
     employees: core.employees,
     processedEvents: core.processedEvents,
     agent: agent.agent,
+    logger: core.logger,
   });
   const healthController = new HealthController(async () => {
     await core.database.$queryRaw`SELECT 1`;
