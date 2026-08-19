@@ -109,6 +109,8 @@ Webhook events use a strict versioned Zod contract and a bearer key. Both the pr
 
 RabbitMQ uses durable topic and dead-letter exchanges, durable queues, publisher confirms, manual acknowledgements, and bounded prefetch/retries. A delivery is acknowledged only after successful idempotent processing or after a retry/dead-letter publish is confirmed. Shutdown stops the scheduler and HTTP listener, cancels the consumer, then closes the channel, connection, and PostgreSQL client.
 
+See the [RabbitMQ architecture and operations guide](rabbitmq.md) for the exact topology, event contract, acknowledgement/retry sequence, observability boundary, and current limitations.
+
 `processed_events` atomically claims event IDs and stores only delivery metadata and a SHA-256 payload hash. A completed duplicate skips the graph and all side effects; reusing an ID with different content is a stable conflict.
 
 ## Development and production boundaries

@@ -245,3 +245,5 @@ In development only, send the same JSON body to `POST /api/v1/dev/events` to pub
 RabbitMQ. This is asynchronous: HTTP `202` with `{ "status": "ACCEPTED", "eventId":
 "<event-id>" }` only confirms publisher acceptance. Inspect the consumer/workflow evidence later;
 it is not an immediate business result.
+
+See [RabbitMQ architecture and operations](rabbitmq.md) for the broker contract, topology, acknowledgement/retry semantics, and the distinction between routing confirmation and workflow completion.

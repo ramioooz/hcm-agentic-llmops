@@ -42,6 +42,8 @@ The remaining values in `.env.example` are usable development defaults unless a 
 
 `RAG_CANDIDATE_LIMIT` must be greater than or equal to `RAG_EVIDENCE_LIMIT`. These are server-owned retrieval settings and are not accepted from HTTP or MCP callers. See [RAG testing and troubleshooting](rag-testing-and-troubleshooting.md) for the retrieval order, examples, and safe tuning guidance.
 
+`AMQP_URL`, `RABBITMQ_PREFETCH`, and `RABBITMQ_MAX_ATTEMPTS` configure the onboarding broker transport. See [RabbitMQ architecture and operations](rabbitmq.md) for the durable topology, acknowledgement/retry sequence, and operational boundary.
+
 ## Explicit versus automatic tracing
 
 The project uses narrow, explicit LangSmith recorders. It rejects the following automatic LangChain/LangSmith tracing aliases when any is set to `true`:
