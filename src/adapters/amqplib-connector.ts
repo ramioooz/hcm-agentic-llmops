@@ -17,7 +17,12 @@ import type {
 function toMessage(message: ConsumeMessage): AmqpMessage {
   return {
     content: message.content,
-    properties: { headers: message.properties.headers },
+    properties: {
+      headers: message.properties.headers,
+      messageId: message.properties.messageId,
+      correlationId: message.properties.correlationId,
+      type: message.properties.type,
+    },
     nativeMessage: message,
   };
 }

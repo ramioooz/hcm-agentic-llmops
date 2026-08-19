@@ -68,6 +68,7 @@ export enum TriggerErrorCode {
   WorkflowFailed = 'WORKFLOW_FAILED',
   ProcessedEventStateUnavailable = 'PROCESSED_EVENT_STATE_UNAVAILABLE',
   RabbitMqNotStarted = 'RABBITMQ_NOT_STARTED',
+  RabbitMqEventValidationFailed = 'RABBITMQ_EVENT_VALIDATION_FAILED',
   EventValidationError = 'EVENT_VALIDATION_ERROR',
   EventPublishFailed = 'EVENT_PUBLISH_FAILED',
   WebhookUnauthorized = 'WEBHOOK_UNAUTHORIZED',

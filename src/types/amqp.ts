@@ -12,6 +12,9 @@ export type AmqpMessage = {
   content: Buffer;
   properties: {
     headers?: Record<string, unknown>;
+    messageId?: string;
+    correlationId?: string;
+    type?: string;
   };
   nativeMessage?: unknown;
 };
