@@ -6,5 +6,6 @@ export type OnboardingTriggerHandler = {
     event: OnboardingTriggerEvent;
     triggerType: TechnicalTriggerType;
     attempt: number;
+    correlationId?: string;
   }): Promise<{ status: 'COMPLETED'; runId: string } | { status: 'DUPLICATE' }>;
 };

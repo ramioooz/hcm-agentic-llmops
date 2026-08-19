@@ -165,7 +165,7 @@ describe('RabbitMqOnboardingTransport', () => {
     expect(broker.waitForConfirms).toHaveBeenCalledTimes(1);
   });
 
-  it('uses one generated correlation ID for a publication without one', async () => {
+  it('keeps correlation-less publication payloads stable while correlating each publication', async () => {
     const broker = fakeBroker();
     const logs = captureLogger();
     const transport = createTransport(broker, jest.fn(), logs.logger);
@@ -173,20 +173,36 @@ describe('RabbitMqOnboardingTransport', () => {
     await transport.start();
 
     await transport.publish(eventWithoutCorrelationId, 1);
+    await transport.publish(eventWithoutCorrelationId, 1);
 
-    const publication = broker.publications[0]!;
-    const publishedEvent = JSON.parse(publication.content.toString('utf8')) as typeof event;
-    const correlationId = publication.options.correlationId;
-    expect(correlationId).toMatch(
+    const [firstPublication, secondPublication] = broker.publications;
+    const [firstConfirmation, secondConfirmation] = logs.info.mock.calls.map(([entry]) => entry);
+    expect(firstPublication!.content).toEqual(
+      Buffer.from(JSON.stringify(eventWithoutCorrelationId)),
+    );
+    expect(secondPublication!.content).toEqual(
+      Buffer.from(JSON.stringify(eventWithoutCorrelationId)),
+    );
+    expect(JSON.parse(firstPublication!.content.toString('utf8'))).not.toHaveProperty(
+      'correlationId',
+    );
+    expect(JSON.parse(secondPublication!.content.toString('utf8'))).not.toHaveProperty(
+      'correlationId',
+    );
+    expect(firstPublication!.options.correlationId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );
-    expect(publishedEvent.correlationId).toBe(correlationId);
-    expect(logs.info).toHaveBeenCalledWith(
-      expect.objectContaining({
-        event: 'rabbitmq.event.publish_confirmed',
-        correlationId,
-      }),
+    expect(secondPublication!.options.correlationId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );
+    expect(firstConfirmation).toMatchObject({
+      event: 'rabbitmq.event.publish_confirmed',
+      correlationId: firstPublication!.options.correlationId,
+    });
+    expect(secondConfirmation).toMatchObject({
+      event: 'rabbitmq.event.publish_confirmed',
+      correlationId: secondPublication!.options.correlationId,
+    });
   });
 
   it('acknowledges only after successful idempotent processing', async () => {
@@ -198,7 +214,12 @@ describe('RabbitMqOnboardingTransport', () => {
 
     await broker.deliver(message);
 
-    expect(process).toHaveBeenCalledWith({ event, triggerType: 'RABBITMQ', attempt: 1 });
+    expect(process).toHaveBeenCalledWith({
+      event,
+      triggerType: 'RABBITMQ',
+      attempt: 1,
+      correlationId: event.correlationId,
+    });
     expect(broker.ack).toHaveBeenCalledWith(message);
     expect(broker.publications).toHaveLength(0);
   });

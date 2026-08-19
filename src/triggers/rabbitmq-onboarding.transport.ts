@@ -82,7 +82,6 @@ export class RabbitMqOnboardingTransport implements OnboardingEventPublisher {
 
   public async publish(event: OnboardingTriggerEvent, attempt: number): Promise<void> {
     const correlationId = resolveSafeCorrelationId(event.correlationId);
-    const publishedEvent = { ...event, correlationId };
     const options: AmqpPublishOptions = {
       persistent: true,
       contentType: 'application/json',
@@ -95,7 +94,7 @@ export class RabbitMqOnboardingTransport implements OnboardingEventPublisher {
     await this.confirmedPublish(
       EVENT_EXCHANGE,
       EVENT_ROUTING_KEY,
-      Buffer.from(JSON.stringify(publishedEvent)),
+      Buffer.from(JSON.stringify(event)),
       options,
     );
     this.dependencies.logger.info({
@@ -146,6 +145,7 @@ export class RabbitMqOnboardingTransport implements OnboardingEventPublisher {
         event,
         triggerType: 'RABBITMQ',
         attempt,
+        correlationId,
       });
       if (result.status === 'COMPLETED') {
         this.dependencies.logger.info({
