@@ -50,7 +50,7 @@ npm run knowledge:index
 A successful first index prints terminal JSON lines such as the following; these are CLI
 output, not HTTP responses:
 
-```json
+```jsonl
 {"sourcePath":"knowledge-documents/mock-employee-policy.pdf","status":"INDEXED","documentId":"<employee-policy-document-id>","activeIndexVersion":1,"chunkCount":5}
 {"sourcePath":"knowledge-documents/mock-home-office-policy.pdf","status":"INDEXED","documentId":"<home-office-policy-document-id>","activeIndexVersion":1,"chunkCount":3}
 {"status":"SUMMARY","INDEXED":2}

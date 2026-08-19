@@ -24,24 +24,26 @@
 
 ## File Responsibility Map
 
-| File | Responsibility after this change |
-| --- | --- |
-| `src/enums/error.enum.ts` | Defines the stable `RABBITMQ_EVENT_VALIDATION_FAILED` application vocabulary. |
-| `src/types/amqp.ts` | Carries safe AMQP message properties required for correlation across consume, retry, and DLQ paths. |
-| `src/adapters/amqplib-connector.ts` | Maps amqplib `ConsumeMessage` properties into the internal AMQP boundary. |
-| `src/types/operational-log-entry.ts` | Defines the RabbitMQ lifecycle event names and their allowlisted structured fields. |
-| `src/triggers/rabbitmq-onboarding.transport.ts` | Validates deliveries, invokes the processor, publishes retries/DLQ messages, acknowledges safely, and emits lifecycle evidence. |
-| `src/bootstrap/create-trigger-module.ts` | Injects the shared application logger into the RabbitMQ transport. |
-| `src/bootstrap/compose-application.ts` | Passes the existing core Pino logger into the trigger module. |
-| `tests/unit/rabbitmq-onboarding-transport.test.ts` | Proves the critical invalid-delivery retry/DLQ path, stable code, safe metadata, and existing acknowledgement guarantees. |
+| File                                               | Responsibility after this change                                                                                                |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `src/enums/error.enum.ts`                          | Defines the stable `RABBITMQ_EVENT_VALIDATION_FAILED` application vocabulary.                                                   |
+| `src/types/amqp.ts`                                | Carries safe AMQP message properties required for correlation across consume, retry, and DLQ paths.                             |
+| `src/adapters/amqplib-connector.ts`                | Maps amqplib `ConsumeMessage` properties into the internal AMQP boundary.                                                       |
+| `src/types/operational-log-entry.ts`               | Defines the RabbitMQ lifecycle event names and their allowlisted structured fields.                                             |
+| `src/triggers/rabbitmq-onboarding.transport.ts`    | Validates deliveries, invokes the processor, publishes retries/DLQ messages, acknowledges safely, and emits lifecycle evidence. |
+| `src/bootstrap/create-trigger-module.ts`           | Injects the shared application logger into the RabbitMQ transport.                                                              |
+| `src/bootstrap/compose-application.ts`             | Passes the existing core Pino logger into the trigger module.                                                                   |
+| `tests/unit/rabbitmq-onboarding-transport.test.ts` | Proves the critical invalid-delivery retry/DLQ path, stable code, safe metadata, and existing acknowledgement guarantees.       |
 
 ### Task 1: Create and parent the GitHub task, then isolate the runtime branch
 
 **Files:**
+
 - Create temporarily: `/tmp/rabbitmq-validation-observability-issue.md`
 - No repository files modified.
 
 **Interfaces:**
+
 - Consumes: GitHub Story #7 in `ramioooz/hcm-agentic-llmops`.
 - Produces: a task issue number, Project item parented under Story #7, and isolated branch `feat/rabbitmq-validation-observability`.
 
@@ -135,6 +137,7 @@ Expected: the new worktree is on `feat/rabbitmq-validation-observability`; the d
 ### Task 2: Expose safe broker properties and typed log vocabulary
 
 **Files:**
+
 - Modify: `src/enums/error.enum.ts`
 - Modify: `src/types/amqp.ts`
 - Modify: `src/adapters/amqplib-connector.ts`
@@ -142,6 +145,7 @@ Expected: the new worktree is on `feat/rabbitmq-validation-observability`; the d
 - Test: `tests/unit/rabbitmq-onboarding-transport.test.ts`
 
 **Interfaces:**
+
 - Consumes: amqplib `ConsumeMessage.properties` and existing `ApplicationLogger`/`OperationalLogEntry` types.
 - Produces: `TriggerErrorCode.RabbitMqEventValidationFailed`, AMQP properties `messageId`, `correlationId`, and `type`, plus the eight approved RabbitMQ log event names.
 
@@ -256,12 +260,14 @@ git commit -m "refactor: expose safe RabbitMQ trace properties"
 ### Task 3: Add validation classification and safe lifecycle logs
 
 **Files:**
+
 - Modify: `src/triggers/rabbitmq-onboarding.transport.ts`
 - Modify: `src/bootstrap/create-trigger-module.ts`
 - Modify: `src/bootstrap/compose-application.ts`
 - Test: `tests/unit/rabbitmq-onboarding-transport.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ApplicationLogger`, `resolveSafeCorrelationId(value)`, the AMQP properties from Task 2, and `OnboardingTriggerHandler.process(...)`.
 - Produces: correlated Pino lifecycle records and retry/DLQ publications carrying the original safe broker properties.
 
@@ -369,14 +375,76 @@ Do not derive log metadata from unvalidated JSON.
 Use these levels and fields:
 
 ```ts
-logger.info({ event: 'rabbitmq.event.publish_confirmed', correlationId, messageId, attempt, routingKey: EVENT_ROUTING_KEY, status: 'ACCEPTED' });
-logger.info({ event: 'rabbitmq.event.received', correlationId, messageId, attempt, routingKey: EVENT_ROUTING_KEY, status: 'RECEIVED' });
-logger.info({ event: 'rabbitmq.event.completed', correlationId, messageId, attempt, routingKey: EVENT_ROUTING_KEY, status: 'COMPLETED', runId });
-logger.info({ event: 'rabbitmq.event.duplicate', correlationId, messageId, attempt, routingKey: EVENT_ROUTING_KEY, status: 'DUPLICATE' });
-logger.warn({ event: 'rabbitmq.event.conflict', correlationId, messageId, attempt, routingKey: EVENT_ROUTING_KEY, status: 'FAILED', code: TriggerErrorCode.EventIdConflict });
-logger.warn({ event: 'rabbitmq.event.validation_failed', correlationId, messageId, attempt, routingKey: EVENT_ROUTING_KEY, status: 'FAILED', code: TriggerErrorCode.RabbitMqEventValidationFailed });
-logger.warn({ event: 'rabbitmq.event.retry_published', correlationId, messageId, attempt, nextAttempt: attempt + 1, routingKey: EVENT_ROUTING_KEY, status: 'RETRYING', code });
-logger.error({ event: 'rabbitmq.event.dead_lettered', correlationId, messageId, attempt, routingKey: DEAD_LETTER_ROUTING_KEY, status: 'DEAD_LETTERED', code });
+logger.info({
+  event: 'rabbitmq.event.publish_confirmed',
+  correlationId,
+  messageId,
+  attempt,
+  routingKey: EVENT_ROUTING_KEY,
+  status: 'ACCEPTED',
+});
+logger.info({
+  event: 'rabbitmq.event.received',
+  correlationId,
+  messageId,
+  attempt,
+  routingKey: EVENT_ROUTING_KEY,
+  status: 'RECEIVED',
+});
+logger.info({
+  event: 'rabbitmq.event.completed',
+  correlationId,
+  messageId,
+  attempt,
+  routingKey: EVENT_ROUTING_KEY,
+  status: 'COMPLETED',
+  runId,
+});
+logger.info({
+  event: 'rabbitmq.event.duplicate',
+  correlationId,
+  messageId,
+  attempt,
+  routingKey: EVENT_ROUTING_KEY,
+  status: 'DUPLICATE',
+});
+logger.warn({
+  event: 'rabbitmq.event.conflict',
+  correlationId,
+  messageId,
+  attempt,
+  routingKey: EVENT_ROUTING_KEY,
+  status: 'FAILED',
+  code: TriggerErrorCode.EventIdConflict,
+});
+logger.warn({
+  event: 'rabbitmq.event.validation_failed',
+  correlationId,
+  messageId,
+  attempt,
+  routingKey: EVENT_ROUTING_KEY,
+  status: 'FAILED',
+  code: TriggerErrorCode.RabbitMqEventValidationFailed,
+});
+logger.warn({
+  event: 'rabbitmq.event.retry_published',
+  correlationId,
+  messageId,
+  attempt,
+  nextAttempt: attempt + 1,
+  routingKey: EVENT_ROUTING_KEY,
+  status: 'RETRYING',
+  code,
+});
+logger.error({
+  event: 'rabbitmq.event.dead_lettered',
+  correlationId,
+  messageId,
+  attempt,
+  routingKey: DEAD_LETTER_ROUTING_KEY,
+  status: 'DEAD_LETTERED',
+  code,
+});
 ```
 
 For other processing failures, emit the retry/dead-letter event with the stable code returned by `resolveApplicationErrorCode`. Do not add an error object, message, cause, or stack.
@@ -415,10 +483,12 @@ git commit -m "feat: add RabbitMQ lifecycle observability"
 ### Task 4: Verify, review, push, and open the runtime PR
 
 **Files:**
+
 - Review all files changed by Tasks 2–3.
 - No new runtime files.
 
 **Interfaces:**
+
 - Consumes: the completed runtime branch and GitHub task number.
 - Produces: a ready-for-review PR targeting `main`; no merge.
 
@@ -493,4 +563,3 @@ Expected: a non-draft PR targeting `main`. Do not merge it.
 - [ ] **Step 5: Hand off the manual verification contract**
 
 Tell the repository owner that documentation PR #89 must be updated only after this runtime PR is merged. Record the final PR URL, task number, exact test totals, and any variable log fields needed by the documentation plan.
-

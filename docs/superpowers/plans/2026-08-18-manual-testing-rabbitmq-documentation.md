@@ -26,24 +26,26 @@
 
 ## File Responsibility Map
 
-| File | Responsibility after this change |
-| --- | --- |
-| `README.md` | Quick start, categorized test-title matrix, tools, vertical RabbitMQ summary, limitations, and guide links. |
-| `docs/manual-testing.md` | Canonical end-to-end manual procedures and expected results for all public interfaces. |
-| `docs/rabbitmq.md` | Broker purpose, topology, event contract, retry/DLQ semantics, two detailed tests, limitations, and troubleshooting. |
-| `docs/architecture.md` | Overall component boundary and link to the dedicated broker guide. |
-| `docs/api-examples.md` | Concise API contracts with links to canonical procedures. |
-| `docs/configuration.md` | RabbitMQ settings and references to operational testing. |
-| `docs/mcp.md` | Link to the renamed MCP Inspector walkthrough. |
-| `docs/rag-testing-and-troubleshooting.md` | Link to the renamed manual guide. |
-| `CONTRIBUTING.md`, `SECURITY.md`, `.github/**` | Updated canonical guide links if the old path appears. |
+| File                                           | Responsibility after this change                                                                                     |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `README.md`                                    | Quick start, categorized test-title matrix, tools, vertical RabbitMQ summary, limitations, and guide links.          |
+| `docs/manual-testing.md`                       | Canonical end-to-end manual procedures and expected results for all public interfaces.                               |
+| `docs/rabbitmq.md`                             | Broker purpose, topology, event contract, retry/DLQ semantics, two detailed tests, limitations, and troubleshooting. |
+| `docs/architecture.md`                         | Overall component boundary and link to the dedicated broker guide.                                                   |
+| `docs/api-examples.md`                         | Concise API contracts with links to canonical procedures.                                                            |
+| `docs/configuration.md`                        | RabbitMQ settings and references to operational testing.                                                             |
+| `docs/mcp.md`                                  | Link to the renamed MCP Inspector walkthrough.                                                                       |
+| `docs/rag-testing-and-troubleshooting.md`      | Link to the renamed manual guide.                                                                                    |
+| `CONTRIBUTING.md`, `SECURITY.md`, `.github/**` | Updated canonical guide links if the old path appears.                                                               |
 
 ### Task 1: Synchronize documentation with the merged runtime
 
 **Files:**
+
 - Modify through merge/rebase: documentation branch history only.
 
 **Interfaces:**
+
 - Consumes: merged `main` containing `RABBITMQ_EVENT_VALIDATION_FAILED` and the eight RabbitMQ lifecycle events.
 - Produces: documentation branch containing the exact runtime vocabulary before prose is updated.
 
@@ -85,11 +87,13 @@ Expected: no unresolved conflicts, no whitespace errors, and type checking passe
 ### Task 2: Rename and structure the canonical manual-testing guide
 
 **Files:**
+
 - Rename: `docs/usage-guide.md` → `docs/manual-testing.md`
 - Modify: `docs/manual-testing.md`
 - Modify: every tracked file returned by the stale-link scan.
 
 **Interfaces:**
+
 - Consumes: existing executable usage procedures.
 - Produces: one canonical `docs/manual-testing.md` path and stable section anchors for README, MCP, RAG, and RabbitMQ links.
 
@@ -145,7 +149,7 @@ Explain that migrations can be repeated, seeding is destructive to mock runtime/
 
 For each existing detailed scenario, ensure this order:
 
-```markdown
+````markdown
 ### MT-<area>-<number>: <title>
 
 **Purpose:** ...
@@ -157,6 +161,7 @@ For each existing detailed scenario, ensure this order:
 ```bash
 <exact command>
 ```
+````
 
 **Expected:** HTTP `<status>` with `<relevant headers>`.
 
@@ -169,7 +174,8 @@ For each existing detailed scenario, ensure this order:
 **Optional evidence:** ...
 
 **Cleanup/reset:** ...
-```
+
+````
 
 Do not invent exact IDs, dates, model wording, token counts, latency, or source selection. Mark those as variable and show syntactically valid placeholders.
 
@@ -198,17 +204,19 @@ Retain the implemented success and critical failure paths already present. Do no
 ```bash
 git add docs/manual-testing.md README.md docs CONTRIBUTING.md SECURITY.md .github
 git commit -m "docs: establish canonical manual testing guide"
-```
+````
 
 ### Task 3: Add the dedicated RabbitMQ architecture and operations guide
 
 **Files:**
+
 - Create: `docs/rabbitmq.md`
 - Modify: `docs/architecture.md`
 - Modify: `docs/configuration.md`
 - Modify: `docs/api-examples.md`
 
 **Interfaces:**
+
 - Consumes: merged runtime constants, `OnboardingTriggerEvent` schema, Compose configuration, `processed_events` schema, and the lifecycle events from the runtime PR.
 - Produces: one authoritative broker guide linked from architecture, configuration, API examples, README, and manual testing.
 
@@ -226,16 +234,16 @@ State explicitly: RabbitMQ decouples event publication from asynchronous onboard
 
 Use these values:
 
-| Element | Value |
-| --- | --- |
-| Topic exchange | `hcm.events.v1` |
-| Routing key | `onboarding.review.requested` |
-| Consumer queue | `hcm.onboarding.review.v1` |
-| Dead-letter exchange | `hcm.events.dlx.v1` |
-| Dead-letter routing key | `onboarding.review.dead` |
-| DLQ | `hcm.onboarding.review.dlq.v1` |
-| Attempt header | `x-attempt` |
-| Default maximum attempts | `3` |
+| Element                  | Value                          |
+| ------------------------ | ------------------------------ |
+| Topic exchange           | `hcm.events.v1`                |
+| Routing key              | `onboarding.review.requested`  |
+| Consumer queue           | `hcm.onboarding.review.v1`     |
+| Dead-letter exchange     | `hcm.events.dlx.v1`            |
+| Dead-letter routing key  | `onboarding.review.dead`       |
+| DLQ                      | `hcm.onboarding.review.dlq.v1` |
+| Attempt header           | `x-attempt`                    |
+| Default maximum attempts | `3`                            |
 
 Add the approved top-to-bottom Mermaid flow. Dashed edges must label future Oracle/HR adapters as not implemented; solid edges show the development endpoint and compatible external AMQP client.
 
@@ -311,10 +319,12 @@ git commit -m "docs: explain RabbitMQ workflow operations"
 ### Task 4: Add only the two detailed RabbitMQ manual scenarios
 
 **Files:**
+
 - Modify: `docs/manual-testing.md`
 - Modify: `docs/rabbitmq.md`
 
 **Interfaces:**
+
 - Consumes: Management API at `http://localhost:15672`, API logs, RabbitMQ topology, PostgreSQL tables, and the stable runtime events/code.
 - Produces: two reproducible procedures with broker, Pino, database, retry, and DLQ evidence.
 
@@ -403,9 +413,11 @@ git commit -m "docs: add focused RabbitMQ manual verification"
 ### Task 5: Add the README test inventory, tools, and RabbitMQ overview
 
 **Files:**
+
 - Modify: `README.md`
 
 **Interfaces:**
+
 - Consumes: the canonical manual guide and broker guide.
 - Produces: a navigable public discovery surface without duplicating procedural detail.
 
@@ -435,17 +447,17 @@ Use test titles only in this matrix; link to detailed commands rather than embed
 
 Include:
 
-| Tool | Use |
-| --- | --- |
-| Insomnia | Organize and replay HTTP JSON/SSE requests. |
-| curl | Copyable command-line verification. |
-| MCP Inspector | Discover and call the read-only MCP tools. |
-| RabbitMQ Management UI/API | Inspect exchanges, queues, consumers, routing, and DLQ messages. |
-| DBeaver or psql | Inspect durable business, audit, idempotency, checkpoint, and RAG state. |
-| Docker Compose logs | Inspect Pino and container lifecycle output. |
-| LangSmith | Inspect configured agent/RAG traces and evaluation results. |
-| LangGraph Studio | Visualize exported graph topology and node paths. |
-| PDF viewer | Open the on-demand leave document response. |
+| Tool                       | Use                                                                      |
+| -------------------------- | ------------------------------------------------------------------------ |
+| Insomnia                   | Organize and replay HTTP JSON/SSE requests.                              |
+| curl                       | Copyable command-line verification.                                      |
+| MCP Inspector              | Discover and call the read-only MCP tools.                               |
+| RabbitMQ Management UI/API | Inspect exchanges, queues, consumers, routing, and DLQ messages.         |
+| DBeaver or psql            | Inspect durable business, audit, idempotency, checkpoint, and RAG state. |
+| Docker Compose logs        | Inspect Pino and container lifecycle output.                             |
+| LangSmith                  | Inspect configured agent/RAG traces and evaluation results.              |
+| LangGraph Studio           | Visualize exported graph topology and node paths.                        |
+| PDF viewer                 | Open the on-demand leave document response.                              |
 
 - [ ] **Step 4: Add the vertical RabbitMQ overview**
 
@@ -469,10 +481,12 @@ git commit -m "docs: add manual testing and messaging overview"
 ### Task 6: Audit all documentation and update PR #89
 
 **Files:**
+
 - Review: `README.md`, `docs/**/*.md`, `CONTRIBUTING.md`, `SECURITY.md`, `.github/**/*.md`
 - Modify: only files with concrete audit findings.
 
 **Interfaces:**
+
 - Consumes: completed documentation changes and merged runtime vocabulary.
 - Produces: a verified update to PR #89; no merge.
 
@@ -563,4 +577,3 @@ Update the PR body to summarize:
 - verification evidence.
 
 Expected: PR #89 remains ready for review and targets `main`. Do not merge it.
-

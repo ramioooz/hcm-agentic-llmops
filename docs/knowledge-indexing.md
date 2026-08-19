@@ -95,7 +95,7 @@ The command finishes with a `SUMMARY` line. Any per-file `FAILED` result makes t
 
 Representative first run:
 
-```json
+```jsonl
 {"sourcePath":"knowledge-documents/mock-employee-policy.pdf","status":"INDEXED","documentId":"<employee-policy-document-id>","activeIndexVersion":1,"chunkCount":5}
 {"sourcePath":"knowledge-documents/mock-home-office-policy.pdf","status":"INDEXED","documentId":"<home-office-policy-document-id>","activeIndexVersion":1,"chunkCount":3}
 {"status":"SUMMARY","INDEXED":2}
@@ -103,7 +103,7 @@ Representative first run:
 
 Representative unchanged run:
 
-```json
+```jsonl
 {"sourcePath":"knowledge-documents/mock-employee-policy.pdf","status":"SKIPPED","documentId":"<employee-policy-document-id>"}
 {"sourcePath":"knowledge-documents/mock-home-office-policy.pdf","status":"SKIPPED","documentId":"<home-office-policy-document-id>"}
 {"status":"SUMMARY","SKIPPED":2}
