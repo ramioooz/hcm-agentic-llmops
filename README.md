@@ -32,6 +32,8 @@ The system translates natural-language requests into a validated, predefined int
 - [Interfaces and automation](#interfaces-and-automation)
 - [Data and repository structure](#data-and-repository-structure)
 - [Testing](#testing)
+- [Manual testing](#manual-testing)
+- [RabbitMQ overview](#rabbitmq-overview)
 - [Current limitations](#current-limitations)
 - [Production-readiness roadmap](#production-readiness-roadmap)
 - [Extending the system](#extending-the-system)
@@ -114,10 +116,16 @@ The API listens on `http://localhost:3000`.
 
 ```bash
 docker compose up -d --build
+docker compose exec api npm run db:generate
+docker compose exec api npm run db:migrate
 docker compose exec api npm run db:seed
+docker compose exec api npm run knowledge:index
+docker compose ps
+curl http://localhost:3300/health
+curl http://localhost:3300/ready
 ```
 
-The API listens on `http://localhost:3300`. The process uses container port `3000`; `API_PORT=3300` controls only the host mapping. Seeding resets the sample runtime and indexed knowledge data, so never use it against data that must be preserved.
+The API listens on `http://localhost:3300`. The process uses container port `3000`; `API_PORT=3300` controls only the host mapping. Seeding resets the sample runtime and indexed knowledge data, so never use it against data that must be preserved. The [manual testing guide](docs/manual-testing.md) has the complete environment settings, state-reset, and troubleshooting details.
 
 ### Check the service
 
@@ -593,22 +601,110 @@ npm run build
 
 Live infrastructure paths are documented for manual verification in the [manual testing guide](docs/manual-testing.md).
 
+## Manual testing
+
+The primary manual-verification runtime is the full Docker Compose stack at `http://localhost:3300`. After preparing `.env` as above, the full-Docker initialization sequence is:
+
+```bash
+docker compose up -d --build
+docker compose exec api npm run db:generate
+docker compose exec api npm run db:migrate
+docker compose exec api npm run db:seed
+docker compose exec api npm run knowledge:index
+docker compose ps
+curl http://localhost:3300/health
+curl http://localhost:3300/ready
+```
+
+The [manual testing guide](docs/manual-testing.md) is the canonical source for prerequisites, commands, expected responses, state reset, and troubleshooting. The inventory below is deliberately title-only so the README remains a discovery surface.
+
+| Area                      | Manual test titles                                                                                                          | Primary tool                        | Detailed guide                                                                                                                  |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Infrastructure            | Initialize the Docker Compose stack; Confirm liveness and readiness                                                         | Terminal and curl                   | [Manual testing](docs/manual-testing.md#environment-and-infrastructure)                                                         |
+| Onboarding                | Review your own onboarding status; Review a direct report; Request an explicit notification                                 | curl                                | [Manual testing](docs/manual-testing.md#onboarding-and-intent-routing)                                                          |
+| Intent routing            | Fallback intent; Unsupported request; Request missing information                                                           | curl                                | [Manual testing](docs/manual-testing.md#onboarding-and-intent-routing)                                                          |
+| Conversation state        | Continue an ambiguous onboarding request; Deny cross-identity continuation                                                  | curl                                | [Manual testing](docs/manual-testing.md#multi-turn-state-and-identity-ownership)                                                |
+| SSE                       | Stream lifecycle progress                                                                                                   | curl                                | [Manual testing](docs/manual-testing.md#sse-streaming)                                                                          |
+| Guardrails                | Reject prompt injection; Reject bulk-data request; Deny unauthorized access; Reject schema-invalid request                  | curl                                | [Manual testing](docs/manual-testing.md#security-and-authorization-guardrails)                                                  |
+| Leave and documents       | Propose leave; Approve leave; Reject leave; Prevent duplicate approval; Download leave PDF                                  | curl and PDF viewer                 | [Manual testing](docs/manual-testing.md#leave-proposal-approval-rejection-duplicate-prevention-and-pdf-download)                |
+| PDF knowledge and RAG     | Index policy PDFs; Cross-document RAG; Document-scoped query; Insufficient evidence; Unsafe knowledge question or document  | curl                                | [RAG testing](docs/rag-testing-and-troubleshooting.md#5-http-query-scenarios)                                                   |
+| MCP                       | Discover tools; Call onboarding tool; Call knowledge tool; Deny unauthorized tool call                                      | MCP Inspector                       | [Manual testing](docs/manual-testing.md#mcp-discovery-and-read-only-calls)                                                      |
+| Triggers and RabbitMQ     | Verify webhook idempotency; Run scheduler; Publish a valid RabbitMQ event; Inspect RabbitMQ retry and DLQ                   | curl and RabbitMQ Management UI/API | [Manual testing](docs/manual-testing.md#webhook-and-scheduler-triggers) · [RabbitMQ scenarios](docs/manual-testing.md#rabbitmq) |
+| Observability and quality | Inspect Pino logs; Inspect PostgreSQL audit; Inspect LangSmith; Inspect LangGraph Studio; Run evaluation; Run quality suite | Docker Compose logs and terminal    | [Manual testing](docs/manual-testing.md#pino-postgresql-audit-langsmith-studio-and-evaluation)                                  |
+
+### Useful tools
+
+| Tool                       | Use                                                                      |
+| -------------------------- | ------------------------------------------------------------------------ |
+| Insomnia                   | Organize and replay HTTP JSON/SSE requests.                              |
+| curl                       | Copyable command-line verification.                                      |
+| MCP Inspector              | Discover and call the read-only MCP tools.                               |
+| RabbitMQ Management UI/API | Inspect exchanges, queues, consumers, routing, and DLQ messages.         |
+| DBeaver or psql            | Inspect durable business, audit, idempotency, checkpoint, and RAG state. |
+| Docker Compose logs        | Inspect Pino and container lifecycle output.                             |
+| LangSmith                  | Inspect configured agent/RAG traces and evaluation results.              |
+| LangGraph Studio           | Visualize exported graph topology and node paths.                        |
+| PDF viewer                 | Open the on-demand leave document response.                              |
+
+## RabbitMQ overview
+
+```mermaid
+flowchart TD
+    ORACLE["Future Oracle Fusion adapter<br/>Not implemented"]
+    SERVICE["Future HR microservice<br/>Not implemented"]
+    DEV["Development HTTP publisher<br/>Development mode only"]
+    EXTERNAL["External AMQP client<br/>Supported broker contract"]
+    EXCHANGE["Topic exchange<br/>hcm.events.v1"]
+    QUEUE["Onboarding queue<br/>hcm.onboarding.review.v1"]
+    CONSUMER["API RabbitMQ consumer"]
+    VALIDATE["Validate versioned event"]
+    CLAIM["Claim event ID<br/>processed_events"]
+    WORKFLOW["Shared onboarding workflow"]
+    AUDIT["PostgreSQL business and audit state"]
+    SUCCESS["Acknowledge delivery"]
+    RETRY["Confirmed retry publish<br/>increment x-attempt"]
+    DLQ["Dead-letter queue<br/>hcm.onboarding.review.dlq.v1"]
+
+    ORACLE -.->|"Future integration (not implemented)"| EXCHANGE
+    SERVICE -.->|"Future integration (not implemented)"| EXCHANGE
+    DEV --> EXCHANGE
+    EXTERNAL --> EXCHANGE
+    EXCHANGE --> QUEUE
+    QUEUE --> CONSUMER
+    CONSUMER --> VALIDATE
+    VALIDATE --> CLAIM
+    CLAIM --> WORKFLOW
+    WORKFLOW --> AUDIT
+    AUDIT --> SUCCESS
+    CONSUMER -->|"Retryable failure"| RETRY
+    RETRY --> EXCHANGE
+    CONSUMER -->|"Attempts exhausted"| DLQ
+```
+
+Dashed producer edges are future extension points, not shipped integrations: no Oracle Fusion, HR-service, or other external-producer adapter is implemented. The development publisher and the compatible AMQP broker contract are the solid paths shown here.
+
+Broker routing, application processing, and database completion are separate outcomes. A broker route does not establish that the consumer validated or processed an event, and application processing is complete only when the workflow and durable PostgreSQL records succeed. See [RabbitMQ architecture and operations](docs/rabbitmq.md) for detailed topology, delivery semantics, limitations, and troubleshooting.
+
 ## Current limitations
 
-| Current implementation                                                                                                                                                            | Why it is limited                                                                                                                                    | Production direction                                                                                                                   |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `X-Employee-Id` resolves a canonical development identity from PostgreSQL.                                                                                                        | A request header is not SSO, OAuth, or JWT authentication.                                                                                           | Integrate a trusted enterprise identity provider and map verified claims to employee access.                                           |
-| Manager notifications use a development adapter.                                                                                                                                  | It does not deliver through a managed email, chat, or workflow provider.                                                                             | Add a provider adapter with delivery authentication, observability, and operational ownership.                                         |
-| Employee and policy data are local PostgreSQL records.                                                                                                                            | Seeded data is synthetic and does not synchronize with Oracle Fusion or another HR system of record.                                                 | Add a governed HR-system integration with source-of-truth, synchronization, and failure-handling rules.                                |
-| Business use cases are onboarding review, annual leave, and policy Q&A only.                                                                                                      | Other HCM processes and policy domains are intentionally outside the implemented intent and tool vocabulary.                                         | Add use cases incrementally with explicit intents, authorization, policy, and evaluation coverage.                                     |
-| The configured runtime integrations for OpenAI, PostgreSQL/pgvector, RabbitMQ, LangGraph, and LangSmith are real; unit tests and LangGraph Studio use fake external dependencies. | Tests and Studio do not prove live-provider behavior, credentials, network conditions, or persistence semantics.                                     | Keep isolated fakes for fast tests and add controlled integration and end-to-end verification against managed services.                |
-| Policy ingestion accepts repository-managed PDFs only.                                                                                                                            | PDF-only ingestion supports page citations but excludes business-dependent DOCX, CSV/spreadsheet, HTML, text/Markdown, OCR, and document connectors. | Add formats and connectors only with product ownership, extraction quality, safety, provenance, and citation requirements.             |
-| OpenAI is the only language and embedding adapter.                                                                                                                                | There is no provider abstraction proven against alternative model or embedding services.                                                             | Introduce evaluated provider adapters where portability, regional requirements, or model choice require them.                          |
-| Detailed LangSmith traces are restricted to approved synthetic data.                                                                                                              | They can contain raw questions/answers and operational model data; the present privacy model is not approved for real HR data.                       | Establish trace-data policy, PII filtering, access control, sampling, retention, regional/legal review, and payload omission controls. |
-| Leave calculations count Monday–Friday working days.                                                                                                                              | The calendar has no public-holiday support.                                                                                                          | Integrate jurisdiction-aware holiday and work-schedule calendars.                                                                      |
-| Leave PDFs are generated on demand after authorization; the submitted request row retains the document template version and generation uses it.                                   | Generated files are not retained as immutable legal artifacts.                                                                                       | Define legal-record requirements, immutable retention, signing, and storage controls where required.                                   |
-| Automated coverage focuses on unit tests; infrastructure paths are checked manually.                                                                                              | It does not provide broad integration, load, resilience, or fault-injection evidence.                                                                | Add repeatable managed-infrastructure, end-to-end, performance, and resilience suites.                                                 |
-| Docker Compose supplies the development runtime.                                                                                                                                  | It has no production secrets, deployment, monitoring, disaster recovery, or SLO implementation.                                                      | Build a production platform with managed secrets, deployment controls, monitoring/alerting, DR, and explicit SLOs.                     |
+| Current implementation                                                                                                                                                            | Why it is limited                                                                                                                                    | Production direction                                                                                                                                                                                                  |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `X-Employee-Id` resolves a canonical development identity from PostgreSQL.                                                                                                        | A request header is not SSO, OAuth, or JWT authentication.                                                                                           | Integrate a trusted enterprise identity provider and map verified claims to employee access.                                                                                                                          |
+| Manager notifications use a development adapter.                                                                                                                                  | It does not deliver through a managed email, chat, or workflow provider.                                                                             | Add a provider adapter with delivery authentication, observability, and operational ownership.                                                                                                                        |
+| Employee and policy data are local PostgreSQL records.                                                                                                                            | Seeded data is synthetic and does not synchronize with Oracle Fusion or another HR system of record.                                                 | Add a governed HR-system integration with source-of-truth, synchronization, and failure-handling rules.                                                                                                               |
+| Business use cases are onboarding review, annual leave, and policy Q&A only.                                                                                                      | Other HCM processes and policy domains are intentionally outside the implemented intent and tool vocabulary.                                         | Add use cases incrementally with explicit intents, authorization, policy, and evaluation coverage.                                                                                                                    |
+| The configured runtime integrations for OpenAI, PostgreSQL/pgvector, RabbitMQ, LangGraph, and LangSmith are real; unit tests and LangGraph Studio use fake external dependencies. | Tests and Studio do not prove live-provider behavior, credentials, network conditions, or persistence semantics.                                     | Keep isolated fakes for fast tests and add controlled integration and end-to-end verification against managed services.                                                                                               |
+| Policy ingestion accepts repository-managed PDFs only.                                                                                                                            | PDF-only ingestion supports page citations but excludes business-dependent DOCX, CSV/spreadsheet, HTML, text/Markdown, OCR, and document connectors. | Add formats and connectors only with product ownership, extraction quality, safety, provenance, and citation requirements.                                                                                            |
+| OpenAI is the only language and embedding adapter.                                                                                                                                | There is no provider abstraction proven against alternative model or embedding services.                                                             | Introduce evaluated provider adapters where portability, regional requirements, or model choice require them.                                                                                                         |
+| Detailed LangSmith traces are restricted to approved synthetic data.                                                                                                              | They can contain raw questions/answers and operational model data; the present privacy model is not approved for real HR data.                       | Establish trace-data policy, PII filtering, access control, sampling, retention, regional/legal review, and payload omission controls.                                                                                |
+| Leave calculations count Monday–Friday working days.                                                                                                                              | The calendar has no public-holiday support.                                                                                                          | Integrate jurisdiction-aware holiday and work-schedule calendars.                                                                                                                                                     |
+| Leave PDFs are generated on demand after authorization; the submitted request row retains the document template version and generation uses it.                                   | Generated files are not retained as immutable legal artifacts.                                                                                       | Define legal-record requirements, immutable retention, signing, and storage controls where required.                                                                                                                  |
+| Automated coverage focuses on unit tests; infrastructure paths are checked manually.                                                                                              | It does not provide broad integration, load, resilience, or fault-injection evidence.                                                                | Add repeatable managed-infrastructure, end-to-end, performance, and resilience suites.                                                                                                                                |
+| RabbitMQ has no concrete external producer adapter.                                                                                                                               | Oracle Fusion, HR-service, integration-platform, and batch producers remain extension points.                                                        | Add an authenticated, versioned integration adapter with clear ownership. See [RabbitMQ production direction](docs/rabbitmq.md#limitations-and-production-direction).                                                 |
+| RabbitMQ has no automated DLQ consumer, replay, or redrive.                                                                                                                       | Dead-lettered messages require manual inspection and are not corrected or reprocessed automatically.                                                 | Add authorized, audited redrive tooling with correction controls. See [RabbitMQ production direction](docs/rabbitmq.md#limitations-and-production-direction).                                                         |
+| RabbitMQ retries are immediate.                                                                                                                                                   | Failures do not use delayed queues or exponential backoff.                                                                                           | Add delayed retry queues or scheduled backoff where required. See [RabbitMQ production direction](docs/rabbitmq.md#limitations-and-production-direction).                                                             |
+| RabbitMQ lacks production broker security and monitoring.                                                                                                                         | Development credentials, TLS, vhost isolation, metrics, dashboards, and alerting are not implemented.                                                | Add service identities, rotated secrets, TLS, least-privilege vhosts, broker metrics, dashboards, thresholds, and alerts. See [RabbitMQ production direction](docs/rabbitmq.md#limitations-and-production-direction). |
+| Docker Compose supplies the development runtime.                                                                                                                                  | It has no production secrets, deployment, monitoring, disaster recovery, or SLO implementation.                                                      | Build a production platform with managed secrets, deployment controls, monitoring/alerting, DR, and explicit SLOs.                                                                                                    |
 
 ## Production-readiness roadmap
 
