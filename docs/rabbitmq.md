@@ -79,7 +79,7 @@ The consumer accepts one strict, versioned onboarding-review event. This is a va
 }
 ```
 
-`version` must be `"1"`; `type` must be `"onboarding.review.requested"`; and the object rejects unknown fields. `eventId` is 1–128 characters and uses only a safe identifier beginning with an alphanumeric character (`A-Za-z0-9._:-` thereafter). `occurredAt` must be an offset ISO datetime. `correlationId` is optional, but when present must be a UUID v4. `data.employeeCode` matches `EMP-<digits>`, `thresholdDays` is an integer from `0` through `365` (default `30`), and `action` is a supported onboarding-review action (default `REVIEW_ONLY`). `data.threadId` is optional and, when present, must be UUID v4.
+`version` must be `"1"`; `type` must be `"onboarding.review.requested"`; and the object rejects unknown fields. `eventId` is 1–128 characters and uses only a safe identifier beginning with an alphanumeric character (`A-Za-z0-9._:-` thereafter). `occurredAt` must be an offset ISO datetime. `correlationId` is optional, but when present must be a UUID v4. `data.employeeCode` matches `EMP-<digits>`, `thresholdDays` is an integer from `0` through `365` (default `30`), and the only allowed `action` values are `REVIEW_ONLY` and `NOTIFY_MANAGER` (default `REVIEW_ONLY`). `data.threadId` is optional and, when present, must be UUID v4.
 
 RabbitMQ routes based on exchange and routing key, not JSON semantics. Consequently, an externally published message with a non-UUID `correlationId` can return `{ "routed": true }`, then fail application validation with `RABBITMQ_EVENT_VALIDATION_FAILED` before `processed_events` is claimed.
 
@@ -124,4 +124,4 @@ These are production directions, not implemented or scheduled work.
 
 ## Manual verification
 
-The canonical [manual testing guide](manual-testing.md#rabbitmq) owns the broker-test index. It intentionally limits detailed verification to a successful asynchronous delivery and an invalid-payload retry/DLQ case; those scenarios document broker, Pino, and PostgreSQL evidence without adding a DLQ replay claim.
+The canonical [manual testing guide](manual-testing.md#rabbitmq) currently provides the broker-test summary. Task 4 reserves exactly two forthcoming detailed procedures: successful asynchronous delivery, and invalid-payload retry/DLQ verification. They are not yet present; neither procedure will claim a DLQ replay implementation.

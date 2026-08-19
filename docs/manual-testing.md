@@ -414,7 +414,7 @@ curl --include --request POST --url http://localhost:3300/api/v1/triggers/webhoo
 
 ## RabbitMQ
 
-RabbitMQ is an implemented asynchronous onboarding trigger. See [RabbitMQ architecture and operations](rabbitmq.md) for the authoritative topology, contract, delivery semantics, observability boundary, limitations, and the two detailed broker scenarios: `MT-rabbitmq-01` success and `MT-rabbitmq-02` validation/retry/DLQ. A broker publication confirmation is not a workflow result. This summary makes no claim about external producers, DLQ redrive, delayed retry, monitoring, alerting, or production broker security.
+RabbitMQ is an implemented asynchronous onboarding trigger. See [RabbitMQ architecture and operations](rabbitmq.md) for the authoritative topology, contract, delivery semantics, observability boundary, and limitations. The two detailed broker scenarios are reserved for Task 4 and are not yet documented here. A broker publication confirmation is not a workflow result. This summary makes no claim about external producers, DLQ redrive, delayed retry, monitoring, alerting, or production broker security.
 
 ## Pino, PostgreSQL audit, LangSmith, Studio, and evaluation
 
