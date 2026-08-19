@@ -44,7 +44,7 @@ The MCP boundary is divided across focused implementation files:
 - [`src/services/knowledge-query.service.ts`](../src/services/knowledge-query.service.ts) owns the guarded RAG query sequence and grounded result.
 
 ```mermaid
-flowchart LR
+flowchart TD
     CLIENT["MCP client"] --> MCP["POST /mcp<br/>Streamable HTTP"]
     MCP --> ID["Employee identity<br/>resolution"]
     ID --> SDK["MCP server<br/>tool dispatch"]

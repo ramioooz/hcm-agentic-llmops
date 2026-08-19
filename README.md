@@ -39,14 +39,16 @@ The system translates natural-language requests into a validated, predefined int
 - [Extending the system](#extending-the-system)
 - [Project delivery](#project-delivery)
 - [Further documentation](#further-documentation)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Project overview
 
 The API implements two conversational employee workflows and one policy-knowledge capability:
 
-- **Onboarding review:** The initial or probationary review period for a new employee. The system finds the active review, calculates days remaining, applies a warning threshold, and optionally notifies a manager when an authorized request explicitly asks for it.
-- **Annual leave:** Paid vacation entitlement. The system reads the policy and balance, calculates an eligible proposal, pauses for human approval, then creates one submitted request. An authorized download generates its PDF on demand.
-- **Policy knowledge:** Repository-managed policy PDFs are indexed into PostgreSQL/pgvector. The system retrieves relevant excerpts before asking the model for an answer backed by page and chunk citations.
+- [**Onboarding review**](#onboarding-review): The initial or probationary review period for a new employee. The system finds the active review, calculates days remaining, applies a warning threshold, and optionally notifies a manager when an authorized request explicitly asks for it.
+- [**Annual leave**](#annual-leave): Paid vacation entitlement. The system reads the policy and balance, calculates an eligible proposal, pauses for human approval, then creates one submitted request. An authorized download generates its PDF on demand.
+- [**Policy knowledge**](#policy-knowledge-and-rag): Repository-managed policy PDFs are indexed into PostgreSQL/pgvector. The system retrieves relevant excerpts before asking the model for an answer backed by page and chunk citations.
 
 ### Terminology
 
@@ -74,6 +76,8 @@ The API implements two conversational employee workflows and one policy-knowledg
 | Interfaces             | JSON, Server-Sent Events (SSE), read-only MCP tools, webhook, scheduler, and RabbitMQ triggers                   |
 | Security               | Pre-model checks, protected-tool authorization, explicit side-effect permission, thread ownership, and redaction |
 | Operations             | Pino JSON logs, PostgreSQL audit records, optional LangSmith traces, LangGraph Studio, and offline evaluation    |
+
+[↑ Back to contents](#contents)
 
 ## Quick start
 
@@ -219,12 +223,14 @@ the threshold result vary with the seeded employee data and the date the request
 
 For complete success, failure, continuation, approval, trigger, RAG, and MCP flows, continue with the [manual testing guide](docs/manual-testing.md).
 
+[↑ Back to contents](#contents)
+
 ## How the system works
 
 The model interprets language; trusted application components decide what is permitted and executed.
 
 ```mermaid
-flowchart LR
+flowchart TD
     Request["HTTP, schedule, webhook,<br/>RabbitMQ, or MCP request"] --> Validate["Validate identity,<br/>schema, and safety"]
     Validate --> Intent["OpenAI converts user language<br/>to structured intent"]
     Intent --> Route["Deterministic LangGraph routing"]
@@ -241,6 +247,8 @@ controller or trigger → application service → HCM graph → domain subgraph 
 ```
 
 `server.ts` starts the runtime. Controllers translate HTTP details, graphs contain topology, graph nodes contain executable behavior, routing modules contain conditional decisions, services contain calculations, and repositories isolate persistence. See the [architecture guide](docs/architecture.md) for the complete dependency map.
+
+[↑ Back to contents](#contents)
 
 ## Where the LLM is used
 
@@ -259,6 +267,8 @@ The model does **not**:
 - write audit records, publish events, generate PDFs, or select safe telemetry fields.
 
 Agent queries are excluded from checkpoints, Pino logs, PostgreSQL audit summaries, and SSE progress. When explicit LangSmith agent tracing is enabled, the exact raw query is intentionally included in that external trace.
+
+[↑ Back to contents](#contents)
 
 ## Intent normalization and routing
 
@@ -310,6 +320,8 @@ Deterministic guards reject unsafe input before OpenAI or tools run. Invalid out
 
 Typed schedule, webhook, and RabbitMQ commands skip model normalization because they already carry a typed command. They enter the same deterministic workflow and audit path.
 
+[↑ Back to contents](#contents)
+
 ## HCM workflows
 
 ### Onboarding review
@@ -344,6 +356,8 @@ Employees and managers may submit leave only for themselves; HR may submit for a
 LangGraph `PostgresSaver` persists continuation-safe state and binds each thread to its initiating `X-Employee-Id`. Raw queries, employee records, and secrets are excluded from checkpoints.
 
 With `Accept: text/event-stream`, agent invocation emits safe `run`, `intent`, `node`, `tool`, `approval`, `document`, and final `response` events. Progress contains identifiers and stable outcome codes, not raw queries or employee records.
+
+[↑ Back to contents](#contents)
 
 ## Policy knowledge and RAG
 
@@ -414,6 +428,8 @@ generated per request. Without enough evidence, the same endpoint returns HTTP `
 
 See [RAG testing and troubleshooting](docs/rag-testing-and-troubleshooting.md) for complete HTTP and MCP scenarios, expected responses, retrieval settings, LangSmith inspection, and database diagnostics. See [repository knowledge indexing](docs/knowledge-indexing.md) for PDF limits, version activation, and indexing failure codes.
 
+[↑ Back to contents](#contents)
+
 ## Security and guardrails
 
 Security controls surround the model and retrieved content; they are not model instructions.
@@ -433,6 +449,8 @@ Security controls surround the model and retrieved content; they are not model i
 The grounded-answer model receives trusted rules in a `SystemMessage` and untrusted question/evidence data in a separate JSON `HumanMessage`. Retrieved text cannot grant permissions, change roles, request tools, or authorize actions. The model has no mutating RAG tool.
 
 Detected prompt injection stores a stable reason, source, correlation ID, safe coordinates, and a SHA-256 content hash—not the raw malicious text, policy chunk, API key, or token. Deterministic detection is one layer; least-privilege tools, authorization, structured outputs, grounding, explicit actions, and monitoring provide independent protection.
+
+[↑ Back to contents](#contents)
 
 ## Observability and logging
 
@@ -479,6 +497,8 @@ Missing fields and `UNSUPPORTED` are valid intent-normalization outcomes: missin
 
 See [manual observability checks](docs/manual-testing.md#pino-postgresql-audit-langsmith-studio-and-evaluation).
 
+[↑ Back to contents](#contents)
+
 ## LLMOps, tracing, and evaluation
 
 LLMOps means versioning, observing, and evaluating model-backed behavior. It is separate from normal application logging.
@@ -504,6 +524,8 @@ npm run eval:agent
 ```
 
 Studio exposes `hcm_agent`, `onboarding`, and `leave` using production graph builders with mock offline dependencies. The evaluation runner uses fakes and makes no live OpenAI call; upload occurs only when explicitly enabled.
+
+[↑ Back to contents](#contents)
 
 ## Interfaces and automation
 
@@ -535,6 +557,8 @@ The MCP endpoint exposes exactly two read-only tools: `get_employee_onboarding_s
 | Development publisher | Exists only in development and publishes the versioned onboarding event                               |
 
 `processed_events` atomically claims event IDs and stores a SHA-256 payload hash plus delivery metadata. Completed duplicates do not repeat workflows or effects; conflicting reuse is rejected.
+
+[↑ Back to contents](#contents)
 
 ## Data and repository structure
 
@@ -578,6 +602,8 @@ tests/unit/           Unit tests with fake external dependencies
 docs/                 Architecture, configuration, data, API, indexing, and usage guides
 ```
 
+[↑ Back to contents](#contents)
+
 ## Testing
 
 Tests use fake models, queues, embeddings, checkpointers, PDF generators, and loggers. CI does not make live OpenAI or LangSmith calls.
@@ -600,6 +626,8 @@ npm run build
 ```
 
 Live infrastructure paths are documented for manual verification in the [manual testing guide](docs/manual-testing.md).
+
+[↑ Back to contents](#contents)
 
 ## Manual testing
 
@@ -632,6 +660,8 @@ The primary manual-verification runtime is the full Docker Compose stack at `htt
 | LangSmith                  | Inspect configured agent/RAG traces and evaluation results.              |
 | LangGraph Studio           | Visualize exported graph topology and node paths.                        |
 | PDF viewer                 | Open the on-demand leave document response.                              |
+
+[↑ Back to contents](#contents)
 
 ## RabbitMQ overview
 
@@ -672,6 +702,8 @@ Dashed producer edges are future extension points, not shipped integrations: no 
 
 Broker routing, application processing, and database completion are separate outcomes. A broker route does not establish that the consumer validated or processed an event, and application processing is complete only when the workflow and durable PostgreSQL records succeed. See [RabbitMQ architecture and operations](docs/rabbitmq.md) for detailed topology, delivery semantics, limitations, and troubleshooting.
 
+[↑ Back to contents](#contents)
+
 ## Current limitations
 
 | Current implementation                                                                                                                                                            | Why it is limited                                                                                                                                    | Production direction                                                                                                                                                                                                  |
@@ -693,6 +725,8 @@ Broker routing, application processing, and database completion are separate out
 | RabbitMQ lacks production broker security and monitoring.                                                                                                                         | Development credentials, TLS, vhost isolation, metrics, dashboards, and alerting are not implemented.                                                | Add service identities, rotated secrets, TLS, least-privilege vhosts, broker metrics, dashboards, thresholds, and alerts. See [RabbitMQ production direction](docs/rabbitmq.md#limitations-and-production-direction). |
 | Docker Compose supplies the development runtime.                                                                                                                                  | It has no production secrets, deployment, monitoring, disaster recovery, or SLO implementation.                                                      | Build a production platform with managed secrets, deployment controls, monitoring/alerting, DR, and explicit SLOs.                                                                                                    |
 
+[↑ Back to contents](#contents)
+
 ## Production-readiness roadmap
 
 This ordered roadmap identifies potential production work; it does not describe implemented capabilities.
@@ -711,6 +745,8 @@ This ordered roadmap identifies potential production work; it does not describe 
 12. Add additional HR intents, worker graphs, tools, authorization, traces, evaluations, and documentation.
 
 Legal, security, data-residency, availability, and operational requirements remain organization-specific.
+
+[↑ Back to contents](#contents)
 
 ## Extending the system
 
@@ -738,11 +774,15 @@ business requirement
 
 Employee profiles, absence categories, benefits, performance reviews, recruitment, document workflows, and more external HR integrations are future opportunities, not implemented features.
 
+[↑ Back to contents](#contents)
+
 ## Project delivery
 
 [GitHub Project #7](https://github.com/users/ramioooz/projects/7) records the delivery work.
 
 Development was managed through the linked GitHub Project using a lightweight Agile delivery process. Work was organized into two fast-paced sprints with epics, stories, parented tasks, acceptance criteria, pull-request-based delivery, and a working increment at the end of each sprint.
+
+[↑ Back to contents](#contents)
 
 ## Further documentation
 
@@ -760,10 +800,16 @@ Development was managed through the linked GitHub Project using a lightweight Ag
 | [Security policy](SECURITY.md)                           | Supported versions and vulnerability reporting                                      |
 | [Contribution guide](CONTRIBUTING.md)                    | Branch, verification, documentation, and review expectations                        |
 
+[↑ Back to contents](#contents)
+
 ## Contributing
 
 Issues and focused pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). Report security concerns through [SECURITY.md](SECURITY.md).
 
+[↑ Back to contents](#contents)
+
 ## License
 
 Agentic LLMOps for HCM is available under the [MIT License](LICENSE).
+
+[↑ Back to contents](#contents)

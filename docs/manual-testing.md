@@ -4,6 +4,25 @@ The primary public verification runtime is the full Docker Compose stack at `htt
 
 `X-Employee-Id` is development-only identity input, not production authentication. Mock identities are `EMP-100` (HR), `EMP-200` (manager), `EMP-201` and `EMP-202` (employees), and `EMP-300` (completed onboarding). Replace uppercase variables such as `THREAD_ID` with values from your own run. IDs, dates, selected sources, wording, timing, and numeric values vary; numeric examples only demonstrate JSON number types.
 
+## Test index
+
+| Category                                                                                                                                                | Manual tests                                                                                                                                                                                                  | Coverage                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| [Environment and infrastructure](#environment-and-infrastructure)                                                                                       | [MT-environment-01](#mt-environment-01-initialize-the-docker-compose-stack)                                                                                                                                   | Build and initialize the full Docker Compose runtime and mock data.                 |
+| [Health and readiness](#health-and-readiness)                                                                                                           | [MT-health-01](#mt-health-01-confirm-liveness-and-readiness)                                                                                                                                                  | Verify API liveness and PostgreSQL-backed readiness.                                |
+| [Onboarding and intent routing](#onboarding-and-intent-routing)                                                                                         | [MT-onboarding-01](#mt-onboarding-01-review-your-own-onboarding-status), [MT-onboarding-02](#mt-onboarding-02-review-a-direct-report), [MT-onboarding-03](#mt-onboarding-03-request-an-explicit-notification) | Exercise self-service, manager access, routing, and explicit notification behavior. |
+| [Intent fallback, unsupported requests, and missing information](#intent-fallback-unsupported-requests-and-missing-information)                         | [MT-intent-01](#mt-intent-01-return-fallbackunsupported-and-missing-information-results)                                                                                                                      | Verify unsupported intent and missing-information results.                          |
+| [Multi-turn state and identity ownership](#multi-turn-state-and-identity-ownership)                                                                     | [MT-state-01](#mt-state-01-continue-an-ambiguous-onboarding-request)                                                                                                                                          | Continue a thread and enforce its initiating identity.                              |
+| [SSE streaming](#sse-streaming)                                                                                                                         | [MT-sse-01](#mt-sse-01-stream-lifecycle-progress)                                                                                                                                                             | Observe safe workflow lifecycle events over SSE.                                    |
+| [Security and authorization guardrails](#security-and-authorization-guardrails)                                                                         | [MT-security-01](#mt-security-01-reject-peer-injection-bulk-data-and-cross-identity-requests), [MT-security-02](#mt-security-02-reject-a-schema-invalid-agent-request)                                        | Verify authorization, prompt-injection, bulk-data, thread, and schema controls.     |
+| [Leave proposal, approval, rejection, duplicate prevention, and PDF download](#leave-proposal-approval-rejection-duplicate-prevention-and-pdf-download) | [MT-leave-01](#mt-leave-01-propose-approve-deduplicate-reject-and-download-leave)                                                                                                                             | Exercise the leave workflow, human approval, idempotency, and on-demand PDF.        |
+| [Knowledge indexing and RAG success/failure](#knowledge-indexing-and-rag-successfailure)                                                                | [MT-rag-01](#mt-rag-01-index-and-query-mock-policy-knowledge), [MT-rag-02](#mt-rag-02-reject-a-temporary-unsafe-policy-pdf)                                                                                   | Index policies, query grounded evidence, and reject unsafe document content.        |
+| [MCP discovery and read-only calls](#mcp-discovery-and-read-only-calls)                                                                                 | [MT-mcp-01](#mt-mcp-01-discover-and-call-read-only-mcp-tools)                                                                                                                                                 | Discover and call the two authorized read-only MCP tools.                           |
+| [Webhook and scheduler triggers](#webhook-and-scheduler-triggers)                                                                                       | [MT-trigger-01](#mt-trigger-01-verify-webhook-idempotency-and-conflict-protection), [MT-trigger-02](#mt-trigger-02-run-the-daily-scheduled-onboarding-policy)                                                 | Verify authenticated webhook and scheduled workflow entry points.                   |
+| [RabbitMQ](#rabbitmq)                                                                                                                                   | [MT-rabbitmq-01](#mt-rabbitmq-01-publish-a-valid-event-and-verify-asynchronous-completion), [MT-rabbitmq-02](#mt-rabbitmq-02-validate-retry-attempts-and-non-destructively-inspect-the-dlq)                   | Verify asynchronous completion, retry headers, and dead-letter routing.             |
+| [Pino, PostgreSQL audit, LangSmith, Studio, and evaluation](#pino-postgresql-audit-langsmith-studio-and-evaluation)                                     | [MT-observability-01](#mt-observability-01-inspect-redacted-operational-and-audit-evidence), [MT-llmops-01](#mt-llmops-01-inspect-tracing-studio-and-offline-evaluation)                                      | Inspect operational logs, durable audit evidence, traces, graphs, and evaluations.  |
+| [Repository quality checks](#repository-quality-checks)                                                                                                 | [MT-quality-01](#mt-quality-01-run-repository-checks)                                                                                                                                                         | Run the focused automated verification suite.                                       |
+
 ## Environment and infrastructure
 
 ### MT-environment-01: Initialize the Docker Compose stack
@@ -46,6 +65,8 @@ Representative ready body:
 
 **Cleanup/reset:** `docker compose exec api npm run db:seed` destructively clears mock runtime and indexed knowledge data.
 
+[↑ Back to test index](#test-index)
+
 ## Health and readiness
 
 ### MT-health-01: Confirm liveness and readiness
@@ -80,6 +101,8 @@ Representative ready body:
 **Optional evidence:** `docker compose logs api` and `docker compose logs postgres` show dependency state.
 
 **Cleanup/reset:** Restore PostgreSQL before continuing.
+
+[↑ Back to test index](#test-index)
 
 ## Onboarding and intent routing
 
@@ -192,6 +215,8 @@ curl --include --request POST --url http://localhost:3300/api/v1/agent/invoke \
 
 **Cleanup/reset:** None.
 
+[↑ Back to test index](#test-index)
+
 ## Intent fallback, unsupported requests, and missing information
 
 ### MT-intent-01: Return fallback/unsupported and missing-information results
@@ -239,6 +264,8 @@ curl --include --request POST --url http://localhost:3300/api/v1/agent/invoke \
 
 **Cleanup/reset:** None.
 
+[↑ Back to test index](#test-index)
+
 ## Multi-turn state and identity ownership
 
 ### MT-state-01: Continue an ambiguous onboarding request
@@ -271,6 +298,8 @@ curl --include --request POST --url http://localhost:3300/api/v1/agent/invoke \
 
 **Cleanup/reset:** Use a new thread for another continuation.
 
+[↑ Back to test index](#test-index)
+
 ## SSE streaming
 
 ### MT-sse-01: Stream lifecycle progress
@@ -299,6 +328,8 @@ data: {"runId":"<run-id>","status":"completed","httpStatus":200,"body":{"status"
 **Optional evidence:** Inspect the final event correlation ID in [MT-observability-01](#mt-observability-01-inspect-redacted-operational-and-audit-evidence).
 
 **Cleanup/reset:** None.
+
+[↑ Back to test index](#test-index)
 
 ## Security and authorization guardrails
 
@@ -369,6 +400,8 @@ curl --include --request POST --url http://localhost:3300/api/v1/agent/invoke \
 
 **Cleanup/reset:** None.
 
+[↑ Back to test index](#test-index)
+
 ## Leave proposal, approval, rejection, duplicate prevention, and PDF download
 
 ### MT-leave-01: Propose, approve, deduplicate, reject, and download leave
@@ -417,6 +450,8 @@ rm -f leave-request.pdf
 # Optional destructive mock-state reset:
 docker compose exec api npm run db:seed
 ```
+
+[↑ Back to test index](#test-index)
 
 ## Knowledge indexing and RAG success/failure
 
@@ -488,6 +523,8 @@ docker compose exec -T postgres psql -U hcm -d hcm -c "SELECT event_type, severi
 docker compose exec api rm -f knowledge-documents/manual-unsafe-policy.pdf
 ```
 
+[↑ Back to test index](#test-index)
+
 ## MCP discovery and read-only calls
 
 ### MT-mcp-01: Discover and call read-only MCP tools
@@ -535,6 +572,8 @@ npx @modelcontextprotocol/inspector --cli http://localhost:3300/mcp --transport 
 **Optional evidence:** Inspector shows a text content block for each `structuredContent` result; inspect a successful correlation ID in [MT-observability-01](#mt-observability-01-inspect-redacted-operational-and-audit-evidence).
 
 **Cleanup/reset:** Close Inspector; re-index after a mock-knowledge reset.
+
+[↑ Back to test index](#test-index)
 
 ## Webhook and scheduler triggers
 
@@ -598,6 +637,8 @@ schedule-onboarding-v1-<digest> | COMPLETED | 1 | <run-id> | <thread-id> |
 SCHEDULER_ENABLED=false docker compose up -d --force-recreate api
 docker compose exec api npm run db:seed
 ```
+
+[↑ Back to test index](#test-index)
 
 ## RabbitMQ
 
@@ -786,6 +827,8 @@ docker compose exec -T postgres psql -U hcm -d hcm -c "SELECT event_id, status, 
 
 **Cleanup/reset:** Leave the DLQ message requeued. Re-seeding clears database state but does not consume the RabbitMQ DLQ; named-volume broker data persists across normal restarts.
 
+[↑ Back to test index](#test-index)
+
 ## Pino, PostgreSQL audit, LangSmith, Studio, and evaluation
 
 ### MT-observability-01: Inspect redacted operational and audit evidence
@@ -839,6 +882,8 @@ npm run eval:agent
 
 **Cleanup/reset:** Stop Studio with `Ctrl-C`; offline evaluation does not mutate Docker runtime by default.
 
+[↑ Back to test index](#test-index)
+
 ## Repository quality checks
 
 ### MT-quality-01: Run repository checks
@@ -871,3 +916,5 @@ npm run eval:agent
 **Optional evidence:** Preserve command output with verification evidence for the checkout.
 
 **Cleanup/reset:** None. Live OpenAI, PostgreSQL checkpoint, RabbitMQ, SSE, RAG, Studio, and MCP paths use the flows above until broader integration coverage is added.
+
+[↑ Back to test index](#test-index)
