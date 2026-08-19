@@ -124,4 +124,21 @@ These are production directions, not implemented or scheduled work.
 
 ## Manual verification
 
-The canonical [manual testing guide](manual-testing.md#rabbitmq) currently provides the broker-test summary. Task 4 reserves exactly two forthcoming detailed procedures: successful asynchronous delivery, and invalid-payload retry/DLQ verification. They are not yet present; neither procedure will claim a DLQ replay implementation.
+The canonical [manual testing guide](manual-testing.md#rabbitmq) contains exactly two detailed broker procedures:
+
+1. [MT-rabbitmq-01: Publish a valid event and verify asynchronous completion](manual-testing.md#mt-rabbitmq-01-publish-a-valid-event-and-verify-asynchronous-completion)
+2. [MT-rabbitmq-02: Validate retry attempts and non-destructively inspect the DLQ](manual-testing.md#mt-rabbitmq-02-validate-retry-attempts-and-non-destructively-inspect-the-dlq)
+
+The procedures use the local Management API at `http://localhost:15672` and inspect application evidence through the Compose API logs and PostgreSQL. They do not implement or demonstrate a DLQ consumer, replay, or redrive.
+
+## Secondary behavior reference
+
+| Behavior               | Implemented behavior                                                                                                                         |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Duplicate delivery     | The same payload and event ID become `DUPLICATE`, avoiding repeated workflow side effects.                                                   |
+| Conflicting reuse      | Different payload content with the same event ID becomes `EVENT_ID_CONFLICT`.                                                                |
+| Management credentials | Compose reads the broker values from `.env` and `.env.example`; the local Management API examples use the Compose `guest:guest` credentials. |
+| Durability             | Messages survive a normal restart through the named `hcm_rabbitmq_data` volume.                                                              |
+| Development publisher  | The development HTTP publisher is available only when `NODE_ENV=development`; the Docker Compose API runs with `NODE_ENV=production`.        |
+| Retries                | Retries are immediate, not delayed or exponential.                                                                                           |
+| DLQ                    | Manual inspection only; there is no DLQ consumer or redrive implementation.                                                                  |

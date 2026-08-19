@@ -414,7 +414,160 @@ curl --include --request POST --url http://localhost:3300/api/v1/triggers/webhoo
 
 ## RabbitMQ
 
-RabbitMQ is an implemented asynchronous onboarding trigger. See [RabbitMQ architecture and operations](rabbitmq.md) for the authoritative topology, contract, delivery semantics, observability boundary, and limitations. The two detailed broker scenarios are reserved for Task 4 and are not yet documented here. A broker publication confirmation is not a workflow result. This summary makes no claim about external producers, DLQ redrive, delayed retry, monitoring, alerting, or production broker security.
+RabbitMQ is an implemented asynchronous onboarding trigger. See [RabbitMQ architecture and operations](rabbitmq.md) for the authoritative topology, contract, delivery semantics, observability boundary, and limitations. A broker publication confirmation is not a workflow result: establish completion from the consumer logs and durable PostgreSQL records below. These are the only detailed broker scenarios in this guide; they do not claim external producer implementation, DLQ replay, delayed retry, monitoring, alerting, or production broker security.
+
+### MT-rabbitmq-01: Publish a valid event and verify asynchronous completion
+
+**Purpose:** Verify that RabbitMQ routes a valid onboarding-review event, the consumer completes it once, and PostgreSQL retains the event and workflow evidence.
+
+**Prerequisites:** Complete MT-environment-01. The `api` consumer and RabbitMQ must be healthy. OpenAI-dependent workflow behavior must be available for the seeded local stack.
+
+**Recommended tool:** curl, Docker logs, and PostgreSQL `psql`.
+
+The values below are safe example identifiers. Before each run, replace `event-rabbitmq-valid-20260818-001` with a new safe event ID (1–128 characters; starts alphanumeric and then uses only letters, digits, `.`, `_`, `:`, or `-`) and replace the UUID v4 correlation ID with one for that run. Keep the broker `message_id` equal to the event ID, `type` equal to the routing-key event type, and `x-attempt` equal to `1`.
+
+```bash
+curl --fail --silent --show-error --user guest:guest \
+  --request POST http://localhost:15672/api/exchanges/%2F/hcm.events.v1/publish \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "properties": {
+      "delivery_mode": 2,
+      "message_id": "event-rabbitmq-valid-20260818-001",
+      "correlation_id": "4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0",
+      "type": "onboarding.review.requested",
+      "headers": { "x-attempt": 1 }
+    },
+    "routing_key": "onboarding.review.requested",
+    "payload": "{\"version\":\"1\",\"eventId\":\"event-rabbitmq-valid-20260818-001\",\"type\":\"onboarding.review.requested\",\"occurredAt\":\"2026-08-18T05:00:00.000Z\",\"correlationId\":\"4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0\",\"data\":{\"employeeCode\":\"EMP-201\",\"thresholdDays\":30,\"action\":\"REVIEW_ONLY\"}}",
+    "payload_encoding": "string"
+  }'
+```
+
+**Expected:** RabbitMQ returns `200` and confirms routing only.
+
+```json
+{ "routed": true }
+```
+
+Inspect the application-side lifecycle evidence. Direct Management API publication has no `rabbitmq.event.publish_confirmed` API record because the API did not make this publication.
+
+```bash
+docker compose logs --tail=200 api | rg 'rabbitmq.event.(received|completed)'
+```
+
+**Expected:** JSONL includes the same message and correlation IDs, attempt `1`, and a runtime-generated `runId` on completion.
+
+```jsonl
+{"event":"rabbitmq.event.received","correlationId":"4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0","messageId":"event-rabbitmq-valid-20260818-001","attempt":1,"routingKey":"onboarding.review.requested","status":"RECEIVED"}
+{"event":"rabbitmq.event.completed","correlationId":"4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0","messageId":"event-rabbitmq-valid-20260818-001","attempt":1,"routingKey":"onboarding.review.requested","status":"COMPLETED","runId":"<run-id>"}
+```
+
+Query the durable event claim, then its workflow run and steps. Replace the quoted event ID and UUID with the values published above.
+
+```bash
+docker compose exec -T postgres psql -U hcm -d hcm -c "SELECT event_id, status, attempt, run_id, thread_id, correlation_id, error_code FROM processed_events WHERE event_id = 'event-rabbitmq-valid-20260818-001';"
+docker compose exec -T postgres psql -U hcm -d hcm -c "SELECT r.run_id, r.thread_id, r.correlation_id, r.status AS run_status, s.step_name, s.status AS step_status, s.outcome_code FROM agent_runs r JOIN agent_run_steps s ON s.agent_run_id = r.id WHERE r.correlation_id = '4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0' OR r.run_id = '<run-id>' ORDER BY s.started_at;"
+```
+
+**Expected:** The `processed_events` row is `COMPLETED` with attempt `1`, populated `run_id`, `thread_id`, and `correlation_id`, and a null `error_code`. The second query returns the corresponding `agent_runs` and `agent_run_steps` evidence.
+
+**Variable values:** The event ID and correlation ID are chosen by the operator; run ID and thread ID are generated by the workflow and vary per execution.
+
+**Cleanup/reset:** None. Re-seeding clears runtime event and audit state.
+
+### MT-rabbitmq-02: Validate retry attempts and non-destructively inspect the DLQ
+
+**Purpose:** Verify that an invalid event is routed by the broker, fails application validation before the idempotency claim, retries immediately through attempt `3`, and is retained for manual DLQ inspection.
+
+**Prerequisites:** Complete MT-environment-01. Use a new safe event ID and do not consume or acknowledge the DLQ message during inspection.
+
+**Recommended tool:** curl, Docker logs, RabbitMQ Management UI or `rabbitmqadmin`, and PostgreSQL `psql`.
+
+The following broker `message_id` and payload event ID are safe unique examples; replace both with a new value on each run. The payload `correlationId` is deliberately invalid and must remain a non-UUID value such as `corr-rabbitmq-invalid-001`.
+
+```bash
+curl --fail --silent --show-error --user guest:guest \
+  --request POST http://localhost:15672/api/exchanges/%2F/hcm.events.v1/publish \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "properties": {
+      "delivery_mode": 2,
+      "message_id": "event-rabbitmq-invalid-20260818-001",
+      "correlation_id": "4a6eb0ac-2fa1-4296-bbea-ff1985bf8df0",
+      "type": "onboarding.review.requested",
+      "headers": { "x-attempt": 1 }
+    },
+    "routing_key": "onboarding.review.requested",
+    "payload": "{\"version\":\"1\",\"eventId\":\"event-rabbitmq-invalid-20260818-001\",\"type\":\"onboarding.review.requested\",\"occurredAt\":\"2026-08-18T05:00:00.000Z\",\"correlationId\":\"corr-rabbitmq-invalid-001\",\"data\":{\"employeeCode\":\"EMP-201\",\"thresholdDays\":30,\"action\":\"REVIEW_ONLY\"}}",
+    "payload_encoding": "string"
+  }'
+```
+
+**Expected:** RabbitMQ routes the syntactically publishable message without validating its payload.
+
+```json
+{ "routed": true }
+```
+
+Inspect the lifecycle records after the consumer processes all three immediate attempts.
+
+```bash
+docker compose logs --tail=200 api | rg 'rabbitmq.event.(received|validation_failed|retry_published|dead_lettered)'
+```
+
+**Expected ordering:**
+
+```text
+rabbitmq.event.received attempt=1
+rabbitmq.event.validation_failed attempt=1 code=RABBITMQ_EVENT_VALIDATION_FAILED
+rabbitmq.event.retry_published attempt=1 nextAttempt=2
+rabbitmq.event.received attempt=2
+rabbitmq.event.validation_failed attempt=2 code=RABBITMQ_EVENT_VALIDATION_FAILED
+rabbitmq.event.retry_published attempt=2 nextAttempt=3
+rabbitmq.event.received attempt=3
+rabbitmq.event.validation_failed attempt=3 code=RABBITMQ_EVENT_VALIDATION_FAILED
+rabbitmq.event.dead_lettered attempt=3 code=RABBITMQ_EVENT_VALIDATION_FAILED
+```
+
+Inspect one DLQ message using exactly one of these non-destructive options. Each requeues the message; none consumes, replays, or redrives it.
+
+1. Open [the DLQ queue page](http://localhost:15672/#/queues/%2F/hcm.onboarding.review.dlq.v1), use **Get messages**, and enable **Requeue** before requesting one message.
+2. Run the Management CLI inside the Compose broker:
+
+   ```bash
+   docker compose exec rabbitmq rabbitmqadmin get queue=hcm.onboarding.review.dlq.v1 ackmode=ack_requeue_true count=1
+   ```
+
+3. Call the Management HTTP API with requeue acknowledgement:
+
+   ```bash
+   curl --fail --silent --show-error --user guest:guest \
+     --request POST http://localhost:15672/api/queues/%2F/hcm.onboarding.review.dlq.v1/get \
+     --header 'Content-Type: application/json' \
+     --data '{"count":1,"ackmode":"ack_requeue_true","encoding":"auto"}'
+   ```
+
+**Expected DLQ properties:** Its headers include the final attempt and stable validation code.
+
+```json
+{
+  "x-attempt": 3,
+  "x-error-code": "RABBITMQ_EVENT_VALIDATION_FAILED"
+}
+```
+
+Validation fails before `processed_events` is claimed, so the event ID has no database row.
+
+```bash
+docker compose exec -T postgres psql -U hcm -d hcm -c "SELECT event_id, status, attempt, run_id, thread_id, correlation_id, error_code FROM processed_events WHERE event_id = 'event-rabbitmq-invalid-20260818-001';"
+```
+
+**Expected:** `(0 rows)`.
+
+**Variable values:** The event/message ID is chosen by the operator and must be new; the non-UUID payload correlation value intentionally stays invalid. The transport-level correlation ID is a valid UUID v4 but does not make the payload valid.
+
+**Cleanup/reset:** Leave the DLQ message requeued. Re-seeding clears database state but does not consume the RabbitMQ DLQ; named-volume broker data persists across normal restarts.
 
 ## Pino, PostgreSQL audit, LangSmith, Studio, and evaluation
 
