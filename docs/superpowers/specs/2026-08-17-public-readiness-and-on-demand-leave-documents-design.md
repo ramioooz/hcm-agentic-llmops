@@ -235,7 +235,7 @@ The README identifies OpenAI-only runtime adapters as a current limitation. A pr
 - grounded answer generation; and
 - embeddings.
 
-Language providers such as Claude or other approved models can implement language tasks, while embeddings remain independently selectable. Provider portability requires capability checks, common structured-output contracts, provider-specific timeout/retry/rate-limit behavior, accuracy/latency/cost evaluation, fallback policy, and embedding-dimension compatibility. Changing an embedding model or dimension requires versioned side-by-side reindexing before activation.
+Other approved language providers can implement language tasks, while embeddings remain independently selectable. Provider portability requires capability checks, common structured-output contracts, provider-specific timeout/retry/rate-limit behavior, accuracy/latency/cost evaluation, fallback policy, and embedding-dimension compatibility. Changing an embedding model or dimension requires versioned side-by-side reindexing before activation.
 
 ## Extending HR capabilities
 

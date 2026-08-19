@@ -290,7 +290,7 @@ Conclude that legal, security, data-residency, availability, and operational req
 
 Explain that additional formats are requirements-driven, not universally mandatory. For CSV/spreadsheets, mention schema-aware header/row/column handling; for scans, OCR; for connectors, ownership/access/lifecycle/deletion/reindexing/malware scanning.
 
-Explain separate provider-neutral interfaces for intent normalization, grounded answer generation, and embeddings. Mention Claude or other approved language providers without implying they provide the same embeddings. Require structured-output compatibility, provider-specific timeout/retry/rate limits, evaluation, fallback policy, and embedding dimension/version compatibility; changed embeddings require side-by-side reindex/activation.
+Explain separate provider-neutral interfaces for intent normalization, grounded answer generation, and embeddings. Mention other approved language providers without implying they provide the same embeddings. Require structured-output compatibility, provider-specific timeout/retry/rate limits, evaluation, fallback policy, and embedding dimension/version compatibility; changed embeddings require side-by-side reindex/activation.
 
 - [ ] **Step 3: Add `Extending HR capabilities`**
 

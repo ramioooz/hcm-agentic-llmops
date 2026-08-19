@@ -8,7 +8,7 @@ RabbitMQ decouples event publication from asynchronous onboarding-workflow execu
 | -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
 | Durable topology, typed onboarding contract, application consumer, publisher confirms, manual acknowledgement, idempotency, retry, and dead-letter queue | Implemented                                  |
 | Development HTTP publisher                                                                                                                               | Implemented only when `NODE_ENV=development` |
-| Direct publication by a compatible AMQP client                                                                                                           | Supported by the implemented broker contract |
+| Publication by a compatible external AMQP producer                                                                                                       | Contract-supported; no producer ships        |
 | Oracle Fusion adapter, another HR microservice, integration platform, or governed batch producer                                                         | Extension points only                        |
 | Concrete external producer, DLQ consumer/replay, delayed retries, production identities/TLS/vhosts, monitoring, or alerts                                | Not implemented                              |
 
@@ -30,7 +30,7 @@ flowchart TD
     ORACLE["Future Oracle Fusion adapter<br/>Not implemented"]
     SERVICE["Future HR microservice<br/>Not implemented"]
     DEV["Development HTTP publisher<br/>Development mode only"]
-    EXTERNAL["External AMQP client<br/>Supported broker contract"]
+    EXTERNAL["Compatible external AMQP publication<br/>Contract-interoperable"]
     EXCHANGE["Topic exchange<br/>hcm.events.v1"]
     QUEUE["Onboarding queue<br/>hcm.onboarding.review.v1"]
     CONSUMER["API RabbitMQ consumer"]
@@ -58,7 +58,7 @@ flowchart TD
     CONSUMER -->|"Attempts exhausted"| DLQ
 ```
 
-Dashed edges are future integration boundaries, not shipped adapters. The development endpoint and compatible external AMQP clients are the implemented publication paths shown with solid edges.
+Dashed edges are future integration boundaries, not shipped adapters. The application consumer/transport and development endpoint are implemented. The solid external edge shows that a compatible producer can interoperate with the broker contract; it does not represent a shipped or implemented external client or producer.
 
 ## Event contract and validation
 
