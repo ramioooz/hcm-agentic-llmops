@@ -109,10 +109,16 @@ Webhook events use a strict versioned Zod contract and a bearer key. Both the pr
 
 RabbitMQ uses durable topic and dead-letter exchanges, durable queues, publisher confirms, manual acknowledgements, and bounded prefetch/retries. A delivery is acknowledged only after successful idempotent processing or after a retry/dead-letter publish is confirmed. Shutdown stops the scheduler and HTTP listener, cancels the consumer, then closes the channel, connection, and PostgreSQL client.
 
+See the [RabbitMQ architecture and operations guide](rabbitmq.md) for the exact topology, event contract, acknowledgement/retry sequence, observability boundary, and current limitations.
+
 `processed_events` atomically claims event IDs and stores only delivery metadata and a SHA-256 payload hash. A completed duplicate skips the graph and all side effects; reusing an ID with different content is a stable conflict.
+
+## Development and production boundaries
+
+The configured application runtime composes real OpenAI, PostgreSQL/pgvector, RabbitMQ, LangGraph, and optional LangSmith integrations. Unit tests and LangGraph Studio deliberately replace external dependencies with fakes; Studio uses production graph builders for topology inspection, not a live-service verification environment. `X-Employee-Id` and manager notification are development identity and notification adapters rather than production authentication or delivery systems. OpenAI language/embedding adapters, local PostgreSQL HR data, repository PDF ingestion, and on-demand document rendering are extension points for future provider, system-of-record, format/connector, and legal-record storage decisions. See the [Current limitations](../README.md#current-limitations) table for the full implementation and production-direction inventory.
 
 ## Current versus planned
 
-The current release implements typed onboarding and leave graphs, durable human approval, JSON and SSE invocation, deterministic leave PDFs, transactional run/step/security-event recording, redacted Pino logs, schedule/webhook/RabbitMQ onboarding triggers, and focused unit tests. External notification providers and external log shipping are later stories.
+The current release implements typed onboarding and leave graphs, durable human approval, JSON and SSE invocation, on-demand deterministic leave PDFs, transactional run/step/security-event recording, redacted Pino logs, schedule/webhook/RabbitMQ onboarding triggers, and focused unit tests. External notification providers and external log shipping are later stories.
 
-The leave worker starts independently authorized annual-policy and balance tools together, calculates eligibility, and reaches a LangGraph interrupt before any write. Resume requires the thread owner. `REJECT` ends without a row; `APPROVE` reruns both tools and the deterministic calculation, then upserts one `SUBMITTED` request by approval thread. A deterministic PDF containing only request ID, employee code, leave type, approved dates, working days, and status is stored on that row. The document endpoint re-authorizes the actor and responds with `Cache-Control: no-store`.
+The leave worker starts independently authorized annual-policy and balance tools together, calculates eligibility, and reaches a LangGraph interrupt before any write. Resume requires the thread owner. `REJECT` ends without a row; `APPROVE` reruns both tools and the deterministic calculation, then upserts one `SUBMITTED` request by approval thread with a template version. The document endpoint re-authorizes the actor, renders the deterministic PDF from that authorized snapshot on demand, and responds with `Cache-Control: no-store`.
