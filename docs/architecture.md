@@ -23,7 +23,7 @@ The parent records the trace/correlation/actor/source identifiers, raw question,
 The `/mcp` endpoint creates a fresh official TypeScript SDK `McpServer` and stateless Streamable HTTP transport for every POST. The HTTP adapter resolves a canonical employee through PostgreSQL before MCP dispatch and closes identity plus a safe correlation ID over the two handlers. `get_employee_onboarding_status` delegates to the existing authorized onboarding calculation tool; `search_knowledge_documents` delegates to the existing active-version knowledge search tool/service. Both are annotated read-only and only masked, bounded structured results cross the MCP boundary. No notification, leave, upload, reindex, or other mutating capability is registered. See the [MCP guide](mcp.md) for the complete endpoint, tool, identity, error, and production-boundary reference.
 
 ```mermaid
-flowchart LR
+flowchart TD
 HTTP["HTTP controllers"] --> APP["Application services"]
 TRIG["Technical triggers"] --> APP
 APP --> GRAPH["HCM supervisor graph"]
@@ -67,7 +67,7 @@ Before graph continuation, the service resolves `X-Employee-Id` against PostgreS
 `AgentController` receives a required `ApplicationLogger` dependency and reports invocation lifecycle events. The observability module owns the mapping from HTTP workflow results to completion, rejection, or failure log levels, keeping that operational policy out of the controller. The Pino adapter serializes those records as JSON and recursively redacts sensitive fields before writing. This preserves a link through `correlationId` and `runId` without placing the request query, employee identifiers, personal details, error messages, or stack traces in operational logs.
 
 ```mermaid
-flowchart LR
+flowchart TD
     SERVER["server.ts<br/>process entry point"] --> COMPOSE["compose-application.ts<br/>composition boundary"]
     COMPOSE --> CORE["core dependencies<br/>database, repositories, audit"]
     COMPOSE --> MODULES["agent, knowledge, and<br/>trigger modules"]
