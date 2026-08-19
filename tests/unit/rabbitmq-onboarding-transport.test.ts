@@ -169,7 +169,7 @@ describe('RabbitMqOnboardingTransport', () => {
     const broker = fakeBroker();
     const logs = captureLogger();
     const transport = createTransport(broker, jest.fn(), logs.logger);
-    const { correlationId: _correlationId, ...eventWithoutCorrelationId } = event;
+    const eventWithoutCorrelationId = { ...event, correlationId: undefined };
     await transport.start();
 
     await transport.publish(eventWithoutCorrelationId, 1);
