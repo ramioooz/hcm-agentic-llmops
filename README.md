@@ -509,6 +509,8 @@ LangSmith uses explicit recorders instead of global automatic LangChain tracing:
 
 RAG tracing is enabled by default. It sends traces only when `LANGSMITH_API_KEY` is configured. Without the key, the API starts and answers knowledge queries normally while emitting safe warnings that tracing is disabled or skipped; those warnings exclude the raw question and employee identity. Agent tracing remains disabled by default and requires the key when enabled.
 
+`LANGSMITH_ENDPOINT` must match the LangSmith account region. The default is GCP US; AWS US, GCP EU, and GCP APAC accounts must override it with their regional endpoint. Docker Compose propagates the configured value to the API so local and containerized traces use the same destination.
+
 Detailed LangSmith traces are restricted to approved synthetic data under the present privacy model. Raw questions and answers, normalized intent, paths, tools, tokens, latency, and failures help debug non-deterministic behavior. Real HR data needs a trace-data policy, PII filtering, access control, sampling, retention, regional/legal review, and the ability to omit payloads. See [explicit versus automatic tracing](docs/configuration.md#explicit-versus-automatic-tracing).
 
 The intent prompt is source-controlled as `hcm-intent-v3` and included in agent trace metadata.

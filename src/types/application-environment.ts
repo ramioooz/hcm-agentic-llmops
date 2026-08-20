@@ -18,5 +18,6 @@ export type ApplicationEnvironment = {
   langSmithTracing: boolean;
   langSmithRagTracing: boolean;
   langSmithApiKey?: string;
+  langSmithEndpoint: string;
   langSmithProject: string;
 };

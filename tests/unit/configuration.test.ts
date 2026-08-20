@@ -10,6 +10,7 @@ describe('parseEnvironment', () => {
         AMQP_URL: 'amqp://localhost:5672',
         OPENAI_API_KEY: 'unit-test-key',
         WEBHOOK_API_KEY: 'unit-test-webhook-key-at-least-32-characters',
+        LANGSMITH_ENDPOINT: 'https://aws.api.smith.langchain.com',
       }),
     ).toEqual({
       nodeEnv: 'test',
@@ -31,6 +32,7 @@ describe('parseEnvironment', () => {
       langSmithTracing: false,
       langSmithRagTracing: true,
       langSmithApiKey: undefined,
+      langSmithEndpoint: 'https://aws.api.smith.langchain.com',
       langSmithProject: 'hcm-agentic-llmops',
     });
   });

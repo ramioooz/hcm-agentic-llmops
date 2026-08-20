@@ -104,11 +104,13 @@ export class LangSmithRagTraceRecorder implements RagTraceRecorder {
 
 export function createLangSmithRagTraceRecorder(input: {
   apiKey: string;
+  endpoint: string;
   projectName: string;
 }): RagTraceRecorder {
   return new LangSmithRagTraceRecorder(
     new Client({
       apiKey: input.apiKey,
+      apiUrl: input.endpoint,
       autoBatchTracing: false,
       omitTracedRuntimeInfo: true,
     }),

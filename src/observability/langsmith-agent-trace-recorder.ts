@@ -65,11 +65,13 @@ export class LangSmithAgentTraceRecorder implements AgentTraceRecorder {
 
 export function createLangSmithAgentTraceRecorder(input: {
   apiKey: string;
+  endpoint: string;
   projectName: string;
 }): AgentTraceRecorder {
   return new LangSmithAgentTraceRecorder(
     new Client({
       apiKey: input.apiKey,
+      apiUrl: input.endpoint,
       autoBatchTracing: false,
       omitTracedRuntimeInfo: true,
     }),

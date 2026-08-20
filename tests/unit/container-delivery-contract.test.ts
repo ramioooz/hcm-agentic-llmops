@@ -24,6 +24,7 @@ describe('container delivery contract', () => {
           ...process.env,
           COMPOSE_PROJECT_NAME: 'hcm-delivery-contract-test',
           LANGSMITH_API_KEY: '',
+          LANGSMITH_ENDPOINT: 'https://aws.api.smith.langchain.com',
           OPENAI_API_KEY: 'unit-test-openai-key',
           WEBHOOK_API_KEY: 'unit-test-webhook-key-at-least-32-characters',
         },
@@ -33,6 +34,9 @@ describe('container delivery contract', () => {
     expect(rendered.services.api).toMatchObject({
       build: { target: 'runtime' },
       command: ['npm', 'start'],
+      environment: {
+        LANGSMITH_ENDPOINT: 'https://aws.api.smith.langchain.com',
+      },
       depends_on: {
         tooling: { condition: 'service_completed_successfully' },
       },

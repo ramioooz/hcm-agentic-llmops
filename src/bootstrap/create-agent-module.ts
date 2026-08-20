@@ -50,6 +50,7 @@ export function createAgentModule(input: {
       ? {
           traceRecorder: createLangSmithAgentTraceRecorder({
             apiKey: input.environment.langSmithApiKey as string,
+            endpoint: input.environment.langSmithEndpoint,
             projectName: input.environment.langSmithProject,
           }),
         }
