@@ -83,7 +83,7 @@ The API implements two conversational employee workflows and one policy-knowledg
 
 ### Prerequisites
 
-- Node.js 22 or newer
+- Node.js 22.x
 - npm
 - Docker Desktop with Docker Compose
 - an OpenAI API key

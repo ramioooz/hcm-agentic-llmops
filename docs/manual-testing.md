@@ -59,7 +59,7 @@ Representative ready body:
 
 **Variable values:** Container IDs, startup timing, and index output vary. Migrations are repeatable; indexing requires configured OpenAI embedding access.
 
-**Optional evidence:** `docker compose logs api` shows startup and indexing diagnostics.
+**Optional evidence:** Preserve the output of `docker compose run --rm tooling npm run knowledge:index`; `docker compose logs tooling` shows the one-shot migration run, while `docker compose logs api` shows API startup and runtime diagnostics.
 
 **Cleanup/reset:** `docker compose run --rm tooling npm run db:seed` destructively clears mock runtime and indexed knowledge data.
 
