@@ -20,12 +20,12 @@ export class LeaveDocumentService implements LeaveDocumentProvider {
   }): Promise<{ id: string; pdf: Buffer } | null> {
     const actor = await this.dependencies.employees.findByEmployeeCode(input.actorEmployeeCode);
     if (!actor) throw new ApplicationError(CommonErrorCode.AuthenticationRequired);
-    if (actor.status !== 'ACTIVE') throw new ApplicationError(CommonErrorCode.EmployeeInactive);
 
     const snapshot = await this.dependencies.documents.findDocumentSnapshotById(
       input.leaveRequestId,
     );
     if (!snapshot) return null;
+    if (actor.status !== 'ACTIVE') throw new ApplicationError(CommonErrorCode.EmployeeInactive);
     if (actor.accessRole !== 'HR' && actor.employeeCode !== snapshot.employeeCode) {
       throw new ApplicationError(CommonErrorCode.AuthorizationDenied);
     }

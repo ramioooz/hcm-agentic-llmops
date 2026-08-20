@@ -38,4 +38,27 @@ describe('LeaveDocumentService', () => {
     expect(employees.findByEmployeeCode).toHaveBeenCalledWith('EMP-201');
     expect(documents.findDocumentSnapshotById).toHaveBeenCalledWith('lr_123');
   });
+
+  it('returns not found before evaluating an inactive actor for a missing document', async () => {
+    const service = new LeaveDocumentService({
+      employees: {
+        findByEmployeeCode: jest.fn().mockResolvedValue({
+          employeeCode: 'EMP-201',
+          fullName: 'Samira Noor',
+          accessRole: 'EMPLOYEE' as const,
+          status: 'INACTIVE' as const,
+          managerEmployeeCode: 'EMP-200',
+          activeReviewPeriod: null,
+        }),
+      },
+      documents: { findDocumentSnapshotById: jest.fn().mockResolvedValue(null) },
+    });
+
+    await expect(
+      service.generateAuthorized({
+        leaveRequestId: 'missing-request',
+        actorEmployeeCode: 'EMP-201',
+      }),
+    ).resolves.toBeNull();
+  });
 });
