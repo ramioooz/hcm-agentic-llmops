@@ -27,6 +27,8 @@ Do not include credentials, real personal information, or private customer data 
 - Recheck authorization inside business tools and services.
 - Treat untrusted model output as data that must be validated.
 
-## Development-tool advisory
+## Dependency advisory boundary
 
-Production dependencies currently pass `npm audit --omit=dev`. The optional LangGraph Studio CLI depends on `extract-zip` through `@langchain/langgraph-cli`, and the current upstream dependency chain has a published high-severity archive-extraction advisory with no available package update. The CLI is development-only: do not run it against untrusted templates or archives, and keep it out of production images and runtime workflows.
+The source lockfile currently reports high-severity advisories in two development/tooling paths: `prisma` through `@prisma/config` and `deepmerge-ts`, and the optional LangGraph Studio CLI through `@langchain/langgraph-cli` and `extract-zip`. Consequently, do not treat a source-tree `npm audit --omit=dev` result as a zero-exit runtime-image audit: npm installs Prisma as an optional peer of `@prisma/client` in that source dependency view.
+
+The final API image is built from a separate runtime-dependency stage that omits development, peer, and optional packages. It must exclude `prisma`, `@prisma/config`, `deepmerge-ts`, Jest, ESLint, Prettier, TypeScript, and the LangGraph CLI. Migration, seed, indexing, Studio, and other development commands remain confined to the full-dependency tooling stage. Do not run the LangGraph CLI against untrusted templates or archives.

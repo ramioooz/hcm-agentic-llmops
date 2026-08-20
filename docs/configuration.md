@@ -73,6 +73,18 @@ With `npm run dev`, the API uses `PORT` and listens on `http://localhost:3000` w
 
 With Docker Compose, the API process still listens on container port `3000`, while `API_PORT` controls the host mapping. The default host URL is `http://localhost:3300`.
 
+Compose builds separate targets for separate responsibilities. The one-shot `tooling` service applies migrations before the `runtime` API starts; it also owns Prisma CLI, `tsx`, seeding, and knowledge indexing commands:
+
+```bash
+docker compose run --rm tooling npm run db:migrate
+docker compose run --rm tooling npm run db:seed
+docker compose run --rm tooling npm run knowledge:index
+```
+
+The API container intentionally contains neither those development tools nor repository source files and runs only `npm start`.
+
+If explicit LangSmith delivery emits `knowledge.trace.failed`, verify the key, workspace/project access, and endpoint without printing credentials, provider bodies, questions, or identities. A `401` or `403` from sanitized project-read, single-run, and batch-ingest controls indicates an external authorization or configuration failure rather than evidence to change the recorder.
+
 ## Startup diagnostics
 
 Startup failures are written to the terminal for the operator who must correct them. Known failures include both the cause and the next action. For example, starting a second local API process on the same port reports:

@@ -120,16 +120,14 @@ The API listens on `http://localhost:3000`.
 
 ```bash
 docker compose up -d --build
-docker compose exec api npm run db:generate
-docker compose exec api npm run db:migrate
-docker compose exec api npm run db:seed
-docker compose exec api npm run knowledge:index
+docker compose run --rm tooling npm run db:seed
+docker compose run --rm tooling npm run knowledge:index
 docker compose ps
 curl http://localhost:3300/health
 curl http://localhost:3300/ready
 ```
 
-The API listens on `http://localhost:3300`. The process uses container port `3000`; `API_PORT=3300` controls only the host mapping. Seeding resets the sample runtime and indexed knowledge data, so never use it against data that must be preserved. The [manual testing guide](docs/manual-testing.md) has the complete environment settings, state-reset, and troubleshooting details.
+Compose runs database migrations in a one-shot `tooling` service before starting the runtime-only API image. Reuse that service for Prisma, `tsx`, seed, and indexing commands; the API container runs only `npm start`. The API listens on `http://localhost:3300`. The process uses container port `3000`; `API_PORT=3300` controls only the host mapping. Seeding resets the sample runtime and indexed knowledge data, so never use it against data that must be preserved. The [manual testing guide](docs/manual-testing.md) has the complete environment settings, state-reset, and troubleshooting details.
 
 ### Check the service
 
@@ -381,8 +379,8 @@ npm run knowledge:index
 For Docker Compose:
 
 ```bash
-# Index inside the API container
-docker compose exec api npm run knowledge:index
+# Run indexing in an ephemeral full-tooling container
+docker compose run --rm tooling npm run knowledge:index
 ```
 
 The first local run reports `INDEXED` or `UPDATED`. The optional unchanged run reports `SKIPPED`; it does not create duplicates.
@@ -394,7 +392,7 @@ curl --request POST \
   --url http://localhost:3000/api/v1/knowledge/query \
   --header 'Content-Type: application/json' \
   --header 'X-Employee-Id: EMP-201' \
-  --data '{"query":"How many remote-working days are allowed each week?"}'
+  --data '{"query":"According to the employee remote-working policy, how many remote days are allowed each week?"}'
 ```
 
 Representative HTTP response when the indexed evidence supports an answer:

@@ -137,7 +137,7 @@ curl --request POST \
   --url http://localhost:3000/api/v1/knowledge/query \
   --header 'Content-Type: application/json' \
   --header 'X-Employee-Id: EMP-201' \
-  --data '{"query":"How many remote-working days are allowed each week, and what home-office equipment allowance is available?"}'
+  --data '{"query":"According to the employee remote-working policy, how many remote days are allowed each week, and according to the home-office policy, what equipment allowance is available?"}'
 ```
 
 Expected HTTP response: `200 OK`; `Content-Type: application/json`; a server-generated
@@ -359,7 +359,7 @@ Connect with Streamable HTTP to `http://localhost:3000/mcp` and send header `X-E
 
 ```json
 {
-  "query": "What must an employee do after suspected credential exposure?"
+  "query": "According to the Home-Office Policy, where and how quickly must an employee report suspected credential exposure?"
 }
 ```
 
@@ -388,6 +388,8 @@ The completed parent and reached child stages are sent through one awaited LangS
 
 If the API key is absent, the query still completes. Startup logs `knowledge.trace.disabled`, and each valid query logs `knowledge.trace.skipped` without including the question or employee identity.
 
+If a configured query emits `knowledge.trace.failed`, verify that the key is current, that its workspace can access `LANGSMITH_PROJECT`, and that the configured LangSmith endpoint is correct. A `401` or `403` reproduced across sanitized project-read, single-run, and batch-ingest checks is an external authorization or configuration failure; do not change the recorder on that evidence alone. Never print provider response bodies, keys, raw questions, or employee identities while diagnosing trace delivery.
+
 ## 8. How retrieval controls work
 
 | Setting                  | Responsibility                                                          |
@@ -400,20 +402,22 @@ PostgreSQL first orders a bounded candidate set by cosine distance. It then conv
 
 Do not lower the threshold to make one manual query pass. Evaluate representative relevant, paraphrased, cross-document, and unsupported questions before changing it.
 
+The former compound example omitted required evidence because the Employee Policy chunk scored `0.499723`, just below the `0.50` threshold. The document-aware wording in section 5.1 retrieves both required policies safely without weakening `RAG_MINIMUM_SIMILARITY`.
+
 ## 9. Troubleshooting
 
-| Symptom                                                      | Likely cause                                                                                                        | Action                                                                                                                    |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `KNOWLEDGE_DATABASE_READ_FAILED` during indexing             | PostgreSQL is unavailable, migrations are missing, or `DATABASE_URL` points to the wrong database.                  | Check `docker compose ps`, run `npm run db:migrate`, and verify `.env` without printing credentials.                      |
-| Index summary contains no PDFs                               | The command was not run from the repository root or `knowledge-documents/` contains no readable `.pdf` files.       | Run from the repository root and list the directory.                                                                      |
-| `KNOWLEDGE_EMBEDDING_FAILED`                                 | Missing/invalid OpenAI key, model access, provider outage, or network failure.                                      | Verify `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, and connectivity.                                                      |
-| `EMBEDDING_DIMENSION_MISMATCH`                               | The configured embedding model no longer returns the stored vector width.                                           | Restore the configured model or perform a controlled reindex compatible with the schema.                                  |
-| Relevant-looking query returns `INSUFFICIENT_EVIDENCE`       | No active chunks passed the similarity threshold, evidence was rejected by safety inspection, or indexing is stale. | Inspect active versions and LangSmith retrieval scores; reindex changed PDFs; tune only with evaluation evidence.         |
-| Document-scoped query returns `KNOWLEDGE_DOCUMENT_NOT_FOUND` | The ID is missing, inactive, or was copied before the latest seed-and-reindex cycle.                                | Copy the current document ID from `npm run knowledge:index` or the PostgreSQL document query.                             |
-| Answer cites only one PDF                                    | Only one document produced qualifying or cited evidence.                                                            | Use the cross-document test question and inspect returned scores and citations.                                           |
-| `RAG_EXTERNAL_PROCESSING_DISABLED`                           | External embedding and answer calls are disabled.                                                                   | Set `RAG_EXTERNAL_PROCESSING_ENABLED=true` only in an approved environment and restart.                                   |
-| No LangSmith run appears                                     | RAG tracing is disabled, the key is absent, the project differs, or trace delivery failed.                          | Check tracing variables and safe `knowledge.trace.disabled`, `knowledge.trace.skipped`, or `knowledge.trace.failed` logs. |
-| HTTP request with `limit` returns `400`                      | Caller-controlled retrieval tuning was removed.                                                                     | Remove `limit`; configure retrieval through environment values.                                                           |
+| Symptom                                                      | Likely cause                                                                                                                | Action                                                                                                                                                                        |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `KNOWLEDGE_DATABASE_READ_FAILED` during indexing             | PostgreSQL is unavailable, migrations are missing, or `DATABASE_URL` points to the wrong database.                          | Check `docker compose ps`, run `npm run db:migrate`, and verify `.env` without printing credentials.                                                                          |
+| Index summary contains no PDFs                               | The command was not run from the repository root or `knowledge-documents/` contains no readable `.pdf` files.               | Run from the repository root and list the directory.                                                                                                                          |
+| `KNOWLEDGE_EMBEDDING_FAILED`                                 | Missing/invalid OpenAI key, model access, provider outage, or network failure.                                              | Verify `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, and connectivity.                                                                                                          |
+| `EMBEDDING_DIMENSION_MISMATCH`                               | The configured embedding model no longer returns the stored vector width.                                                   | Restore the configured model or perform a controlled reindex compatible with the schema.                                                                                      |
+| Relevant-looking query returns `INSUFFICIENT_EVIDENCE`       | No active chunks passed the similarity threshold, evidence was rejected by safety inspection, or indexing is stale.         | Inspect active versions and LangSmith retrieval scores; reindex changed PDFs; tune only with evaluation evidence.                                                             |
+| Document-scoped query returns `KNOWLEDGE_DOCUMENT_NOT_FOUND` | The ID is missing, inactive, or was copied before the latest seed-and-reindex cycle.                                        | Copy the current document ID from `npm run knowledge:index` or the PostgreSQL document query.                                                                                 |
+| Answer cites only one PDF                                    | Only one document produced qualifying or cited evidence.                                                                    | Use the cross-document test question and inspect returned scores and citations.                                                                                               |
+| `RAG_EXTERNAL_PROCESSING_DISABLED`                           | External embedding and answer calls are disabled.                                                                           | Set `RAG_EXTERNAL_PROCESSING_ENABLED=true` only in an approved environment and restart.                                                                                       |
+| No LangSmith run appears                                     | RAG tracing is disabled, the key is absent, the project/workspace differs, the endpoint is wrong, or trace delivery failed. | Check tracing variables and safe trace logs; for `knowledge.trace.failed`, follow the authorization checks in section 7 without printing sensitive inputs or provider bodies. |
+| HTTP request with `limit` returns `400`                      | Caller-controlled retrieval tuning was removed.                                                                             | Remove `limit`; configure retrieval through environment values.                                                                                                               |
 
 ## 10. Focused verification checklist
 

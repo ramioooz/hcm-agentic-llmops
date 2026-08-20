@@ -2,6 +2,9 @@
   "name": "hcm-agentic-llmops",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22 <23"
+  },
   "description": "Secure, event-driven Human Capital Management agent API.",
   "main": "dist/src/server.js",
   "scripts": {

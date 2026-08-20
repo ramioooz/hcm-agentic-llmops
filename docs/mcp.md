@@ -241,7 +241,7 @@ Cross-document query arguments:
 
 ```json
 {
-  "query": "How many remote-working days are allowed each week?"
+  "query": "According to the employee remote-working policy, how many remote days are allowed each week?"
 }
 ```
 

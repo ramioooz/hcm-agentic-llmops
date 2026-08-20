@@ -21,11 +21,11 @@ npm run knowledge:index
 For the Docker Compose API service:
 
 ```bash
-# Index inside the container that owns the API runtime configuration
-docker compose exec api npm run knowledge:index
+# Index inside an ephemeral container that owns the full tooling configuration
+docker compose run --rm tooling npm run knowledge:index
 
 # Optional: verify that unchanged documents are skipped
-docker compose exec api npm run knowledge:index
+docker compose run --rm tooling npm run knowledge:index
 ```
 
 The second run is intentionally optional. It demonstrates idempotency: an unchanged content hash, embedding model, and chunking version produces `SKIPPED` rather than another index version.

@@ -28,13 +28,36 @@ services:
       timeout: 5s
       retries: 10
 
+  tooling:
+    build:
+      context: .
+      target: tooling
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://hcm:hcm_dev_password@postgres:5432/hcm?schema=public
+      AMQP_URL: amqp://guest:guest@rabbitmq:5672
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      RAG_EXTERNAL_PROCESSING_ENABLED: ${RAG_EXTERNAL_PROCESSING_ENABLED:-true}
+      AUTOMATION_ACTOR_EMPLOYEE_CODE: ${AUTOMATION_ACTOR_EMPLOYEE_CODE:-EMP-100}
+      WEBHOOK_API_KEY: ${WEBHOOK_API_KEY:?WEBHOOK_API_KEY is required}
+    command: ['npm', 'run', 'db:migrate']
+    restart: 'no'
+
   api:
-    build: .
+    build:
+      context: .
+      target: runtime
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      tooling:
+        condition: service_completed_successfully
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -58,7 +81,7 @@ services:
       RABBITMQ_MAX_ATTEMPTS: ${RABBITMQ_MAX_ATTEMPTS:-3}
     ports:
       - '${API_PORT:-3300}:3000'
-    command: ['sh', '-c', 'npm run db:migrate && npm start']
+    command: ['npm', 'start']
 
 volumes:
   hcm_postgres_data:
