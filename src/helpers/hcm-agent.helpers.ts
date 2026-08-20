@@ -1,13 +1,8 @@
-import { AgentErrorCode, CommonErrorCode } from '../enums/error.enum';
+import { CommonErrorCode } from '../enums/error.enum';
 import { HcmIntentType } from '../enums/hcm-agent.enum';
 import { OnboardingReviewAction } from '../enums/onboarding.enum';
-import { redactSensitiveData } from '../security/pii-redaction';
-import { ApplicationError } from '../errors/application.error';
 import { resolveApplicationErrorCode } from './application-error.helpers';
-import type { AgentInvocationRecord } from '../types/agent-invocation-record';
-import type { AgentEventSink } from '../types/agent-event-sink';
 import type { HcmAgentExecutionContext } from '../types/hcm-agent-execution-context';
-import type { HcmAgentGraphDependencies } from '../types/hcm-agent-graph-dependencies';
 import type { HcmIntent } from '../types/hcm-intent';
 import type {
   OnboardingInvocationInput,
@@ -40,26 +35,6 @@ export function safeErrorCode(error: unknown): string {
     : CommonErrorCode.InternalError;
 }
 
-export function emitNodeEvent(
-  emit: AgentEventSink,
-  runId: string,
-  node: string,
-  status: 'completed' | 'failed' | 'rejected',
-  outcomeCode: string,
-): void {
-  emit({ event: 'node', data: { runId, node, status, outcomeCode } });
-}
-
-export function emitToolEvent(
-  emit: AgentEventSink,
-  runId: string,
-  toolName: 'employee_lookup' | 'onboarding_calculation' | 'manager_notification',
-  status: 'completed' | 'failed' | 'skipped',
-  outcomeCode: string,
-): void {
-  emit({ event: 'tool', data: { runId, tool: toolName, status, outcomeCode } });
-}
-
 export function buildFailureResult(
   context: HcmAgentExecutionContext,
   httpStatus: number,
@@ -73,66 +48,6 @@ export function buildFailureResult(
     threadId: context.input.threadId,
     runId: context.runId,
     correlationId: context.input.correlationId,
-  });
-}
-
-function toRunStatus(result: OnboardingInvocationResult): AgentInvocationRecord['status'] {
-  if (result.body.status === 'COMPLETED') return 'SUCCEEDED';
-  if (
-    result.body.status === 'UNSUPPORTED_REQUEST' ||
-    result.body.status === 'NEED_MORE_INFORMATION' ||
-    result.body.status === 'AWAITING_APPROVAL' ||
-    result.body.status === 'REJECTED' ||
-    result.body.code === AgentErrorCode.UnsafeRequestRejected
-  ) {
-    return 'REJECTED';
-  }
-  return 'FAILED';
-}
-
-export async function recordAgentResult(
-  dependencies: HcmAgentGraphDependencies,
-  context: HcmAgentExecutionContext,
-): Promise<void> {
-  if (!context.result) throw new ApplicationError(AgentErrorCode.GraphResultMissing);
-  const intent = context.intent;
-  await dependencies.recorder.recordInvocation({
-    runId: context.runId,
-    threadId: context.input.threadId,
-    correlationId: context.input.correlationId,
-    triggerType: context.input.triggerType ?? 'HTTP',
-    actorEmployeeCode: context.input.actorEmployeeCode,
-    intent:
-      intent?.intent === HcmIntentType.OnboardingReview ||
-      intent?.intent === HcmIntentType.LeaveRequest
-        ? intent.intent
-        : undefined,
-    requestSummary: intent
-      ? redactSensitiveData({
-          intent: intent.intent,
-          employeeCode: intent.employeeCode,
-          thresholdDays: intent.thresholdDays,
-          requestedAction: intent.requestedAction,
-          ...(intent.intent === HcmIntentType.LeaveRequest
-            ? {
-                leaveStartDate: intent.leaveStartDate,
-                leaveEndDate: intent.leaveEndDate,
-              }
-            : {}),
-          missingFields: intent.missingFields,
-        })
-      : {},
-    status: toRunStatus(context.result),
-    resultSummary: redactSensitiveData(context.result.body),
-    steps: context.steps.map((step) => ({
-      ...step,
-      inputData: step.inputData ? redactSensitiveData(step.inputData) : undefined,
-      outputData: step.outputData ? redactSensitiveData(step.outputData) : undefined,
-    })),
-    securityEvents: context.securityEvents.map((event) => ({
-      ...event,
-      details: event.details ? redactSensitiveData(event.details) : undefined,
-    })),
   });
 }
 

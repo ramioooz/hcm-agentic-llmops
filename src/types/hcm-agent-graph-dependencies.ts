@@ -4,7 +4,7 @@ import type { AgentTraceRecorder } from './agent-trace-recorder';
 import type { Clock } from './clock';
 import type { EmployeeReader } from './employee-reader';
 import type { HcmIntentNormalizer } from './hcm-intent-normalizer';
-import type { LeaveApprovalStore } from './leave-approval-store';
+import type { LeaveApprovalWorkflow } from './leave-approval-workflow';
 import type { LeaveReader } from './leave-reader';
 import type { ManagerNotificationSender } from './manager-notification-sender';
 import type { ThreadOwnershipReader } from './thread-ownership-reader';
@@ -20,5 +20,5 @@ export type HcmAgentGraphDependencies = {
   traceRecorder?: AgentTraceRecorder;
   configuredModel?: string;
   leaves?: LeaveReader;
-  leaveApprovals?: LeaveApprovalStore;
+  leaveApprovals?: LeaveApprovalWorkflow;
 };

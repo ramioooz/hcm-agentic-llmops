@@ -3,11 +3,8 @@ import { SecurityEventType, SecuritySeverity } from '../../enums/security.enum';
 import { evaluateRequestSafety } from '../../security/request-safety';
 import type { AgentEventSink } from '../../types/agent-event-sink';
 import type { HcmAgentExecutionContext } from '../../types/hcm-agent-execution-context';
-import {
-  buildFailureResult,
-  emitNodeEvent,
-  isTechnicalCommand,
-} from '../../helpers/hcm-agent.helpers';
+import { buildFailureResult, isTechnicalCommand } from '../../helpers/hcm-agent.helpers';
+import { emitNodeEvent } from '../../observability/agent-progress-events';
 
 export function createRequestGuardNode(context: HcmAgentExecutionContext, emit: AgentEventSink) {
   return () => {

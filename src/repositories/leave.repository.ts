@@ -1,13 +1,14 @@
 import type { PrismaClient } from '@prisma/client';
-import { CommonErrorCode, LeaveErrorCode } from '../enums/error.enum';
+import { LeaveErrorCode } from '../enums/error.enum';
 import { LeaveDocumentTemplateVersion } from '../enums/leave.enum';
 import { ApplicationError } from '../errors/application.error';
 import type { LeaveReader } from '../types/leave-reader';
 import type { LeaveApprovalStore } from '../types/leave-approval-store';
+import type { LeaveDocumentReader } from '../types/leave-document-reader';
 
 const annualWorkWeek = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
 
-export class PrismaLeaveRepository implements LeaveReader, LeaveApprovalStore {
+export class PrismaLeaveRepository implements LeaveReader, LeaveApprovalStore, LeaveDocumentReader {
   public constructor(private readonly database: PrismaClient) {}
 
   public async findAnnualPolicy() {
@@ -123,42 +124,25 @@ export class PrismaLeaveRepository implements LeaveReader, LeaveApprovalStore {
     };
   }
 
-  public async findAuthorizedDocument(input: {
-    leaveRequestId: string;
-    actorEmployeeCode: string;
-  }) {
-    const [actor, request] = await Promise.all([
-      this.database.employee.findUnique({
-        where: { employeeCode: input.actorEmployeeCode },
-        select: { employeeCode: true, accessRole: true, status: true },
-      }),
-      this.database.leaveRequest.findUnique({
-        where: { id: input.leaveRequestId },
-        select: {
-          id: true,
-          status: true,
-          startDate: true,
-          endDate: true,
-          requestedWorkingDays: true,
-          documentTemplateVersion: true,
-          employee: { select: { employeeCode: true } },
-          leavePolicy: { select: { code: true } },
-        },
-      }),
-    ]);
-    if (!actor) throw new ApplicationError(CommonErrorCode.AuthenticationRequired);
+  public async findDocumentSnapshotById(leaveRequestId: string) {
+    const request = await this.database.leaveRequest.findUnique({
+      where: { id: leaveRequestId },
+      select: {
+        id: true,
+        status: true,
+        startDate: true,
+        endDate: true,
+        requestedWorkingDays: true,
+        documentTemplateVersion: true,
+        employee: { select: { employeeCode: true } },
+        leavePolicy: { select: { code: true } },
+      },
+    });
     if (!request || request.status !== 'SUBMITTED') return null;
-    if (actor.status !== 'ACTIVE') throw new ApplicationError(CommonErrorCode.EmployeeInactive);
-    if (actor.accessRole !== 'HR' && actor.employeeCode !== request.employee.employeeCode) {
-      throw new ApplicationError(CommonErrorCode.AuthorizationDenied);
-    }
-    if (request.leavePolicy.code !== 'ANNUAL') {
-      throw new ApplicationError(LeaveErrorCode.DocumentTemplateUnsupported);
-    }
     return {
       id: request.id,
       employeeCode: request.employee.employeeCode,
-      leaveType: 'ANNUAL' as const,
+      leaveType: request.leavePolicy.code,
       startDate: request.startDate.toISOString().slice(0, 10),
       endDate: request.endDate.toISOString().slice(0, 10),
       requestedWorkingDays: request.requestedWorkingDays,

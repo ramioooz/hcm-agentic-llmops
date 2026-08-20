@@ -7,8 +7,7 @@ import { ApplicationError } from '../errors/application.error';
 import { resolveSafeCorrelationId } from '../security/correlation-id';
 import type { AgentInvoker } from '../types/agent-invoker';
 import type { ProcessedEventStore } from '../types/processed-event-store';
-
-export type TechnicalTriggerType = 'SCHEDULE' | 'WEBHOOK' | 'RABBITMQ';
+import type { TechnicalTriggerType } from '../types/technical-trigger-type';
 
 type TriggerProcessingErrorCode =
   | TriggerErrorCode.EventIdConflict

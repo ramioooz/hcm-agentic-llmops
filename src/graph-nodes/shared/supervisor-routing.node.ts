@@ -5,7 +5,7 @@ import { buildInvocationResult } from '../../helpers/onboarding-agent.helpers';
 import { routeHcmIntent } from '../../graph-routing/intent.route';
 import type { AgentEventSink } from '../../types/agent-event-sink';
 import type { HcmAgentExecutionContext } from '../../types/hcm-agent-execution-context';
-import { emitNodeEvent } from '../../helpers/hcm-agent.helpers';
+import { emitNodeEvent } from '../../observability/agent-progress-events';
 
 export function createSupervisorRoutingNode(
   context: HcmAgentExecutionContext,

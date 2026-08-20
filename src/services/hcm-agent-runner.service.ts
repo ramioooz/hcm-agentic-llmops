@@ -1,11 +1,14 @@
 import { Command } from '@langchain/langgraph';
-import { AgentErrorCode, CommonErrorCode } from '../enums/error.enum';
-import { HcmIntentType } from '../enums/hcm-agent.enum';
+import { AgentErrorCode } from '../enums/error.enum';
 import { LeaveApprovalDecision } from '../enums/leave.enum';
-import { SecurityEventType, SecuritySeverity } from '../enums/security.enum';
 import { ApplicationError } from '../errors/application.error';
 import { createHcmAgentGraph } from '../graphs/hcm-agent.graph';
 import { buildInvocationResult } from '../helpers/onboarding-agent.helpers';
+import { AgentExecutionObserver } from '../observability/agent-execution-observer';
+import {
+  recordAgentResult,
+  recordThreadIdentityMismatch as persistThreadIdentityMismatch,
+} from '../observability/agent-run-audit';
 import { HCM_INTENT_PROMPT_VERSION } from '../prompts/normalize-hcm-intent.prompt';
 import { resolveSafeCorrelationId } from '../security/correlation-id';
 import { resolveThreadId } from '../security/thread-id';
@@ -16,11 +19,7 @@ import type { HcmAgentGraphDependencies } from '../types/hcm-agent-graph-depende
 import type { OnboardingInvocationInput } from '../types/onboarding-invocation-input';
 import type { OnboardingInvocationResult } from '../types/onboarding-invocation-result';
 import type { CanonicalThreadOwner } from '../types/thread-ownership-reader';
-import {
-  buildFailureResult,
-  isTechnicalCommand,
-  recordAgentResult,
-} from '../helpers/hcm-agent.helpers';
+import { buildFailureResult, isTechnicalCommand } from '../helpers/hcm-agent.helpers';
 
 async function recordThreadIdentityMismatch(
   dependencies: HcmAgentGraphDependencies,
@@ -35,26 +34,7 @@ async function recordThreadIdentityMismatch(
     runId,
     correlationId: input.correlationId,
   });
-  await dependencies.recorder.recordInvocation({
-    threadId: input.threadId,
-    runId,
-    correlationId: input.correlationId,
-    triggerType: input.triggerType ?? 'HTTP',
-    actorEmployeeCode: input.actorEmployeeCode,
-    status: 'REJECTED',
-    requestSummary: {},
-    resultSummary: { status: result.body.status, code: result.body.code },
-    steps: [
-      {
-        stepName: 'thread_identity_check',
-        status: 'REJECTED',
-        outcomeCode: AgentErrorCode.ThreadIdentityMismatch,
-      },
-    ],
-    securityEvents: [
-      { eventType: SecurityEventType.AuthorizationDenied, severity: SecuritySeverity.High },
-    ],
-  });
+  await persistThreadIdentityMismatch(dependencies.recorder, input, runId, result);
   return result;
 }
 
@@ -106,31 +86,6 @@ export async function runHcmAgentGraph(
   resumeDecision?: AgentResumeInput['decision'],
 ): Promise<OnboardingInvocationResult> {
   const startedAt = Date.now();
-  let normalizedIntent: HcmIntentType | null = null;
-  const nodePath: string[] = [];
-  const toolNames: string[] = [];
-  let authorizationResult: 'AUTHORIZED' | 'DENIED' | 'NOT_EVALUATED' = 'NOT_EVALUATED';
-  const emitEvent: AgentEventSink = (event) => {
-    if (event.event === 'intent') normalizedIntent = event.data.intent as HcmIntentType;
-    if (event.event === 'node') nodePath.push(event.data.node);
-    if (event.event === 'approval') nodePath.push(`approval_${event.data.status}`);
-    if (event.event === 'document') nodePath.push(`document_${event.data.status}`);
-    if (event.event === 'tool') {
-      toolNames.push(event.data.tool);
-      nodePath.push(event.data.tool);
-      if (event.data.outcomeCode === CommonErrorCode.AuthorizationDenied) {
-        authorizationResult = 'DENIED';
-      } else if (
-        (event.data.tool === 'employee_lookup' ||
-          event.data.tool === 'leave_policy_lookup' ||
-          event.data.tool === 'leave_balance_lookup') &&
-        event.data.status === 'completed'
-      ) {
-        authorizationResult = 'AUTHORIZED';
-      }
-    }
-    emit(event);
-  };
   const safeInput = {
     ...input,
     actorEmployeeCode: input.actorEmployeeCode.trim().toUpperCase(),
@@ -144,6 +99,16 @@ export async function runHcmAgentGraph(
     steps: [],
     securityEvents: [],
   };
+  const observer = new AgentExecutionObserver({
+    recorder: dependencies.traceRecorder,
+    configuredModel: dependencies.configuredModel ?? 'unconfigured',
+    promptVersion: HCM_INTENT_PROMPT_VERSION,
+    startedAt,
+    input: safeInput,
+    runId,
+    forward: emit,
+  });
+  const emitEvent = observer.emit;
   emitEvent({
     event: 'run',
     data: {
@@ -159,8 +124,8 @@ export async function runHcmAgentGraph(
     safeInput.actorEmployeeCode,
   );
   if (!owner) {
-    authorizationResult = 'DENIED';
-    nodePath.push('identity_resolution');
+    observer.markAuthorizationDenied();
+    observer.recordNode('identity_resolution');
     context.result = buildFailureResult(
       context,
       401,
@@ -216,7 +181,7 @@ export async function runHcmAgentGraph(
           event: 'document',
           data: { runId, status: 'available', leaveRequestId: existing.id },
         });
-        await recordAgentResult(dependencies, context);
+        await recordAgentResult(dependencies.recorder, context);
         emitEvent({ event: 'response', data: { runId, status: 'completed', ...context.result } });
       } else {
         const graph = createHcmAgentGraph(dependencies, context, emitEvent);
@@ -241,7 +206,7 @@ export async function runHcmAgentGraph(
             runId,
             correlationId: safeInput.correlationId,
           });
-          await recordAgentResult(dependencies, context);
+          await recordAgentResult(dependencies.recorder, context);
           emitEvent({ event: 'response', data: { runId, status: 'completed', ...context.result } });
         }
       }
@@ -249,40 +214,10 @@ export async function runHcmAgentGraph(
   }
   if (!context.result) throw new ApplicationError(AgentErrorCode.GraphResultMissing);
 
-  if (dependencies.traceRecorder) {
-    const modelCallCount =
-      !isTechnicalCommand(safeInput) && nodePath.includes('intent_normalization') ? 1 : 0;
-    const failureCode =
-      context.result.body.status === 'FAILED'
-        ? typeof context.result.body.code === 'string'
-          ? context.result.body.code
-          : CommonErrorCode.InternalError
-        : null;
-    try {
-      await dependencies.traceRecorder.record({
-        runId,
-        threadId: safeInput.threadId,
-        correlationId: safeInput.correlationId,
-        rawQuery: isTechnicalCommand(safeInput) ? '' : safeInput.query,
-        promptVersion: HCM_INTENT_PROMPT_VERSION,
-        configuredModel: dependencies.configuredModel ?? 'unconfigured',
-        normalizedIntent,
-        nodePath,
-        toolNames,
-        authorizationResult,
-        guardrailReasonCode: context.guardrailReasonCode ?? null,
-        blockedBeforeModel: context.guardrailReasonCode !== undefined && modelCallCount === 0,
-        retryCount: 0,
-        modelCallCount,
-        tokenUsage: null,
-        latencyMs: Math.max(0, Date.now() - startedAt),
-        costUsd: null,
-        failureCode,
-      });
-    } catch {
-      // Optional external tracing must never change application behavior.
-    }
-  }
+  await observer.complete({
+    result: context.result,
+    guardrailReasonCode: context.guardrailReasonCode,
+  });
   return context.result;
 }
 
