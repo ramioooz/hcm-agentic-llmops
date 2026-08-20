@@ -122,7 +122,7 @@ POST /api/v1/knowledge/query
 X-Employee-Id: EMP-201
 Content-Type: application/json
 
-{"query":"How many remote-working days are allowed each week?"}
+{"query":"According to the employee remote-working policy, how many remote days are allowed each week?"}
 ```
 
 The normal API response is one HTTP `200` result, not a second trace payload:
