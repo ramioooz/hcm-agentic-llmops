@@ -63,6 +63,7 @@ const environmentSchema = z
       (value) => (value === '' ? undefined : value),
       z.string().min(1).optional(),
     ),
+    LANGSMITH_ENDPOINT: z.string().url().default('https://api.smith.langchain.com'),
     LANGSMITH_PROJECT: z.string().min(1).default('hcm-agentic-llmops'),
   })
   .superRefine((environment, context) => {
@@ -129,6 +130,7 @@ export function parseEnvironment(
     langSmithTracing: parsed.data.LANGSMITH_AGENT_TRACING === 'true',
     langSmithRagTracing: parsed.data.LANGSMITH_RAG_TRACING === 'true',
     langSmithApiKey: parsed.data.LANGSMITH_API_KEY,
+    langSmithEndpoint: parsed.data.LANGSMITH_ENDPOINT,
     langSmithProject: parsed.data.LANGSMITH_PROJECT,
   };
 }

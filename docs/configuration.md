@@ -34,6 +34,7 @@ The remaining values in `.env.example` are usable development defaults unless a 
 | `LANGSMITH_AGENT_TRACING`         | `false`                                                                          | Application            | Enables the explicit agent trace path.                                                              |
 | `LANGSMITH_RAG_TRACING`           | `true`                                                                           | Application            | Enables explicit RAG traces containing raw questions and answers but not complete retrieved chunks. |
 | `LANGSMITH_API_KEY`               | Optional for RAG execution; required to deliver RAG traces and for agent tracing | Application and Studio | Credential for explicit trace delivery and the hosted Studio interface.                             |
+| `LANGSMITH_ENDPOINT`              | `https://api.smith.langchain.com`                                                | Application            | Regional LangSmith API endpoint; override for AWS, EU, or APAC accounts.                            |
 | `LANGSMITH_PROJECT`               | `hcm-agentic-llmops`                                                             | Application/evaluation | Destination project for explicit traces and optional evaluation uploads.                            |
 | `API_PORT`                        | `3300`                                                                           | Docker Compose only    | Host port mapped to container port `3000`; the application does not read it.                        |
 | `LANGSMITH_EVALUATION_UPLOAD`     | Disabled unless exactly `true`                                                   | Evaluation only        | Uploads the offline evaluation report; also requires `LANGSMITH_API_KEY`.                           |
@@ -61,6 +62,7 @@ Agent tracing and RAG tracing are independent:
 
 - `LANGSMITH_AGENT_TRACING=true` sends the exact raw agent query and invocation metadata to LangSmith.
 - `LANGSMITH_RAG_TRACING=true` sends the raw knowledge question and generated answer, retrieval metadata, citations, guard outcomes, and timing. It excludes complete retrieved chunk text.
+- `LANGSMITH_ENDPOINT` must match the account region. Use `https://aws.api.smith.langchain.com` for AWS US, `https://eu.api.smith.langchain.com` for GCP EU, or `https://apac.api.smith.langchain.com` for GCP APAC.
 - RAG tracing defaults to enabled. If `LANGSMITH_API_KEY` is absent, startup continues, no trace is sent, and the API emits a safe startup warning plus a safe skipped-trace warning for each valid knowledge query. These warnings contain no raw question or employee identity.
 - Set `LANGSMITH_RAG_TRACING=false` to disable RAG tracing and its missing-key warnings explicitly.
 - Pino logs, PostgreSQL audit records, checkpoints, and SSE progress events continue to omit raw user queries.

@@ -49,6 +49,7 @@ export function createKnowledgeModule(input: {
     input.environment.langSmithRagTracing && input.environment.langSmithApiKey
       ? createLangSmithRagTraceRecorder({
           apiKey: input.environment.langSmithApiKey,
+          endpoint: input.environment.langSmithEndpoint,
           projectName: input.environment.langSmithProject,
         })
       : undefined;

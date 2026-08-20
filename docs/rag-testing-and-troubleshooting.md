@@ -372,6 +372,7 @@ Set these values before starting the API:
 ```dotenv
 LANGSMITH_RAG_TRACING=true
 LANGSMITH_API_KEY=your-langsmith-api-key
+LANGSMITH_ENDPOINT=https://api.smith.langchain.com # Replace with the endpoint for your LangSmith region.
 LANGSMITH_PROJECT=hcm-agentic-llmops
 ```
 
