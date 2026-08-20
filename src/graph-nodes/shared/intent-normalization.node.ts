@@ -9,13 +9,13 @@ import type { HcmAgentGraphDependencies } from '../../types/hcm-agent-graph-depe
 import {
   buildFailureResult,
   continueNormalizedIntent,
-  emitNodeEvent,
   isTechnicalCommand,
   isUserCommand,
   pendingIntentFromState,
   pendingState,
   resolveAuthenticatedSelfTarget,
 } from '../../helpers/hcm-agent.helpers';
+import { emitNodeEvent } from '../../observability/agent-progress-events';
 
 type ContinuationState = Parameters<typeof pendingIntentFromState>[0];
 

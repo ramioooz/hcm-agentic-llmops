@@ -2,6 +2,7 @@ import { LeaveErrorCode } from '../enums/error.enum';
 import { ApplicationError } from '../errors/application.error';
 import type { LeaveBalanceRecord } from '../types/leave-balance-record';
 import type { LeavePolicyRecord } from '../types/leave-policy-record';
+import type { LeaveProposalResult } from '../types/leave-proposal-result';
 
 const dayMilliseconds = 86_400_000;
 
@@ -35,7 +36,7 @@ export function evaluateLeaveProposal(input: {
   endDate: string;
   policy: LeavePolicyRecord;
   balance: LeaveBalanceRecord;
-}) {
+}): LeaveProposalResult {
   const requestedWorkingDays = countWorkingDays(input.startDate, input.endDate);
   const dayBeforeStart = new Date(parseDateOnly(input.startDate).getTime() - dayMilliseconds)
     .toISOString()

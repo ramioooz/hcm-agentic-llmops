@@ -3,7 +3,7 @@ import type { LeaveDocumentTemplateVersion } from '../enums/leave.enum';
 export type LeaveDocumentSnapshot = {
   id: string;
   employeeCode: string;
-  leaveType: 'ANNUAL';
+  leaveType: string;
   startDate: string;
   endDate: string;
   requestedWorkingDays: number;

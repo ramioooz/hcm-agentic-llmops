@@ -2,6 +2,7 @@ import { MemorySaver } from '@langchain/langgraph';
 import { HcmIntentType } from '../../src/enums/hcm-agent.enum';
 import { LeaveApprovalDecision, LeaveDocumentTemplateVersion } from '../../src/enums/leave.enum';
 import { HcmAgentService } from '../../src/services/hcm-agent.service';
+import { LeaveApprovalService } from '../../src/services/leave-approval.service';
 import type { EmployeeRecord } from '../../src/types/employee-record';
 
 const threadId = '8b8a6d62-bf1c-4abf-9968-84b8e23b58cb';
@@ -61,13 +62,13 @@ describe('leave approval', () => {
       resolveEmployeeCodeById: jest.fn().mockResolvedValue('EMP-201'),
       findSubmittedByThreadId: jest.fn(async () => submitted),
       submitApproved,
-      findAuthorizedDocument: jest.fn(),
     };
+    const clock = { today: () => '2026-08-10' };
     const service = new HcmAgentService({
       employees: { findByEmployeeCode: jest.fn().mockResolvedValue(employee) },
       leaves,
-      leaveApprovals: approvals,
-      clock: { today: () => '2026-08-10' },
+      leaveApprovals: new LeaveApprovalService({ store: approvals, clock }),
+      clock,
       recorder: { recordInvocation: jest.fn().mockResolvedValue(undefined) },
       normalizer: {
         normalize: jest.fn().mockResolvedValue({

@@ -5,7 +5,8 @@ import { buildInvocationResult } from '../../helpers/onboarding-agent.helpers';
 import type { AgentEventSink } from '../../types/agent-event-sink';
 import type { HcmAgentExecutionContext } from '../../types/hcm-agent-execution-context';
 import type { HcmAgentGraphDependencies } from '../../types/hcm-agent-graph-dependencies';
-import { buildFailureResult, recordAgentResult } from '../../helpers/hcm-agent.helpers';
+import { buildFailureResult } from '../../helpers/hcm-agent.helpers';
+import { recordAgentResult } from '../../observability/agent-run-audit';
 
 export function createResponseAuditNode(
   dependencies: HcmAgentGraphDependencies,
@@ -37,7 +38,7 @@ export function createResponseAuditNode(
       });
     }
     try {
-      await recordAgentResult(dependencies, context);
+      await recordAgentResult(dependencies.recorder, context);
     } catch {
       context.result = buildFailureResult(
         context,

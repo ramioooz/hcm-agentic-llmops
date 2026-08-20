@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { MemorySaver } from '@langchain/langgraph';
 import { createOfflineAgentDependencies } from '../evaluation/onboarding-agent.evaluation';
 import { HcmIntentType } from '../enums/hcm-agent.enum';
+import { LeaveDocumentTemplateVersion } from '../enums/leave.enum';
 import { OnboardingReviewAction } from '../enums/onboarding.enum';
 import type { HcmAgentGraphDependencies } from '../types/hcm-agent-graph-dependencies';
 import type { HcmAgentExecutionContext } from '../types/hcm-agent-execution-context';
@@ -93,13 +94,25 @@ export function createStudioScenario(scenario: StudioScenario): StudioGraphDefin
     leaveApprovals: {
       resolveEmployeeCodeById: async () => 'EMP-201',
       findSubmittedByThreadId: async () => undefined,
-      submitApproved: async (input) => ({
-        id: input.id,
-        employeeCode: input.employeeCode,
+      submit: async (input) => ({
         status: 'SUBMITTED',
-        documentTemplateVersion: input.documentTemplateVersion,
+        proposal: {
+          leaveType: 'ANNUAL',
+          startDate: input.pending.startDate,
+          endDate: input.pending.endDate,
+          requestedWorkingDays: input.pending.requestedWorkingDays,
+          noticeWorkingDays: 3,
+          availableDays: 18,
+          eligible: true,
+          reasons: [],
+        },
+        request: {
+          id: 'studio-leave-request',
+          employeeCode: input.employeeCode,
+          status: 'SUBMITTED',
+          documentTemplateVersion: LeaveDocumentTemplateVersion.V1,
+        },
       }),
-      findAuthorizedDocument: async () => null,
     },
     checkpointer: new MemorySaver(),
     threadOwnership: {

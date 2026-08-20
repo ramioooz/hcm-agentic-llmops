@@ -1,15 +1,9 @@
 import { interrupt } from '@langchain/langgraph';
-import { createHash } from 'node:crypto';
 import { LeaveErrorCode } from '../../enums/error.enum';
 import { HcmAgentRoute } from '../../enums/hcm-agent.enum';
-import {
-  LeaveApprovalDecision,
-  LeaveDocumentTemplateVersion,
-  LeaveGraphNode,
-} from '../../enums/leave.enum';
+import { LeaveApprovalDecision, LeaveGraphNode } from '../../enums/leave.enum';
 import { ApplicationError } from '../../errors/application.error';
 import { buildInvocationResult } from '../../helpers/onboarding-agent.helpers';
-import { evaluateLeaveProposal } from '../../services/leave-proposal.service';
 import type { AgentEventSink } from '../../types/agent-event-sink';
 import type { HcmAgentExecutionContext } from '../../types/hcm-agent-execution-context';
 import type { HcmAgentGraphDependencies } from '../../types/hcm-agent-graph-dependencies';
@@ -89,13 +83,14 @@ export function createLeaveApprovalNode(
     if (!loaded || !context.leavePolicy || !context.leaveBalance) {
       return { route: HcmAgentRoute.Respond, pendingLeaveApproval: null };
     }
-    const revalidated = evaluateLeaveProposal({
-      today: dependencies.clock.today(),
-      startDate: pending.startDate,
-      endDate: pending.endDate,
+    const submission = await dependencies.leaveApprovals.submit({
+      threadId: context.input.threadId,
+      employeeCode: targetEmployeeCode,
+      pending,
       policy: context.leavePolicy,
       balance: context.leaveBalance,
     });
+    const revalidated = submission.proposal;
     context.steps.push({
       stepName: LeaveGraphNode.Proposal,
       status: 'COMPLETED',
@@ -108,7 +103,7 @@ export function createLeaveApprovalNode(
         reasons: revalidated.reasons,
       },
     });
-    if (!revalidated.eligible) {
+    if (submission.status === 'CHANGED') {
       context.result = buildInvocationResult(409, {
         status: 'FAILED',
         code: 'LEAVE_PROPOSAL_CHANGED',
@@ -120,21 +115,7 @@ export function createLeaveApprovalNode(
       return { route: HcmAgentRoute.Respond, pendingLeaveApproval: null };
     }
 
-    const leaveRequestId = `lr_${createHash('sha256')
-      .update(context.input.threadId)
-      .digest('hex')
-      .slice(0, 24)}`;
-    const submitted = await dependencies.leaveApprovals.submitApproved({
-      id: leaveRequestId,
-      approvalThreadId: context.input.threadId,
-      employeeId: context.leaveBalance.employeeId,
-      employeeCode: targetEmployeeCode,
-      policyId: context.leavePolicy.id,
-      startDate: pending.startDate,
-      endDate: pending.endDate,
-      requestedWorkingDays: revalidated.requestedWorkingDays,
-      documentTemplateVersion: LeaveDocumentTemplateVersion.V1,
-    });
+    const submitted = submission.request;
     context.steps.push({
       stepName: LeaveGraphNode.Approval,
       status: 'COMPLETED',

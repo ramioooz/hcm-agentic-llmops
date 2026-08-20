@@ -6,7 +6,8 @@ import { createManagerNotificationTool } from '../../tools/onboarding.tools';
 import type { AgentEventSink } from '../../types/agent-event-sink';
 import type { HcmAgentExecutionContext } from '../../types/hcm-agent-execution-context';
 import type { HcmAgentGraphDependencies } from '../../types/hcm-agent-graph-dependencies';
-import { buildFailureResult, emitToolEvent, safeErrorCode } from '../../helpers/hcm-agent.helpers';
+import { buildFailureResult, safeErrorCode } from '../../helpers/hcm-agent.helpers';
+import { emitToolEvent } from '../../observability/agent-progress-events';
 import { ApplicationError } from '../../errors/application.error';
 
 export function createManagerNotificationNode(

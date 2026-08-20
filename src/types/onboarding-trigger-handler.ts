@@ -1,5 +1,5 @@
 import type { OnboardingTriggerEvent } from '../contracts/onboarding-trigger-event';
-import type { TechnicalTriggerType } from '../services/onboarding-trigger-processor';
+import type { TechnicalTriggerType } from './technical-trigger-type';
 
 export type OnboardingTriggerHandler = {
   process(input: {

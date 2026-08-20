@@ -1,5 +1,4 @@
 import type { LeaveDocumentTemplateVersion } from '../enums/leave.enum';
-import type { LeaveDocumentSnapshot } from './leave-document-snapshot';
 
 export type SubmittedLeaveRequest = {
   id: string;
@@ -22,8 +21,4 @@ export interface LeaveApprovalStore {
     requestedWorkingDays: number;
     documentTemplateVersion: LeaveDocumentTemplateVersion;
   }): Promise<SubmittedLeaveRequest>;
-  findAuthorizedDocument(input: {
-    leaveRequestId: string;
-    actorEmployeeCode: string;
-  }): Promise<LeaveDocumentSnapshot | null>;
 }
