@@ -241,6 +241,8 @@ flowchart TD
             direction LR
             RabbitMQ["RabbitMQ event"] ~~~ MCP["MCP request"]
         end
+
+        InputRow1 ~~~ InputRow2
     end
 
     style InputRow1 fill:none,stroke:none
