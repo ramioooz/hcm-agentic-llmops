@@ -229,9 +229,34 @@ The model interprets language; trusted application components decide what is per
 
 ```mermaid
 flowchart TD
-    Request["HTTP, schedule, webhook,<br/>RabbitMQ, or MCP request"] --> Validate["Validate identity,<br/>schema, and safety"]
-    Validate --> Intent["OpenAI converts user language<br/>to structured intent"]
-    Intent --> Route["Deterministic LangGraph routing"]
+    subgraph Inputs["Input stage"]
+        direction TB
+
+        subgraph InputRow1[" "]
+            direction LR
+            HTTP["HTTP API"] ~~~ Schedule["Scheduled trigger"] ~~~ Webhook["Webhook"]
+        end
+
+        subgraph InputRow2[" "]
+            direction LR
+            RabbitMQ["RabbitMQ event"] ~~~ MCP["MCP request"]
+        end
+
+        InputRow1 ~~~ InputRow2
+    end
+
+    style InputRow1 fill:none,stroke:none
+    style InputRow2 fill:none,stroke:none
+
+    Inputs --> Validate
+    Validate["Validate identity,<br/>schema, and safety"]
+    InputType{"Input type"}
+    Intent["OpenAI converts user language<br/>to structured intent"]
+    Validate --> InputType
+    InputType -->|Natural language| Intent
+    InputType -->|Typed workflow command| Route["Deterministic LangGraph routing"]
+    InputType -->|MCP tool call| Tools
+    Intent --> Route
     Route --> Tools["Authorized tools and<br/>TypeScript calculations"]
     Tools --> Data["Prisma/PostgreSQL"]
     Tools --> Effects["Explicit notification,<br/>PDF, or RabbitMQ adapter"]
