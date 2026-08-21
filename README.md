@@ -229,7 +229,7 @@ The model interprets language; trusted application components decide what is per
 
 ```mermaid
 flowchart TD
-    subgraph Inputs["Input stage"]
+    subgraph Inputs["System Input"]
         direction TB
 
         subgraph InputRow1[" "]
@@ -247,6 +247,7 @@ flowchart TD
 
     style InputRow1 fill:none,stroke:none
     style InputRow2 fill:none,stroke:none
+    style Inputs fill:none,stroke:#6b7280,stroke-width:1px
 
     Inputs --> Validate
     Validate["Validate identity,<br/>schema, and safety"]
