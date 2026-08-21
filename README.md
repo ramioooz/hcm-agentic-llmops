@@ -234,33 +234,26 @@ flowchart TD
 
         subgraph InputRow1[" "]
             direction LR
-            HTTP["HTTP API"]
-            Schedule["Scheduled trigger"]
-            Webhook["Webhook"]
+            HTTP["HTTP API"] ~~~ Schedule["Scheduled trigger"] ~~~ Webhook["Webhook"]
         end
 
         subgraph InputRow2[" "]
             direction LR
-            RabbitMQ["RabbitMQ event"]
-            MCP["MCP request"]
+            RabbitMQ["RabbitMQ event"] ~~~ MCP["MCP request"]
         end
     end
 
     style InputRow1 fill:none,stroke:none
     style InputRow2 fill:none,stroke:none
 
-    HTTP --> Validate
-    Schedule --> Validate
-    Webhook --> Validate
-    RabbitMQ --> Validate
-    MCP --> Validate
-
+    Inputs --> Validate
     Validate["Validate identity,<br/>schema, and safety"]
-    InputType{"Natural language or<br/>typed command/tool call?"}
+    InputType{"Input type"}
     Intent["OpenAI converts user language<br/>to structured intent"]
     Validate --> InputType
     InputType -->|Natural language| Intent
-    InputType -->|Typed command or MCP tool| Route["Deterministic LangGraph routing"]
+    InputType -->|Typed workflow command| Route["Deterministic LangGraph routing"]
+    InputType -->|MCP tool call| Tools
     Intent --> Route
     Route --> Tools["Authorized tools and<br/>TypeScript calculations"]
     Tools --> Data["Prisma/PostgreSQL"]
